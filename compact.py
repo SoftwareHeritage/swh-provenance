@@ -75,11 +75,14 @@ def walk_directory(cursor, storage, revision, directory, relative, name='./', in
         cursor.execute('SELECT date FROM directory WHERE id=%s', (directory,))
 
         row = cursor.fetchone()
-        if row is None:
+        if row is None or row[0] > revision['date']:
             # This directory belongs to the isochrone graph of the revision.
             # Add directory with the current revision's timestamp as date, and
             # walk recursively looking for new content.
-            cursor.execute('INSERT INTO directory VALUES (%s,%s)', (directory, revision['date']))
+            cursor.execute('''INSERT INTO directory VALUES (%s,%s)
+                            ON CONFLICT (id) DO UPDATE
+                            SET date=%s''',
+                            (directory, revision['date'], revision['date']))
 
             for entry in storage.directory_walk_one(directory):
                 child = make_record(entry)
@@ -90,16 +93,6 @@ def walk_directory(cursor, storage, revision, directory, relative, name='./', in
 
                 elif child['type'] == 'file':
                     process_file(cursor, storage, revision, relative, child['id'], path)
-
-        elif row[0] > revision['date']:
-            # This directory belongs to the isochrone graph of the revision.
-            # Update its date to match the current revision's timestamp.
-            cursor.execute('UPDATE directory SET date=%s WHERE id=%s', (revision['date'], directory))
-            # TODO: update entries from 'directory_in_rev' pointing to this
-            #       directory to now point to their children? If any children
-            #       of the old directory appears in the 'directory' table,
-            #       their date and entries in 'directory_in_rev' should be
-            #       updated as well!! (same for blobs!!)
 
         else:
             # This directory is just beyond the isochrone graph
@@ -139,35 +132,23 @@ def process_file(cursor, storage, revision, directory, blob, name):
     cursor.execute('SELECT date FROM content WHERE id=%s', (blob,))
 
     row = cursor.fetchone()
-    if row is None:
-        # print('row = None:', row, identifier_to_str(revision['id']), revision['date'], identifier_to_str(directory), identifier_to_str(blob), name)
-        # This blob was never seen before. Add blob with the current revision's
-        # timestamp as date, and set a record for  'content_early_in_rev' with
-        # the 'path = name'.
-        cursor.execute('INSERT INTO content VALUES (%s,%s)', (blob, revision['date']))
-        cursor.execute('INSERT INTO content_early_in_rev VALUES (%s,%s,%s)', (blob, revision['id'], name))
-
-    elif row[0] > revision['date']:
-        # print('row > date:', row, identifier_to_str(revision['id']), revision['date'], identifier_to_str(directory), identifier_to_str(blob), name)
-        # This is an earlier occurrance of an already seen blob. Update its
-        # date to match the current revision's timestamp.
-        cursor.execute('UPDATE content SET date=%s WHERE id=%s', (revision['date'], blob))
-        # TODO: update entries from 'content_early_in_rev' with current path,
-        #       and move previous entry to 'content_in_rev' with its path now
-        #       relative to the parent directory in the isochrone graph
-        #       frontier?
-        cursor.execute('SELECT path FROM content_early_in_rev WHERE blob=%s', (blob,))
-        print("new blob:", revision['date'], name)
-        for entry in cursor.fetchall():
-            print("old blob:", row[0], entry[0].tobytes().decode('utf-8'))
+    if row is None or row[0] > revision['date']:
+        # This is an earlier occurrence of the blob. Add it with the current
+        # revision's timestamp as date, and set a record for
+        # 'content_early_in_rev' with the 'path = name'.
+        cursor.execute('''INSERT INTO content VALUES (%s,%s,%s,%s)
+                          ON CONFLICT (id) DO UPDATE
+                          SET date=%s, rev=%s, path=%s''',
+                          (blob, revision['date'], revision['id'], name, revision['date'], revision['id'], name))
 
     else:
-        # print('otherwise: ', row, identifier_to_str(revision['id']), revision['date'], identifier_to_str(directory), identifier_to_str(blob), name)
         # This blob was seen before but this occurrence is older. Add
         # an entry to the 'content_in_dir' relation with the path
         # relative to the parent directory in the isochrone graph
         # frontier.
-        cursor.execute('INSERT INTO content_in_dir VALUES (%s,%s,%s) ON CONFLICT DO NOTHING', (blob, directory, name))
+        cursor.execute('''INSERT INTO content_in_dir VALUES (%s,%s,%s)
+                          ON CONFLICT DO NOTHING''',
+                          (blob, directory, name))
         # WARNING: There seem to be duplicated directories within the same
         #          revision. Hence, their blobs may appear many times with the
         #          same directory ID and 'relative' path. That's why we need

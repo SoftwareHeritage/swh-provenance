@@ -2,7 +2,6 @@
 from swh.model.identifiers import identifier_to_str
 
 
-
 # def typecast_bytea(value, cur):
 #     if value is not None:
 #         data = psycopg2.BINARY(value, cur)
@@ -35,36 +34,37 @@ class RevisionIterator:
     def __iter__(self):
         self.records.clear()
         if self.limit is None:
-            self.cur.execute('''SELECT id, date, directory
+            self.cur.execute('''SELECT id, date, committer_date, directory
                             FROM revision''')
-            # self.cur.execute('''SELECT id, date, directory
-            #                 FROM revision ORDER BY date''')
         else:
-            self.cur.execute('''SELECT id, date, directory
+            self.cur.execute('''SELECT id, date, committer_date, directory
                             FROM revision
                             LIMIT %s''', (self.limit,))
-            # self.cur.execute('''SELECT id, date, directory
-            #                 FROM revision ORDER BY date
-            #                 LIMIT %s''', (self.limit,))
         for row in self.cur.fetchmany(self.chunksize):
-            record = dict(zip(self.aliases, row))
-            self.records.append(record)
+            record = self.make_record(row)
+            if record is not None:
+                self.records.append(record)
         return self
 
     def __next__(self):
         if not self.records:
             self.records.clear()
             for row in self.cur.fetchmany(self.chunksize):
-                record = dict(zip(self.aliases, row))
-                self.records.append(record)
-                # self.records.append((
-                #     identifier_to_str(rev[0]),
-                #     rev[1],
-                #     identifier_to_str(rev[2])
-                # ))
+                record = self.make_record(row)
+                if record is not None:
+                    self.records.append(record)
 
         if self.records:
             revision, *self.records = self.records
             return revision
         else:
             raise StopIteration
+
+    def make_record(self, row):
+        # Only revision with author or commiter date are considered
+        if row[1] is not None:
+            # If the revision has author date, it takes precedence
+            return dict(zip(self.aliases, (row[0], row[1], row[3])))
+        elif row[2] is not None:
+            # If not, we use the commiter date
+            return dict(zip(self.aliases, (row[0], row[2], row[3])))

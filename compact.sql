@@ -10,37 +10,38 @@ create domain unix_path as bytea;
 drop table if exists content; 
 create table content
 (
-    id      sha1_git primary key,
-    date    timestamptz not null,
+    blob    sha1_git not null,      -- id of the content blob
     rev     sha1_git not null,      -- id of the revision where the blob appears for the first time
-    path    unix_path not null      -- path to the content relative to the revision root directory
+    date    timestamptz not null,   -- timestamp of the revision where the blob appears early
+    path    unix_path not null,     -- path to the content relative to the revision root directory
+    primary key (blob, rev)
 );
 
-comment on column content.id is 'Git object sha1 hash';
-comment on column content.date is 'First seen time';
+comment on column content.blob is 'Content identifier';
 comment on column content.rev is 'Revision identifier';
+comment on column content.date is 'First seen time';
 comment on column content.path is 'Path to content in revision';
 
 
 drop table if exists directory; 
 create table directory
 (
-    id      sha1_git primary key,
-    date    timestamptz not null
+    id      sha1_git primary key,   -- id of the directory
+    date    timestamptz not null    -- timestamp of the revision where the directory appears for the first time
 );
 
-comment on column directory.id is 'Git object sha1 hash';
+comment on column directory.id is 'Directory identifier';
 comment on column directory.date is 'First seen time';
 
 
 drop table if exists revision; 
 create table revision
 (
-    id      sha1_git primary key,
-    date    timestamptz not null
+    id      sha1_git primary key,   -- id of the revision
+    date    timestamptz not null    -- timestamp of the revision
 );
 
-comment on column revision.id is 'Git object sha1 hash';
+comment on column revision.id is 'Revision identifier';
 comment on column revision.date is 'First seen time';
 
 
@@ -66,7 +67,7 @@ create table content_in_dir
 (
     blob    sha1_git not null,  -- id of the content blob
     dir     sha1_git not null,  -- id of the directory contaning the blob
-    path    unix_path not null, -- path name (TODO: relative to parent or absolute (wrt. revision))?)
+    path    unix_path not null, -- path name relative to its parent on the isochrone frontier
     primary key (blob, dir, path)
     -- foreign key (blob) references content (id),
     -- foreign key (dir) references directory (id)

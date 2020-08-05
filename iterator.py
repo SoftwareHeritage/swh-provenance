@@ -3,26 +3,10 @@ import psycopg2
 from swh.model.identifiers import identifier_to_str
 
 
-def typecast_bytea(value, cur):
-    if value is not None:
-        data = psycopg2.BINARY(value, cur)
-        return data.tobytes()
-
-
 class RevisionIterator:
     """Iterator over revisions present in the given database."""
 
-    def adapt_conn(self, conn):
-        """Makes psycopg2 use 'bytes' to decode bytea instead of
-        'memoryview', for this connection."""
-        t_bytes = psycopg2.extensions.new_type((17,), "bytea", typecast_bytea)
-        psycopg2.extensions.register_type(t_bytes, conn)
-
-        t_bytes_array = psycopg2.extensions.new_array_type((1001,), "bytea[]", t_bytes)
-        psycopg2.extensions.register_type(t_bytes_array, conn)
-
     def __init__(self, conn, limit=None, chunksize=100):
-        self.adapt_conn(conn)
         self.cur = conn.cursor()
         self.chunksize = chunksize
         self.limit = limit

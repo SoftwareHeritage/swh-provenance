@@ -39,6 +39,22 @@ def config(filename: PosixPath, section: str):
     return db
 
 
+def typecast_bytea(value, cur):
+    if value is not None:
+        data = psycopg2.BINARY(value, cur)
+        return data.tobytes()
+
+
+def adapt_conn(conn):
+    """Makes psycopg2 use 'bytes' to decode bytea instead of
+    'memoryview', for this connection."""
+    t_bytes = psycopg2.extensions.new_type((17,), "bytea", typecast_bytea)
+    psycopg2.extensions.register_type(t_bytes, conn)
+
+    t_bytes_array = psycopg2.extensions.new_array_type((1001,), "bytea[]", t_bytes)
+    psycopg2.extensions.register_type(t_bytes_array, conn)
+
+
 def connect(filename: PosixPath, section: str):
     """ Connect to the PostgreSQL database server """
     conn = None
@@ -50,6 +66,7 @@ def connect(filename: PosixPath, section: str):
         # connect to the PostgreSQL server
         # print('Connecting to the PostgreSQL database...')
         conn = psycopg2.connect(**params)
+        adapt_conn(conn)
 
     except (Exception, psycopg2.DatabaseError) as error:
         print(error)
@@ -88,15 +105,15 @@ def content_find_all(
     cursor: psycopg2.extensions.cursor,
     swhid: str
 ):
-    cursor.execute('''(SELECT blob, rev, date, path FROM content WHERE blob=%s)
+    cursor.execute('''(SELECT blob, rev, date, path, 1 AS early FROM content WHERE blob=%s)
                       UNION
-                      (SELECT content_in_rev.blob, content_in_rev.rev, revision.date, content_in_rev.path
+                      (SELECT content_in_rev.blob, content_in_rev.rev, revision.date, content_in_rev.path, 2 AS early 
                       FROM (SELECT content_in_dir.blob, directory_in_rev.rev, (directory_in_rev.path || '/' || content_in_dir.path)::unix_path AS path
                             FROM content_in_dir
                             JOIN directory_in_rev ON content_in_dir.dir=directory_in_rev.dir
                             WHERE content_in_dir.blob=%s) AS content_in_rev
                       JOIN revision ON revision.id=content_in_rev.rev)
-                      ORDER BY date''', (swhid, swhid))
+                      ORDER BY date, early''', (swhid, swhid))
     yield from cursor.fetchall()
 
 
@@ -198,9 +215,10 @@ def process_file(
 if __name__ == "__main__":
     if len(sys.argv) != 4:
         print('usage: compact <reset> <limit> <count>')
-        print('     <reset> : bool      reconstruct compact model database')
-        print('     <limit> : int       number of revision to add')
-        print('     <count> : int       number of blobs to query')
+        print('  <reset> : bool     reconstruct compact model database')
+        print('  <limit> : int      number of revision to use')
+        print('  <count> : int      number of blobs to query for testing')
+        exit()
 
     reset = sys.argv[1].lower() == 'true'
     limit = int(sys.argv[2])
@@ -229,14 +247,14 @@ if __name__ == "__main__":
     cursor.execute(f'SELECT DISTINCT blob FROM content LIMIT {count}')
     for idx, row in enumerate(cursor.fetchall()):
         swhid = row[0]
-        print(f'Test blob {idx}: {identifier_to_str(bytes(swhid))}')
+        print(f'Test blob {idx}: {identifier_to_str(swhid)}')
 
         fst = content_find_first(cursor, swhid)
-        print(f'  First occurrence:\n    {identifier_to_str(bytes(fst[0]))}, {identifier_to_str(bytes(fst[1]))}, {fst[2]}, {bytes(fst[3]).decode("utf-8")}')
+        print(f'  First occurrence:\n    {identifier_to_str(fst[0])}, {identifier_to_str(fst[1])}, {fst[2]}, {fst[3].decode("utf-8")}')
 
         print(f'  All occurrences:')
         for row in content_find_all(cursor, swhid):
-            print(f'    {identifier_to_str(bytes(row[0]))}, {identifier_to_str(bytes(row[1]))}, {row[2]}, {bytes(row[3]).decode("utf-8")}')
+            print(f'    {row[4]}, {identifier_to_str(row[0])}, {identifier_to_str(row[1])}, {row[2]}, {row[3].decode("utf-8")}')
 
         print(f'========================================')
 

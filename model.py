@@ -16,6 +16,7 @@ SWHID_IDX = 2
 
 
 class Tree:
+
     def __init__(self, conn: psycopg2.extensions.connection, swhid: str):
         self.root = DirectoryEntry(swhid, PosixPath('.'))
 

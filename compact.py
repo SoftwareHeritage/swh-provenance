@@ -1,5 +1,4 @@
 import io
-import os
 import psycopg2
 import sys
 
@@ -18,7 +17,6 @@ from model import (
 )
 
 from swh.model.identifiers import identifier_to_str
-from swh.storage.db import Db
 
 
 def config(filename: PosixPath, section: str):

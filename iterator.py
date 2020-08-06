@@ -1,7 +1,5 @@
 import psycopg2
 
-from swh.model.identifiers import identifier_to_str
-
 
 class RevisionIterator:
     """Iterator over revisions present in the given database."""

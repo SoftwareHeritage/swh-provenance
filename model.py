@@ -2,9 +2,7 @@ import operator
 import psycopg2
 
 from pathlib import PosixPath
-from typing import List
 
-from swh.model.identifiers import DIRECTORY, CONTENT
 from swh.storage.db import Db
 
 CONTENT = "file"

@@ -105,7 +105,7 @@ def content_find_all(
 ):
     cursor.execute('''(SELECT blob, rev, date, path, 1 AS early FROM content WHERE blob=%s)
                       UNION
-                      (SELECT content_in_rev.blob, content_in_rev.rev, revision.date, content_in_rev.path, 2 AS early 
+                      (SELECT content_in_rev.blob, content_in_rev.rev, revision.date, content_in_rev.path, 2 AS early
                       FROM (SELECT content_in_dir.blob, directory_in_rev.rev, (directory_in_rev.path || '/' || content_in_dir.path)::unix_path AS path
                             FROM content_in_dir
                             JOIN directory_in_rev ON content_in_dir.dir=directory_in_rev.dir
@@ -143,15 +143,24 @@ def walk(
 
         else:
             # This directory is just beyond the isochrone graph
-            # frontier. Add an entry to the 'directory_in_rev' relation
-            # with the path relative to 'prefix', and continue to walk
-            # recursively looking only for blobs (ie. 'ingraph=False').
+            # frontier. Check whether it has already been visited before to
+            # avoid recursively walking its children.
+            cursor.execute('SELECT dir FROM directory_in_rev WHERE dir=%s',
+                            (directory.swhid,))
+            visited = cursor.fetchone() is not None
+
+            # Add an entry to the 'directory_in_rev' relation that associates
+            # the directory with current revision and computed prefix.
             cursor.execute('INSERT INTO directory_in_rev VALUES (%s,%s,%s)',
                             (directory.swhid, revision.swhid, bytes(prefix)))
 
-            for child in directory.children:
-                # From now on path is relative to current directory (ie. relative=directory)
-                process_child(cursor, revision, child, directory, PosixPath('.') / child.name, ingraph=False)
+            if not visited:
+                # The directory hasn't been visited before. Continue to walk
+                # recursively looking only for blobs (ie. 'ingraph=False').
+                # From now on path is relative to current directory (ie.
+                # relative=directory)
+                for child in directory.children:
+                    process_child(cursor, revision, child, directory, PosixPath(child.name), ingraph=False)
 
     else:
         # This directory is completely outside the isochrone graph (far

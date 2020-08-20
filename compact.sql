@@ -7,7 +7,7 @@ drop domain if exists unix_path cascade;
 create domain unix_path as bytea;
 
 
-drop table if exists content; 
+drop table if exists content;
 create table content
 (
     blob    sha1_git not null,      -- id of the content blob
@@ -23,7 +23,7 @@ comment on column content.date is 'First seen time';
 comment on column content.path is 'Path to content in revision';
 
 
-drop table if exists directory; 
+drop table if exists directory;
 create table directory
 (
     id      sha1_git primary key,   -- id of the directory
@@ -34,7 +34,7 @@ comment on column directory.id is 'Directory identifier';
 comment on column directory.date is 'First seen time';
 
 
-drop table if exists revision; 
+drop table if exists revision;
 create table revision
 (
     id      sha1_git primary key,   -- id of the revision
@@ -46,7 +46,7 @@ comment on column revision.date is 'First seen time';
 
 
 -- TODO: consider merging this table with 'content'
--- drop table if exists content_early_in_rev; 
+-- drop table if exists content_early_in_rev;
 -- create table content_early_in_rev
 -- (
 --     blob    sha1_git not null,  -- id of the content blob
@@ -62,7 +62,7 @@ comment on column revision.date is 'First seen time';
 -- comment on column content_early_in_rev.path is 'Path to content in revision';
 
 
-drop table if exists content_in_dir; 
+drop table if exists content_in_dir;
 create table content_in_dir
 (
     blob    sha1_git not null,  -- id of the content blob
@@ -78,7 +78,7 @@ comment on column content_in_dir.dir is 'Directory identifier';
 -- comment on column content_early_in_rev.path is 'Path to content in directory';
 
 
-drop table if exists directory_in_rev; 
+drop table if exists directory_in_rev;
 create table directory_in_rev
 (
     dir     sha1_git not null,  -- id of the directory appearing in the revision

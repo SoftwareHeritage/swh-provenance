@@ -32,7 +32,7 @@ def config(filename: PosixPath, section: str):
         for param in params:
             db[param[0]] = param[1]
     else:
-        raise Exception('Section {0} not found in the {1} file'.format(section, filename))
+        raise Exception(f'Section {section} not found in the {filename} file')
 
     return db
 
@@ -138,15 +138,14 @@ def walk(
                             SET date=%s''',
                             (directory.swhid, revision.timestamp, revision.timestamp))
 
-            for child in directory.children:
+            for child in iter(directory):
                 process_child(cursor, revision, child, relative, prefix / child.name)
 
         else:
             # This directory is just beyond the isochrone graph
             # frontier. Check whether it has already been visited before to
             # avoid recursively walking its children.
-            cursor.execute('SELECT dir FROM directory_in_rev WHERE dir=%s',
-                            (directory.swhid,))
+            cursor.execute('SELECT dir FROM directory_in_rev WHERE dir=%s', (directory.swhid,))
             visited = cursor.fetchone() is not None
 
             # Add an entry to the 'directory_in_rev' relation that associates
@@ -159,13 +158,13 @@ def walk(
                 # recursively looking only for blobs (ie. 'ingraph=False').
                 # From now on path is relative to current directory (ie.
                 # relative=directory)
-                for child in directory.children:
-                    process_child(cursor, revision, child, directory, PosixPath(child.name), ingraph=False)
+                for child in iter(directory):
+                    process_child(cursor, revision, child, directory, child.name, ingraph=False)
 
     else:
         # This directory is completely outside the isochrone graph (far
         # from the frontier). We are just looking for blobs here.
-        for child in directory.children:
+        for child in iter(directory):
             process_child(cursor, revision, child, relative, prefix / child.name, ingraph=False)
 
 
@@ -200,9 +199,6 @@ def process_file(
         # This is an earlier occurrence of the blob. Add it with the current
         # revision's timestamp as date.
         cursor.execute('''INSERT INTO content VALUES (%s,%s,%s,%s)''',
-        # cursor.execute('''INSERT INTO content VALUES (%s,%s,%s,%s)
-        #                   ON CONFLICT (blob, rev) DO UPDATE
-        #                   SET date=%s, path=%s''',
                           (blob.swhid, revision.swhid, revision.timestamp, bytes(path)))
 
     else:

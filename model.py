@@ -14,19 +14,8 @@ SWHID_IDX = 2
 
 
 class Tree:
-
     def __init__(self, conn: psycopg2.extensions.connection, swhid: str):
-        self.root = DirectoryEntry(swhid, PosixPath('.'))
-
-        storage = Db(conn)
-        entries = list(map(
-            lambda x: (x[SWHID_IDX], x[PATH_IDX].decode('utf-8'), x[OTYPE_IDX]),
-            storage.directory_walk(swhid)
-        ))
-        entries.sort(key=operator.itemgetter(1))
-
-        for entry in entries:
-            self.root.addChild(entry[0], PosixPath(entry[1]), entry[2])
+        self.root = DirectoryEntry(conn, swhid, PosixPath('.'))
 
 
 class TreeEntry:
@@ -36,23 +25,33 @@ class TreeEntry:
 
 
 class DirectoryEntry(TreeEntry):
-    def __init__(self, swhid: str, name: PosixPath):
+    def __init__(
+        self,
+        conn: psycopg2.extensions.connection,
+        swhid: str,
+        name: PosixPath
+    ):
         super().__init__(swhid, name)
+        self.conn = conn
         self.children = []
 
-    def addChild(self, swhid: str, path: PosixPath, otype: str):
-        if path.parent == PosixPath('.'):
-            if otype == CONTENT:
-                self.children.append(FileEntry(swhid, path.name))
+    def __iter__(self):
+        storage = Db(self.conn)
+        for child in storage.directory_walk_one(self.swhid):
+            if child[OTYPE_IDX] == CONTENT:
+                self.children.append(FileEntry(
+                    child[SWHID_IDX],
+                    PosixPath(child[PATH_IDX].decode('utf-8'))
+                ))
 
-            elif otype == DIRECTORY:
-                self.children.append(DirectoryEntry(swhid, path.name))
+            elif child[OTYPE_IDX] == DIRECTORY:
+                self.children.append(DirectoryEntry(
+                    self.conn,
+                    child[SWHID_IDX],
+                    PosixPath(child[PATH_IDX].decode('utf-8'))
+                ))
 
-        else:
-            for child in filter(lambda x: isinstance(x, DirectoryEntry), self.children):
-                if path.parts[0] == child.name:
-                    child.addChild(swhid, PosixPath(*path.parts[1:]), otype)
-                    break
+        return iter(self.children)
 
 
 class FileEntry(TreeEntry):

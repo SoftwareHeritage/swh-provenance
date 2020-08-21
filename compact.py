@@ -127,7 +127,7 @@ def process(
     prefix: PosixPath,
     ingraph: bool=True
 ):
-    logging.info(f'Processing element {identifier_to_str(entry.swhid)} ({entry.name}) relative to directory {identifier_to_str(relative.swhid)} ({relative.name}) with prefix {prefix} {"inside" if ingraph else "outside"} the isochrone graph')
+    logging.info(f'Processing element {identifier_to_str(entry.swhid)} ({entry.name}) relative to directory {identifier_to_str(relative.swhid)} ({relative.name}) with prefix {prefix} {"INSIDE" if ingraph else "OUTSIDE"} the isochrone graph')
     if isinstance(entry, DirectoryEntry):
         process_dir(cursor, revision, entry, relative, prefix, ingraph)
     else:
@@ -160,7 +160,7 @@ def process_dir(
                 process(cursor, revision, child, relative, prefix / child.name)
 
         else:
-            logging.info(f'New occurrence of directory {identifier_to_str(directory.swhid)} ({directory.name}) in the isochrone graph frontier')
+            logging.info(f'New occurrence of directory {identifier_to_str(directory.swhid)} ({directory.name}) in the isochrone graph FRONTIER')
             # This directory is just beyond the isochrone graph
             # frontier. Check whether it has already been visited before to
             # avoid recursively processing its children.
@@ -182,7 +182,7 @@ def process_dir(
                     process(cursor, revision, child, directory, child.name, ingraph=False)
 
     else:
-        logging.info(f'Walking through directory {identifier_to_str(directory.swhid)} ({directory.name}) outside the isochrone graph')
+        logging.info(f'Walking through directory {identifier_to_str(directory.swhid)} ({directory.name}) OUTSIDE the isochrone graph')
         # This directory is completely outside the isochrone graph (far
         # from the frontier). We are just looking for blobs here.
         for child in iter(directory):

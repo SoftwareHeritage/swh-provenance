@@ -1,4 +1,5 @@
 import io
+import logging
 import psycopg2
 import sys
 
@@ -85,16 +86,18 @@ def revision_add(
     archive: psycopg2.extensions.connection,
     revision: RevisionEntry,
 ):
-    # Add current revision to the compact DB and start walking its root directory
+    logging.info(f'Processing revision {identifier_to_str(revision.swhid)} (timestamp: {revision.timestamp})')
+    # Add current revision to the compact DB and start processing its root directory
     cursor.execute('INSERT INTO revision VALUES (%s,%s)', (revision.swhid, revision.timestamp))
-    tree = Tree(archive, revision.directory)
-    walk(cursor, revision, tree.root, tree.root, tree.root.name)
+    directory = Tree(archive, revision.directory).root
+    process(cursor, revision, directory, directory, directory.name)
 
 
 def content_find_first(
     cursor: psycopg2.extensions.cursor,
     swhid: str
 ):
+    logging.info(f'Retrieving first ocurrence of content {identifier_to_str(swhid)}')
     cursor.execute('SELECT * FROM content WHERE blob=%s ORDER BY date ASC LIMIT 1', (swhid,))
     return cursor.fetchone()
 
@@ -103,6 +106,7 @@ def content_find_all(
     cursor: psycopg2.extensions.cursor,
     swhid: str
 ):
+    logging.info(f'Retrieving all ocurrences of content {identifier_to_str(swhid)}')
     cursor.execute('''(SELECT blob, rev, date, path, 1 AS early FROM content WHERE blob=%s)
                       UNION
                       (SELECT content_in_rev.blob, content_in_rev.rev, revision.date, content_in_rev.path, 2 AS early
@@ -115,7 +119,22 @@ def content_find_all(
     yield from cursor.fetchall()
 
 
-def walk(
+def process(
+    cursor: psycopg2.extensions.cursor,
+    revision: RevisionEntry,
+    entry: TreeEntry,
+    relative: DirectoryEntry,
+    prefix: PosixPath,
+    ingraph: bool=True
+):
+    logging.info(f'Processing element {identifier_to_str(entry.swhid)} ({entry.name}) relative to directory {identifier_to_str(relative.swhid)} ({relative.name}) with prefix {prefix} {"inside" if ingraph else "outside"} the isochrone graph')
+    if isinstance(entry, DirectoryEntry):
+        process_dir(cursor, revision, entry, relative, prefix, ingraph)
+    else:
+        process_file(cursor, revision, relative, entry, prefix)
+
+
+def process_dir(
     cursor: psycopg2.extensions.cursor,
     revision: RevisionEntry,
     directory: DirectoryEntry,
@@ -123,28 +142,28 @@ def walk(
     prefix: PosixPath,
     ingraph: bool=True
 ):
-    # TODO: add logging support!
-    # print("dir: ", identifier_to_str(revision.swhid), revision.timestamp, identifier_to_str(directory.swhid), identifier_to_str(relative.swhid), prefix, ingraph)
     if ingraph:
         cursor.execute('SELECT date FROM directory WHERE id=%s', (directory.swhid,))
 
         row = cursor.fetchone()
         if row is None or row[0] > revision.timestamp:
+            logging.info(f'New EARLY occurrence of directory {identifier_to_str(directory.swhid)} ({directory.name})')
             # This directory belongs to the isochrone graph of the revision.
             # Add directory with the current revision's timestamp as date, and
-            # walk recursively looking for new content.
+            # process recursively looking for new content.
             cursor.execute('''INSERT INTO directory VALUES (%s,%s)
                             ON CONFLICT (id) DO UPDATE
                             SET date=%s''',
                             (directory.swhid, revision.timestamp, revision.timestamp))
 
             for child in iter(directory):
-                process_child(cursor, revision, child, relative, prefix / child.name)
+                process(cursor, revision, child, relative, prefix / child.name)
 
         else:
+            logging.info(f'New occurrence of directory {identifier_to_str(directory.swhid)} ({directory.name}) in the isochrone graph frontier')
             # This directory is just beyond the isochrone graph
             # frontier. Check whether it has already been visited before to
-            # avoid recursively walking its children.
+            # avoid recursively processing its children.
             cursor.execute('SELECT dir FROM directory_in_rev WHERE dir=%s', (directory.swhid,))
             visited = cursor.fetchone() is not None
 
@@ -154,32 +173,20 @@ def walk(
                             (directory.swhid, revision.swhid, bytes(prefix)))
 
             if not visited:
-                # The directory hasn't been visited before. Continue to walk
+                logging.info(f'+>  Recursive walk required to adjust children\'s relative path')
+                # The directory hasn't been visited before. Continue to process
                 # recursively looking only for blobs (ie. 'ingraph=False').
                 # From now on path is relative to current directory (ie.
                 # relative=directory)
                 for child in iter(directory):
-                    process_child(cursor, revision, child, directory, child.name, ingraph=False)
+                    process(cursor, revision, child, directory, child.name, ingraph=False)
 
     else:
+        logging.info(f'Walking through directory {identifier_to_str(directory.swhid)} ({directory.name}) outside the isochrone graph')
         # This directory is completely outside the isochrone graph (far
         # from the frontier). We are just looking for blobs here.
         for child in iter(directory):
-            process_child(cursor, revision, child, relative, prefix / child.name, ingraph=False)
-
-
-def process_child(
-    cursor: psycopg2.extensions.cursor,
-    revision: RevisionEntry,
-    entry: TreeEntry,
-    relative: DirectoryEntry,
-    prefix: PosixPath,
-    ingraph: bool=True
-):
-    if isinstance(entry, DirectoryEntry):
-        walk(cursor, revision, entry, relative, prefix, ingraph)
-    else:
-        process_file(cursor, revision, relative, entry, prefix)
+            process(cursor, revision, child, relative, prefix / child.name, ingraph=False)
 
 
 def process_file(
@@ -189,19 +196,19 @@ def process_file(
     blob: FileEntry,
     path: PosixPath
 ):
-    # TODO: add logging support!
-    # print("blob:", identifier_to_str(revision.swhid), revision.timestamp, identifier_to_str(directory), identifier_to_str(blob), path)
     cursor.execute('SELECT date FROM content WHERE blob=%s ORDER BY date ASC LIMIT 1', (blob.swhid,))
     # cursor.execute('SELECT MIN(date) FROM content WHERE blob=%s', (blob.swhid,))
 
     row = cursor.fetchone()
     if row is None or row[0] > revision.timestamp:
+        logging.info(f'New EARLY occurrence of content {identifier_to_str(blob.swhid)} ({blob.name})')
         # This is an earlier occurrence of the blob. Add it with the current
         # revision's timestamp as date.
         cursor.execute('''INSERT INTO content VALUES (%s,%s,%s,%s)''',
                           (blob.swhid, revision.swhid, revision.timestamp, bytes(path)))
 
     else:
+        logging.info(f'New occurrence of content {identifier_to_str(blob.swhid)} ({blob.name})')
         # This blob was seen before but this occurrence is older. Add
         # an entry to the 'content_in_dir' relation with the path
         # relative to the parent directory in the isochrone graph
@@ -216,6 +223,8 @@ def process_file(
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
+
     if len(sys.argv) != 4:
         print('usage: compact <reset> <limit> <count>')
         print('  <reset> : bool     reconstruct compact model database')
@@ -238,8 +247,6 @@ if __name__ == "__main__":
 
         revisions = RevisionIterator(archive, limit=limit)
         for idx, revision in enumerate(revisions):
-            # TODO: add logging support!
-            print(f'{idx} - id: {identifier_to_str(revision.swhid)} - date: {revision.timestamp} - dir: {identifier_to_str(revision.directory)}')
             revision_add(cursor, archive, revision)
             compact.commit()
 

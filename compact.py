@@ -8,7 +8,8 @@ from pathlib import PosixPath
 
 from iterator import (
     RevisionEntry,
-    RevisionIterator
+    ArchiveRevisionIterator,
+    FileRevisionIterator
 )
 from model import (
     DirectoryEntry,
@@ -152,9 +153,9 @@ def process_dir(
             # Add directory with the current revision's timestamp as date, and
             # process recursively looking for new content.
             cursor.execute('''INSERT INTO directory VALUES (%s,%s)
-                            ON CONFLICT (id) DO UPDATE
-                            SET date=%s''',
-                            (directory.swhid, revision.timestamp, revision.timestamp))
+                              ON CONFLICT (id) DO UPDATE
+                              SET date=%s''',
+                              (directory.swhid, revision.timestamp, revision.timestamp))
 
             for child in iter(directory):
                 process(cursor, revision, child, relative, prefix / child.name)
@@ -225,32 +226,59 @@ def process_file(
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
 
-    if len(sys.argv) != 4:
-        print('usage: compact <reset> <limit> <count>')
-        print('  <reset> : bool     reconstruct compact model database')
-        print('  <limit> : int      number of revision to use')
-        print('  <count> : int      number of blobs to query for testing')
+    if len(sys.argv) % 2 != 0:
+        print('usage: compact [options] count')
+        print('  -a database    database name to retrieve directories/content information')
+        print('  -d database    database name to retrieve revisions')
+        print('  -f filename    local CSV file to retrieve revisions')
+        print('  -l limit       max number of revisions to use')
+        print('  count          number of random blobs to query for testing')
         exit()
 
-    reset = sys.argv[1].lower() == 'true'
-    limit = int(sys.argv[2])
-    count = int(sys.argv[3])
+    reset = False
+    limit = None
+    count = int(sys.argv[-1])
+
+    archname = None
+    dataname = None
+    filename = None
+    for idx in range(len(sys.argv)):
+        reset = reset or (sys.argv[idx] in ['-d', '-f'])
+        if sys.argv[idx] == '-a':
+            archname = sys.argv[idx+1]
+        if sys.argv[idx] == '-d':
+            dataname = sys.argv[idx+1]
+        if sys.argv[idx] == '-f':
+            filename = sys.argv[idx+1]
+        if sys.argv[idx] == '-l':
+            limit = int(sys.argv[idx+1])
+
+    if (dataname is not None or filename is not None) and archname is None:
+        print('Error: -a option is compulsatory when -d or -f options are set')
+        exit()
 
     compact = connect('database.conf', 'compact')
     cursor = compact.cursor()
 
     if reset:
-        print(f'Reconstructing compact model database with {limit} revisions')
-
-        archive = connect('database.conf', 'archive')
         create_tables(compact)
 
-        revisions = RevisionIterator(archive, limit=limit)
-        for idx, revision in enumerate(revisions):
+        if dataname is not None:
+            print(f'Reconstructing compact model from {dataname} database (limit={limit})')
+            database = connect('database.conf', dataname)
+            revisions = ArchiveRevisionIterator(database, limit=limit)
+        else:
+            print(f'Reconstructing compact model from {filename} CSV file (limit={limit})')
+            revisions = FileRevisionIterator(filename, limit=limit)
+
+        archive = connect('database.conf', archname)
+        for revision in revisions:
             revision_add(cursor, archive, revision)
             compact.commit()
-
         archive.close()
+
+        if dataname is not None:
+            database.close()
 
         print(f'========================================')
 

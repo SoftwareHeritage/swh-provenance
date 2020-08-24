@@ -1,7 +1,55 @@
+import io
 import psycopg2
+
+from datetime import datetime
+from swh.model.identifiers import identifier_to_bytes
 
 
 class RevisionIterator:
+    """Iterator interface."""
+
+    def __iter__(self):
+        pass
+
+    def __next__(self):
+        pass
+
+
+class RevisionEntry:
+    def __init__(self, swhid, timestamp, directory):
+        self.swhid = swhid
+        self.timestamp = timestamp
+        self.directory = directory
+
+
+class FileRevisionIterator(RevisionIterator):
+    """Iterator over revisions present in the given CSV file."""
+
+    def __init__(self, filename, limit=None):
+        self.filename = filename
+        self.limit = limit
+
+    def __iter__(self):
+        self.file = io.open(self.filename)
+        self.idx = 0
+        return self
+
+    def __next__(self):
+        line = self.file.readline().strip()
+        if line and (self.limit is None or self.idx < self.limit):
+            self.idx = self.idx + 1
+            swhid, timestamp, directory = line.strip().split(',')
+
+            return RevisionEntry(
+                identifier_to_bytes(swhid),
+                datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S%z'),
+                identifier_to_bytes(directory)
+            )
+        else:
+            raise StopIteration
+
+
+class ArchiveRevisionIterator(RevisionIterator):
     """Iterator over revisions present in the given database."""
 
     def __init__(self, conn, limit=None, chunksize=100):
@@ -50,10 +98,3 @@ class RevisionIterator:
         elif row[2] is not None:
             # If not, we use the commiter date
             return RevisionEntry(row[0], row[2], row[3])
-
-
-class RevisionEntry:
-    def __init__(self, swhid, timestamp, directory):
-        self.swhid = swhid
-        self.timestamp = timestamp
-        self.directory = directory

@@ -33,23 +33,25 @@ class DirectoryEntry(TreeEntry):
     ):
         super().__init__(swhid, name)
         self.conn = conn
-        self.children = []
+        self.children = None
 
     def __iter__(self):
-        storage = Db(self.conn)
-        for child in storage.directory_walk_one(self.swhid):
-            if child[OTYPE_IDX] == CONTENT:
-                self.children.append(FileEntry(
-                    child[SWHID_IDX],
-                    PosixPath(child[PATH_IDX].decode('utf-8'))
-                ))
+        if self.children is None:
+            self.children = []
+            storage = Db(self.conn)
+            for child in storage.directory_walk_one(self.swhid):
+                if child[OTYPE_IDX] == CONTENT:
+                    self.children.append(FileEntry(
+                        child[SWHID_IDX],
+                        PosixPath(child[PATH_IDX].decode('utf-8'))
+                    ))
 
-            elif child[OTYPE_IDX] == DIRECTORY:
-                self.children.append(DirectoryEntry(
-                    self.conn,
-                    child[SWHID_IDX],
-                    PosixPath(child[PATH_IDX].decode('utf-8'))
-                ))
+                elif child[OTYPE_IDX] == DIRECTORY:
+                    self.children.append(DirectoryEntry(
+                        self.conn,
+                        child[SWHID_IDX],
+                        PosixPath(child[PATH_IDX].decode('utf-8'))
+                    ))
 
         return iter(self.children)
 

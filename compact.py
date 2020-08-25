@@ -88,10 +88,11 @@ def revision_add(
     revision: RevisionEntry,
 ):
     logging.info(f'Processing revision {identifier_to_str(revision.swhid)} (timestamp: {revision.timestamp})')
-    # Add current revision to the compact DB and start processing its root directory
-    cursor.execute('INSERT INTO revision VALUES (%s,%s)', (revision.swhid, revision.timestamp))
+    # Processed content starting from the revision's root directory
     directory = Tree(archive, revision.directory).root
-    process(cursor, revision, directory, directory, directory.name)
+    directory_compute_early_timestamp(cursor, revision, directory, directory.name)
+    # Add current revision to the compact DB
+    cursor.execute('INSERT INTO revision VALUES (%s,%s)', (revision.swhid, revision.timestamp))
 
 
 def content_find_first(
@@ -99,7 +100,9 @@ def content_find_first(
     swhid: str
 ):
     logging.info(f'Retrieving first ocurrence of content {identifier_to_str(swhid)}')
-    cursor.execute('SELECT * FROM content WHERE blob=%s ORDER BY date ASC LIMIT 1', (swhid,))
+    cursor.execute('''SELECT blob, rev, date, path
+                      FROM content_early_in_rev JOIN revision ON revision.id=content_early_in_rev.rev
+                      WHERE content_early_in_rev.blob=%s ORDER BY date ASC LIMIT 1''', (swhid,))
     return cursor.fetchone()
 
 
@@ -108,7 +111,9 @@ def content_find_all(
     swhid: str
 ):
     logging.info(f'Retrieving all ocurrences of content {identifier_to_str(swhid)}')
-    cursor.execute('''(SELECT blob, rev, date, path, 1 AS early FROM content WHERE blob=%s)
+    cursor.execute('''(SELECT blob, rev, date, path, 1 AS early
+                      FROM content_early_in_rev JOIN revision ON revision.id=content_early_in_rev.rev
+                      WHERE content_early_in_rev.blob=%s)
                       UNION
                       (SELECT content_in_rev.blob, content_in_rev.rev, revision.date, content_in_rev.path, 2 AS early
                       FROM (SELECT content_in_dir.blob, directory_in_rev.rev, (directory_in_rev.path || '/' || content_in_dir.path)::unix_path AS path
@@ -120,107 +125,158 @@ def content_find_all(
     yield from cursor.fetchall()
 
 
-def process(
+def content_get_known_timestamp(
     cursor: psycopg2.extensions.cursor,
-    revision: RevisionEntry,
-    entry: TreeEntry,
-    relative: DirectoryEntry,
-    prefix: PosixPath,
-    ingraph: bool=True
+    blob: FileEntry
 ):
-    logging.info(f'Processing element {identifier_to_str(entry.swhid)} ({entry.name}) relative to directory {identifier_to_str(relative.swhid)} ({relative.name}) with prefix {prefix} {"INSIDE" if ingraph else "OUTSIDE"} the isochrone graph')
-    if isinstance(entry, DirectoryEntry):
-        process_dir(cursor, revision, entry, relative, prefix, ingraph)
-    else:
-        process_file(cursor, revision, relative, entry, prefix)
+    cursor.execute('SELECT date FROM content WHERE id=%s', (blob.swhid,))
+    row = cursor.fetchone()
+    return row[0] if row is not None else None
 
 
-def process_dir(
+def content_compute_early_timestamp(
     cursor: psycopg2.extensions.cursor,
     revision: RevisionEntry,
-    directory: DirectoryEntry,
-    relative: DirectoryEntry,
-    prefix: PosixPath,
-    ingraph: bool=True
-):
-    if ingraph:
-        cursor.execute('SELECT date FROM directory WHERE id=%s', (directory.swhid,))
-
-        row = cursor.fetchone()
-        if row is None or row[0] > revision.timestamp:
-            logging.info(f'New EARLY occurrence of directory {identifier_to_str(directory.swhid)} ({directory.name})')
-            # This directory belongs to the isochrone graph of the revision.
-            # Add directory with the current revision's timestamp as date, and
-            # process recursively looking for new content.
-            cursor.execute('''INSERT INTO directory VALUES (%s,%s)
-                              ON CONFLICT (id) DO UPDATE
-                              SET date=%s''',
-                              (directory.swhid, revision.timestamp, revision.timestamp))
-
-            for child in iter(directory):
-                process(cursor, revision, child, relative, prefix / child.name)
-
-        else:
-            logging.info(f'New occurrence of directory {identifier_to_str(directory.swhid)} ({directory.name}) in the isochrone graph FRONTIER')
-            # This directory is just beyond the isochrone graph
-            # frontier. Check whether it has already been visited before to
-            # avoid recursively processing its children.
-            cursor.execute('SELECT dir FROM directory_in_rev WHERE dir=%s', (directory.swhid,))
-            visited = cursor.fetchone() is not None
-
-            # Add an entry to the 'directory_in_rev' relation that associates
-            # the directory with current revision and computed prefix.
-            cursor.execute('INSERT INTO directory_in_rev VALUES (%s,%s,%s)',
-                            (directory.swhid, revision.swhid, bytes(prefix)))
-
-            if not visited:
-                logging.info(f'+>  Recursive walk required to adjust children\'s relative path')
-                # The directory hasn't been visited before. Continue to process
-                # recursively looking only for blobs (ie. 'ingraph=False').
-                # From now on path is relative to current directory (ie.
-                # relative=directory)
-                for child in iter(directory):
-                    process(cursor, revision, child, directory, child.name, ingraph=False)
-
-    else:
-        logging.info(f'Walking through directory {identifier_to_str(directory.swhid)} ({directory.name}) OUTSIDE the isochrone graph')
-        # This directory is completely outside the isochrone graph (far
-        # from the frontier). We are just looking for blobs here.
-        for child in iter(directory):
-            process(cursor, revision, child, relative, prefix / child.name, ingraph=False)
-
-
-def process_file(
-    cursor: psycopg2.extensions.cursor,
-    revision: RevisionEntry,
-    directory: DirectoryEntry,
     blob: FileEntry,
     path: PosixPath
 ):
-    cursor.execute('SELECT date FROM content WHERE blob=%s ORDER BY date ASC LIMIT 1', (blob.swhid,))
-    # cursor.execute('SELECT MIN(date) FROM content WHERE blob=%s', (blob.swhid,))
+    # This method computes the early timestamp of a blob based on the given
+    # revision and the information in the database from previously visited ones.
+    # It updates the database if the given revision comes out-of-order.
+    timestamp = content_get_known_timestamp(cursor, blob)
 
+    if timestamp is None:
+        # This blob has never been seen before. Just add it to 'content' table.
+        timestamp = revision.timestamp
+        cursor.execute('INSERT INTO content VALUES (%s,%s)',
+                        (blob.swhid, timestamp))
+
+    elif revision.timestamp < timestamp:
+        # This is an out-of-order early occurrence of the blob. Update its
+        # timestamp in 'content' table.
+        timestamp = revision.timestamp
+        cursor.execute('UPDATE content SET date=%s WHERE id=%s',
+                        (timestamp, blob.swhid))
+
+    cursor.execute('INSERT INTO content_early_in_rev VALUES (%s,%s,%s)',
+                    (blob.swhid, revision.swhid, bytes(path)))
+
+    return timestamp
+
+
+def directory_get_known_timestamp(
+    cursor: psycopg2.extensions.cursor,
+    directory: DirectoryEntry
+):
+    cursor.execute('SELECT date FROM directory WHERE id=%s',
+                    (directory.swhid,))
     row = cursor.fetchone()
-    if row is None or row[0] > revision.timestamp:
-        logging.info(f'New EARLY occurrence of content {identifier_to_str(blob.swhid)} ({blob.name})')
-        # This is an earlier occurrence of the blob. Add it with the current
-        # revision's timestamp as date.
-        cursor.execute('''INSERT INTO content VALUES (%s,%s,%s,%s)''',
-                          (blob.swhid, revision.swhid, revision.timestamp, bytes(path)))
+    return row[0] if row is not None else None
+
+
+def directory_compute_early_timestamp(
+    cursor: psycopg2.extensions.cursor,
+    revision: RevisionEntry,
+    directory: DirectoryEntry,
+    path: PosixPath
+):
+    # This method computes the early timestamp of a directory based on the
+    # given revision and the information in the database from previously
+    # visited ones. It updates the database if the given revision comes
+    # out-of-order.
+    dir_timestamp = directory_get_known_timestamp(cursor, directory)
+
+    if dir_timestamp is not None:
+        # Current directory has already been seen in the isochrone frontier of
+        # an already processed revision.
+        if revision.timestamp < dir_timestamp:
+            # Current revision is out-of-order. All the content of current
+            # directory should be processed again. Removed entry from
+            # 'directory' and try again.
+            cursor.execute('DELETE FROM directory WHERE id=%s',
+                            (directory.swhid,))
+            return directory_compute_early_timestamp(
+                cursor, revision, directory, path)
+
+        else:
+            # Current directory has already been seen in the isochrone frontier.
+            # Just add an entry to the 'directory_in_rev' relation that
+            # associates the directory with current revision and computed path.
+            cursor.execute('INSERT INTO directory_in_rev VALUES (%s,%s,%s)',
+                            (directory.swhid, revision.swhid, bytes(path)))
+            return dir_timestamp
 
     else:
-        logging.info(f'New occurrence of content {identifier_to_str(blob.swhid)} ({blob.name})')
-        # This blob was seen before but this occurrence is older. Add
-        # an entry to the 'content_in_dir' relation with the path
-        # relative to the parent directory in the isochrone graph
-        # frontier.
-        cursor.execute('''INSERT INTO content_in_dir VALUES (%s,%s,%s)
-                          ON CONFLICT DO NOTHING''',
-                          (blob.swhid, directory.swhid, bytes(path)))
-        # WARNING: There seem to be duplicated directories within the same
-        #          revision. Hence, their blobs may appear many times with the
-        #          same directory ID and 'relative' path. That's why we need
-        #          the 'ON CONFLICT DO NOTHING' statement.
+        # Current directory has never been seen before in the isochrone
+        # frontier of a revision. Compute early timestamp for all its childen.
+        children_timestamps = []
+        for child in iter(directory):
+            if isinstance(child, FileEntry):
+                # Compute early timestamp of current blob.
+                children_timestamps.append(
+                    content_compute_early_timestamp(
+                        cursor, revision, child, path / child.name)
+                )
+
+            else:
+                # Recursively compute the early timestamp.
+                child_timestamp = directory_compute_early_timestamp(
+                    cursor, revision, child, path / child.name)
+
+                # Ignore any sub-tree with empty directories on the leaves.
+                if child_timestamp is not None:
+                    children_timestamps.append(child_timestamp)
+
+        if not children_timestamps:
+             # Current directory does not recursively contain any blob.
+             return None
+
+        else:
+            dir_timestamp = max(children_timestamps)
+            if revision.timestamp < dir_timestamp:
+                # Current revision is out-of-order. This should not happen
+                # early timestamps for children in this branch of the algorithm
+                # are computed taking current revision into account.
+                logging.warning("UNEXPECTED SITUATION WITH OUT-OF-ORDER REVISION")
+                return revision.timestamp
+
+            else:
+                # This is the first time that current directory is seen in the
+                # isochrone frontier. Add current directory to 'directory' with
+                # the computed timestamp.
+                cursor.execute('INSERT INTO directory VALUES (%s,%s)',
+                                (directory.swhid, dir_timestamp))
+
+                # Add an entry to the 'directory_in_rev' relation that
+                # associates the directory with current revision and computed
+                # path.
+                cursor.execute('INSERT INTO directory_in_rev VALUES (%s,%s,%s)',
+                                (directory.swhid, revision.swhid, bytes(path)))
+
+                # Recursively find all content within current directory and
+                # add them to 'content_in_dir' with their path relative to
+                # current directory.
+                process_content_in_dir(
+                    cursor, directory, directory.swhid, PosixPath('.'))
+
+                return dir_timestamp
+
+
+def process_content_in_dir(
+    cursor: psycopg2.extensions.cursor,
+    directory: DirectoryEntry,
+    relative: str,
+    prefix: PosixPath
+):
+    for child in iter(directory):
+        if isinstance(child, FileEntry):
+            # Add an entry to 'content_in_dir' in dir for the current blob.
+            cursor.execute('INSERT INTO content_in_dir VALUES (%s,%s,%s)',
+                            (child.swhid, relative, bytes(prefix / child.name)))
+
+        else:
+            # Recursively walk the child directory.
+            process_content_in_dir(cursor, child, relative, prefix / child.name)
 
 
 if __name__ == "__main__":
@@ -282,7 +338,7 @@ if __name__ == "__main__":
 
         print(f'========================================')
 
-    cursor.execute(f'SELECT DISTINCT blob FROM content LIMIT {count}')
+    cursor.execute(f'SELECT DISTINCT id FROM content LIMIT {count}')
     for idx, row in enumerate(cursor.fetchall()):
         swhid = row[0]
         print(f'Test blob {idx}: {identifier_to_str(swhid)}')

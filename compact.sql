@@ -10,28 +10,23 @@ create domain unix_path as bytea;
 drop table if exists content;
 create table content
 (
-    blob    sha1_git not null,      -- id of the content blob
-    rev     sha1_git not null,      -- id of the revision where the blob appears for the first time
-    date    timestamptz not null,   -- timestamp of the revision where the blob appears early
-    path    unix_path not null,     -- path to the content relative to the revision root directory
-    primary key (blob, rev)
+    id      sha1_git primary key,   -- id of the content blob
+    date    timestamptz not null    -- timestamp of the revision where the blob appears early
 );
 
-comment on column content.blob is 'Content identifier';
-comment on column content.rev is 'Revision identifier';
-comment on column content.date is 'First seen time';
-comment on column content.path is 'Path to content in revision';
+comment on column content.id is 'Content identifier';
+comment on column content.date is 'Earliest timestamp for the content (first seen time)';
 
 
 drop table if exists directory;
 create table directory
 (
-    id      sha1_git primary key,   -- id of the directory
-    date    timestamptz not null    -- timestamp of the revision where the directory appears for the first time
+    id      sha1_git primary key,   -- id of the directory appearing in an isochrone inner frontier
+    date    timestamptz not null    -- max timestamp among those of the directory children's
 );
 
 comment on column directory.id is 'Directory identifier';
-comment on column directory.date is 'First seen time';
+comment on column directory.date is 'Latest timestamp for the content in the directory';
 
 
 drop table if exists revision;
@@ -42,24 +37,23 @@ create table revision
 );
 
 comment on column revision.id is 'Revision identifier';
-comment on column revision.date is 'First seen time';
+comment on column revision.date is 'Revision timestamp';
 
 
--- TODO: consider merging this table with 'content'
--- drop table if exists content_early_in_rev;
--- create table content_early_in_rev
--- (
---     blob    sha1_git not null,  -- id of the content blob
---     rev     sha1_git not null,  -- id of the revision where the blob appears for the first time
---     path    unix_path not null, -- path to the content relative to the revision root directory
---     primary key (blob, rev, path)
---     -- foreign key (blob) references content (id),
---     -- foreign key (rev) references revision (id)
--- );
+drop table if exists content_early_in_rev;
+create table content_early_in_rev
+(
+    blob    sha1_git not null,  -- id of the content blob
+    rev     sha1_git not null,  -- id of the revision where the blob appears for the first time
+    path    unix_path not null, -- path to the content relative to the revision root directory
+    primary key (blob, rev, path)
+    -- foreign key (blob) references content (id),
+    -- foreign key (rev) references revision (id)
+);
 
--- comment on column content_early_in_rev.blob is 'Content identifier';
--- comment on column content_early_in_rev.rev is 'Revision identifier';
--- comment on column content_early_in_rev.path is 'Path to content in revision';
+comment on column content_early_in_rev.blob is 'Content identifier';
+comment on column content_early_in_rev.rev is 'Revision identifier';
+comment on column content_early_in_rev.path is 'Path to content in revision';
 
 
 drop table if exists content_in_dir;

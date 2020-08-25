@@ -148,6 +148,7 @@ def content_compute_early_timestamp(
     if timestamp is None:
         # This blob has never been seen before. Just add it to 'content' table.
         timestamp = revision.timestamp
+        logging.info(f'FIRST occurrence of blob {identifier_to_str(blob.swhid)} (timestamp: {timestamp})')
         cursor.execute('INSERT INTO content VALUES (%s,%s)',
                         (blob.swhid, timestamp))
 
@@ -155,9 +156,11 @@ def content_compute_early_timestamp(
         # This is an out-of-order early occurrence of the blob. Update its
         # timestamp in 'content' table.
         timestamp = revision.timestamp
+        logging.info(f'EARLIER occurrence of blob {identifier_to_str(blob.swhid)} (timestamp: {timestamp})')
         cursor.execute('UPDATE content SET date=%s WHERE id=%s',
                         (timestamp, blob.swhid))
 
+    logging.info(f'NEW early occurrence of blob {identifier_to_str(blob.swhid)} (path: {path})')
     cursor.execute('INSERT INTO content_early_in_rev VALUES (%s,%s,%s)',
                     (blob.swhid, revision.swhid, bytes(path)))
 
@@ -193,6 +196,7 @@ def directory_compute_early_timestamp(
             # Current revision is out-of-order. All the content of current
             # directory should be processed again. Removed entry from
             # 'directory' and try again.
+            logging.info(f'OUT-OF-ORDER occurrence of directory {identifier_to_str(directory.swhid)} in the isochrone frontier (old timestamp: {dir_timestamp})')
             cursor.execute('DELETE FROM directory WHERE id=%s',
                             (directory.swhid,))
             return directory_compute_early_timestamp(
@@ -202,6 +206,7 @@ def directory_compute_early_timestamp(
             # Current directory has already been seen in the isochrone frontier.
             # Just add an entry to the 'directory_in_rev' relation that
             # associates the directory with current revision and computed path.
+            logging.info(f'FURTHER occurrence of directory {identifier_to_str(directory.swhid)} in the isochrone frontier (path: {path})')
             cursor.execute('INSERT INTO directory_in_rev VALUES (%s,%s,%s)',
                             (directory.swhid, revision.swhid, bytes(path)))
             return dir_timestamp
@@ -237,13 +242,14 @@ def directory_compute_early_timestamp(
                 # Current revision is out-of-order. This should not happen
                 # early timestamps for children in this branch of the algorithm
                 # are computed taking current revision into account.
-                logging.warning("UNEXPECTED SITUATION WITH OUT-OF-ORDER REVISION")
+                logging.warning(f'UNEXPECTED out-of-order occurrence of directory {identifier_to_str(directory.swhid)} (current timestamp: {revision.timestamp} / directory timestamp: {dir_timestamp})')
                 return revision.timestamp
 
             else:
                 # This is the first time that current directory is seen in the
                 # isochrone frontier. Add current directory to 'directory' with
                 # the computed timestamp.
+                logging.info(f'FIRST occurrence of directory {identifier_to_str(directory.swhid)} in the isochrone frontier (early timestamp: {dir_timestamp} / path: {path})')
                 cursor.execute('INSERT INTO directory VALUES (%s,%s)',
                                 (directory.swhid, dir_timestamp))
 
@@ -271,6 +277,7 @@ def process_content_in_dir(
     for child in iter(directory):
         if isinstance(child, FileEntry):
             # Add an entry to 'content_in_dir' in dir for the current blob.
+            logging.info(f'NEW occurrence of content {identifier_to_str(child.swhid)} in directory {identifier_to_str(relative)} (path: {prefix / child.name})')
             cursor.execute('INSERT INTO content_in_dir VALUES (%s,%s,%s)',
                             (child.swhid, relative, bytes(prefix / child.name)))
 

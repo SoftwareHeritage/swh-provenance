@@ -145,7 +145,7 @@ def content_set_early_timestamp(
     timestamp: datetime,
     depth
 ):
-    logging.info(f'{"    "*depth}EARLY occurrence of blob {identifier_to_str(blob.swhid)} (timestamp: {timestamp})')
+    logging.debug(f'{"    "*depth}EARLY occurrence of blob {identifier_to_str(blob.swhid)} (timestamp: {timestamp})')
     cursor.execute('''INSERT INTO content VALUES (%s,%s)
                       ON CONFLICT (id) DO UPDATE SET date=%s''',
                       (blob.swhid, timestamp, timestamp))
@@ -158,7 +158,7 @@ def content_add_to_directory(
     prefix: PosixPath,
     depth
 ):
-    logging.info(f'{"    "*depth}NEW occurrence of content {identifier_to_str(blob.swhid)} in directory {identifier_to_str(directory.swhid)} (path: {prefix / blob.name})')
+    logging.debug(f'{"    "*depth}NEW occurrence of content {identifier_to_str(blob.swhid)} in directory {identifier_to_str(directory.swhid)} (path: {prefix / blob.name})')
     cursor.execute('INSERT INTO content_in_dir VALUES (%s,%s,%s)',
                     (blob.swhid, directory.swhid, bytes(prefix / blob.name)))
 
@@ -170,7 +170,7 @@ def content_add_to_revision(
     prefix: PosixPath,
     depth
 ):
-    logging.info(f'{"    "*depth}EARLY occurrence of blob {identifier_to_str(blob.swhid)} in revision {identifier_to_str(revision.swhid)} (path: {prefix / blob.name})')
+    logging.debug(f'{"    "*depth}EARLY occurrence of blob {identifier_to_str(blob.swhid)} in revision {identifier_to_str(revision.swhid)} (path: {prefix / blob.name})')
     cursor.execute('INSERT INTO content_early_in_rev VALUES (%s,%s,%s)',
                     (blob.swhid, revision.swhid, bytes(prefix / blob.name)))
 
@@ -190,7 +190,7 @@ def directory_set_early_timestamp(
     timestamp: datetime,
     depth
 ):
-    logging.info(f'{"    "*depth}EARLY occurrence of directory {identifier_to_str(directory.swhid)} on the ISOCHRONE FRONTIER (timestamp: {timestamp})')
+    logging.debug(f'{"    "*depth}EARLY occurrence of directory {identifier_to_str(directory.swhid)} on the ISOCHRONE FRONTIER (timestamp: {timestamp})')
     cursor.execute('''INSERT INTO directory VALUES (%s,%s)
                       ON CONFLICT (id) DO UPDATE SET date=%s''',
                       (directory.swhid, timestamp, timestamp))
@@ -203,7 +203,7 @@ def directory_add_to_revision(
     path: PosixPath,
     depth
 ):
-    logging.info(f'{"    "*depth}NEW occurrence of directory {identifier_to_str(directory.swhid)} on the ISOCHRONE FRONTIER of revision {identifier_to_str(revision.swhid)} (path: {path})')
+    logging.debug(f'{"    "*depth}NEW occurrence of directory {identifier_to_str(directory.swhid)} on the ISOCHRONE FRONTIER of revision {identifier_to_str(revision.swhid)} (path: {path})')
     cursor.execute('INSERT INTO directory_in_rev VALUES (%s,%s,%s)',
                     (directory.swhid, revision.swhid, bytes(path)))
 
@@ -290,7 +290,7 @@ def revision_process_directory(
 
 
 if __name__ == "__main__":
-    # logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
 
     if len(sys.argv) % 2 != 0:
         print('usage: compact [options] count')

@@ -103,7 +103,7 @@ def content_find_first(
     logging.info(f'Retrieving first occurrence of content {identifier_to_str(swhid)}')
     cursor.execute('''SELECT blob, rev, date, path
                       FROM content_early_in_rev JOIN revision ON revision.id=content_early_in_rev.rev
-                      WHERE content_early_in_rev.blob=%s ORDER BY date ASC LIMIT 1''', (swhid,))
+                      WHERE content_early_in_rev.blob=%s ORDER BY date, path ASC LIMIT 1''', (swhid,))
     return cursor.fetchone()
 
 
@@ -112,17 +112,17 @@ def content_find_all(
     swhid: str
 ):
     logging.info(f'Retrieving all occurrences of content {identifier_to_str(swhid)}')
-    cursor.execute('''(SELECT blob, rev, date, path, 1 AS early
+    cursor.execute('''(SELECT blob, rev, date, path
                       FROM content_early_in_rev JOIN revision ON revision.id=content_early_in_rev.rev
                       WHERE content_early_in_rev.blob=%s)
                       UNION
-                      (SELECT content_in_rev.blob, content_in_rev.rev, revision.date, content_in_rev.path, 2 AS early
+                      (SELECT content_in_rev.blob, content_in_rev.rev, revision.date, content_in_rev.path
                       FROM (SELECT content_in_dir.blob, directory_in_rev.rev, (directory_in_rev.path || '/' || content_in_dir.path)::unix_path AS path
                             FROM content_in_dir
                             JOIN directory_in_rev ON content_in_dir.dir=directory_in_rev.dir
                             WHERE content_in_dir.blob=%s) AS content_in_rev
                       JOIN revision ON revision.id=content_in_rev.rev)
-                      ORDER BY date, early''', (swhid, swhid))
+                      ORDER BY date, path''', (swhid, swhid))
     yield from cursor.fetchall()
 
 
@@ -348,17 +348,18 @@ if __name__ == "__main__":
 
         print(f'========================================')
 
-    cursor.execute(f'SELECT DISTINCT id FROM content LIMIT {count}')
+    cursor.execute(f'SELECT DISTINCT id FROM content ORDER BY id LIMIT {count}')
     for idx, row in enumerate(cursor.fetchall()):
         swhid = row[0]
         print(f'Test blob {idx}: {identifier_to_str(swhid)}')
 
         fst = content_find_first(cursor, swhid)
-        print(f'  First occurrence:\n    {identifier_to_str(fst[0])}, {identifier_to_str(fst[1])}, {fst[2]}, {fst[3].decode("utf-8")}')
+        print(f'  First occurrence:')
+        print(f'    {identifier_to_str(fst[0])}, {identifier_to_str(fst[1])}, {fst[2]}, {fst[3].decode("utf-8")}')
 
         print(f'  All occurrences:')
         for row in content_find_all(cursor, swhid):
-            print(f'    {row[4]}, {identifier_to_str(row[0])}, {identifier_to_str(row[1])}, {row[2]}, {row[3].decode("utf-8")}')
+            print(f'    {identifier_to_str(row[0])}, {identifier_to_str(row[1])}, {row[2]}, {row[3].decode("utf-8")}')
 
         print(f'========================================')
 

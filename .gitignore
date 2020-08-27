@@ -1,3 +1,4 @@
-__pycache__
 *.txt
 *.csv
+__pycache__
+PKG-INFO

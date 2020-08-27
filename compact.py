@@ -1,3 +1,4 @@
+import click
 import io
 import logging
 import psycopg2
@@ -288,65 +289,47 @@ def revision_process_directory(
 ################################################################################
 ################################################################################
 
-
-if __name__ == "__main__":
+@click.command()
+@click.argument('count', type=int)
+@click.option('-c', '--compact', nargs=2, required=True)
+@click.option('-a', '--archive', nargs=2)
+@click.option('-d', '--database', nargs=2)
+@click.option('-f', '--filename')
+@click.option('-l', '--limit', type=int)
+def cli(count, compact, archive, database, filename, limit):
+    """Compact model utility."""
     logging.basicConfig(level=logging.INFO)
 
-    if len(sys.argv) % 2 != 0:
-        print('usage: compact [options] count')
-        print('  -a database    database name to retrieve directories/content information')
-        print('  -d database    database name to retrieve revisions')
-        print('  -f filename    local CSV file to retrieve revisions')
-        print('  -l limit       max number of revisions to use')
-        print('  count          number of random blobs to query for testing')
+    click.echo(f'{count} {compact} {archive} {database} {filename} {limit}')
+    if not database: database = None
+
+    reset = database is not None  or filename is not None
+    if reset and archive is None:
+        logging.error('Error: -a option is compulsatory when -d or -f options are set')
         exit()
 
-    reset = False
-    limit = None
-    count = int(sys.argv[-1])
-
-    archname = None
-    dataname = None
-    filename = None
-    for idx in range(len(sys.argv)):
-        reset = reset or (sys.argv[idx] in ['-d', '-f'])
-        if sys.argv[idx] == '-a':
-            archname = sys.argv[idx+1]
-        if sys.argv[idx] == '-d':
-            dataname = sys.argv[idx+1]
-        if sys.argv[idx] == '-f':
-            filename = sys.argv[idx+1]
-        if sys.argv[idx] == '-l':
-            limit = int(sys.argv[idx+1])
-
-    if (dataname is not None or filename is not None) and archname is None:
-        print('Error: -a option is compulsatory when -d or -f options are set')
-        exit()
-
-    compact = connect('database.conf', 'compact')
-    cursor = compact.cursor()
+    comp_conn = connect(compact[0], compact[1])
+    cursor = comp_conn.cursor()
 
     if reset:
-        create_tables(compact)
+        create_tables(comp_conn)
 
-        if dataname is not None:
-            print(f'Reconstructing compact model from {dataname} database (limit={limit})')
-            database = connect('database.conf', dataname)
+        if database is not None:
+            logging.info(f'Reconstructing compact model from {database} database (limit={limit})')
+            data_conn = connect(database[0], database[1])
             revisions = ArchiveRevisionIterator(database, limit=limit)
         else:
-            print(f'Reconstructing compact model from {filename} CSV file (limit={limit})')
+            logging.info(f'Reconstructing compact model from {filename} CSV file (limit={limit})')
             revisions = FileRevisionIterator(filename, limit=limit)
 
-        archive = connect('database.conf', archname)
+        arch_conn = connect(archive[0], archive[1])
         for revision in revisions:
-            revision_add(cursor, archive, revision)
-            compact.commit()
-        archive.close()
+            revision_add(cursor, arch_conn, revision)
+            comp_conn.commit()
+        arch_conn.close()
 
-        if dataname is not None:
-            database.close()
-
-        print(f'========================================')
+        if database is not None:
+            data_conn.close()
 
     cursor.execute(f'SELECT DISTINCT id FROM content ORDER BY id LIMIT {count}')
     for idx, row in enumerate(cursor.fetchall()):
@@ -363,4 +346,4 @@ if __name__ == "__main__":
 
         print(f'========================================')
 
-    compact.close()
+    comp_conn.close()

@@ -3,8 +3,8 @@ import io
 import logging
 import psycopg2
 import sys
+import utils
 
-from configparser import ConfigParser
 from datetime import datetime
 from pathlib import PosixPath
 
@@ -21,59 +21,6 @@ from model import (
 )
 
 from swh.model.identifiers import identifier_to_str
-
-
-def config(filename: PosixPath, section: str):
-    # create a parser
-    parser = ConfigParser()
-    # read config file
-    parser.read(filename)
-
-    # get section, default to postgresql
-    db = {}
-    if parser.has_section(section):
-        params = parser.items(section)
-        for param in params:
-            db[param[0]] = param[1]
-    else:
-        raise Exception(f'Section {section} not found in the {filename} file')
-
-    return db
-
-
-def typecast_bytea(value, cur):
-    if value is not None:
-        data = psycopg2.BINARY(value, cur)
-        return data.tobytes()
-
-
-def adapt_conn(conn):
-    """Makes psycopg2 use 'bytes' to decode bytea instead of
-    'memoryview', for this connection."""
-    t_bytes = psycopg2.extensions.new_type((17,), "bytea", typecast_bytea)
-    psycopg2.extensions.register_type(t_bytes, conn)
-
-    t_bytes_array = psycopg2.extensions.new_array_type((1001,), "bytea[]", t_bytes)
-    psycopg2.extensions.register_type(t_bytes_array, conn)
-
-
-def connect(filename: PosixPath, section: str):
-    """ Connect to the PostgreSQL database server """
-    conn = None
-
-    try:
-        # read connection parameters
-        params = config(filename, section)
-
-        # connect to the PostgreSQL server
-        # print('Connecting to the PostgreSQL database...')
-        conn = psycopg2.connect(**params)
-        adapt_conn(conn)
-
-    except (Exception, psycopg2.DatabaseError) as error:
-        print(error)
-
-    return conn
 
 
 def create_tables(conn: psycopg2.extensions.cursor, filename: PosixPath='compact.sql'):
@@ -104,7 +51,7 @@ def content_find_first(
     logging.info(f'Retrieving first occurrence of content {identifier_to_str(swhid)}')
     cursor.execute('''SELECT blob, rev, date, path
                       FROM content_early_in_rev JOIN revision ON revision.id=content_early_in_rev.rev
-                      WHERE content_early_in_rev.blob=%s ORDER BY date, path ASC LIMIT 1''', (swhid,))
+                      WHERE content_early_in_rev.blob=%s ORDER BY date, rev, path ASC LIMIT 1''', (swhid,))
     return cursor.fetchone()
 
 
@@ -118,18 +65,29 @@ def content_find_all(
                       WHERE content_early_in_rev.blob=%s)
                       UNION
                       (SELECT content_in_rev.blob, content_in_rev.rev, revision.date, content_in_rev.path
-                      FROM (SELECT content_in_dir.blob, directory_in_rev.rev, (directory_in_rev.path || '/' || content_in_dir.path)::unix_path AS path
+                      FROM (SELECT content_in_dir.blob, directory_in_rev.rev,
+                                CASE directory_in_rev.path
+                                    WHEN '.' THEN content_in_dir.path
+                                    ELSE (directory_in_rev.path || '/' || content_in_dir.path)::unix_path
+                                END AS path
                             FROM content_in_dir
                             JOIN directory_in_rev ON content_in_dir.dir=directory_in_rev.dir
                             WHERE content_in_dir.blob=%s) AS content_in_rev
                       JOIN revision ON revision.id=content_in_rev.rev)
-                      ORDER BY date, path''', (swhid, swhid))
+                      ORDER BY date, rev, path''', (swhid, swhid))
     yield from cursor.fetchall()
 
 
 ################################################################################
 ################################################################################
 ################################################################################
+
+def normalize(path: PosixPath) -> PosixPath:
+    spath = str(path)
+    if spath.startswith('./'):
+        return PosixPath(spath[2:])
+    return path
+
 
 def content_get_early_timestamp(
     cursor: psycopg2.extensions.cursor,
@@ -144,7 +102,7 @@ def content_set_early_timestamp(
     cursor: psycopg2.extensions.cursor,
     blob: FileEntry,
     timestamp: datetime,
-    depth
+    depth: int
 ):
     logging.debug(f'{"    "*depth}EARLY occurrence of blob {identifier_to_str(blob.swhid)} (timestamp: {timestamp})')
     cursor.execute('''INSERT INTO content VALUES (%s,%s)
@@ -157,11 +115,11 @@ def content_add_to_directory(
     directory: DirectoryEntry,
     blob: FileEntry,
     prefix: PosixPath,
-    depth
+    depth: int
 ):
     logging.debug(f'{"    "*depth}NEW occurrence of content {identifier_to_str(blob.swhid)} in directory {identifier_to_str(directory.swhid)} (path: {prefix / blob.name})')
     cursor.execute('INSERT INTO content_in_dir VALUES (%s,%s,%s)',
-                    (blob.swhid, directory.swhid, bytes(prefix / blob.name)))
+                    (blob.swhid, directory.swhid, bytes(normalize(prefix / blob.name))))
 
 
 def content_add_to_revision(
@@ -169,11 +127,11 @@ def content_add_to_revision(
     revision: RevisionEntry,
     blob: FileEntry,
     prefix: PosixPath,
-    depth
+    depth: int
 ):
     logging.debug(f'{"    "*depth}EARLY occurrence of blob {identifier_to_str(blob.swhid)} in revision {identifier_to_str(revision.swhid)} (path: {prefix / blob.name})')
     cursor.execute('INSERT INTO content_early_in_rev VALUES (%s,%s,%s)',
-                    (blob.swhid, revision.swhid, bytes(prefix / blob.name)))
+                    (blob.swhid, revision.swhid, bytes(normalize(prefix / blob.name))))
 
 
 def directory_get_early_timestamp(
@@ -189,7 +147,7 @@ def directory_set_early_timestamp(
     cursor: psycopg2.extensions.cursor,
     directory: DirectoryEntry,
     timestamp: datetime,
-    depth
+    depth: int
 ):
     logging.debug(f'{"    "*depth}EARLY occurrence of directory {identifier_to_str(directory.swhid)} on the ISOCHRONE FRONTIER (timestamp: {timestamp})')
     cursor.execute('''INSERT INTO directory VALUES (%s,%s)
@@ -202,11 +160,11 @@ def directory_add_to_revision(
     revision: RevisionEntry,
     directory: DirectoryEntry,
     path: PosixPath,
-    depth
+    depth: int
 ):
     logging.debug(f'{"    "*depth}NEW occurrence of directory {identifier_to_str(directory.swhid)} on the ISOCHRONE FRONTIER of revision {identifier_to_str(revision.swhid)} (path: {path})')
     cursor.execute('INSERT INTO directory_in_rev VALUES (%s,%s,%s)',
-                    (directory.swhid, revision.swhid, bytes(path)))
+                    (directory.swhid, revision.swhid, bytes(normalize(path))))
 
 
 def directory_process_content(
@@ -214,7 +172,7 @@ def directory_process_content(
     directory: DirectoryEntry,
     relative: DirectoryEntry,
     prefix: PosixPath,
-    depth
+    depth: int
 ):
     for child in iter(directory):
         if isinstance(child, FileEntry):
@@ -231,7 +189,7 @@ def revision_process_directory(
     revision: RevisionEntry,
     directory: DirectoryEntry,
     path: PosixPath,
-    depth=0
+    depth: int=0
 ):
     timestamp = directory_get_early_timestamp(cursor, directory)
 
@@ -308,7 +266,7 @@ def cli(count, compact, archive, database, filename, limit):
         logging.error('Error: -a option is compulsatory when -d or -f options are set')
         exit()
 
-    comp_conn = connect(compact[0], compact[1])
+    comp_conn = utils.connect(compact[0], compact[1])
     cursor = comp_conn.cursor()
 
     if reset:
@@ -316,13 +274,13 @@ def cli(count, compact, archive, database, filename, limit):
 
         if database is not None:
             logging.info(f'Reconstructing compact model from {database} database (limit={limit})')
-            data_conn = connect(database[0], database[1])
-            revisions = ArchiveRevisionIterator(database, limit=limit)
+            data_conn = utils.connect(database[0], database[1])
+            revisions = ArchiveRevisionIterator(data_conn, limit=limit)
         else:
             logging.info(f'Reconstructing compact model from {filename} CSV file (limit={limit})')
             revisions = FileRevisionIterator(filename, limit=limit)
 
-        arch_conn = connect(archive[0], archive[1])
+        arch_conn = utils.connect(archive[0], archive[1])
         for revision in revisions:
             revision_add(cursor, arch_conn, revision)
             comp_conn.commit()

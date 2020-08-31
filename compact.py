@@ -203,7 +203,7 @@ def revision_process_directory(
             else:
                 timestamps.append(directory_get_early_timestamp(cursor, child))
 
-        if None not in timestamps and max(timestamps) <= revision.timestamp:
+        if timestamps != [] and None not in timestamps and max(timestamps) <= revision.timestamp:
             # The directory belongs to the isochrone frontier of the current
             # revision, and this is the first time it appears as such.
             directory_set_early_timestamp(cursor, directory, max(timestamps), depth)

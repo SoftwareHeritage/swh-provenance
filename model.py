@@ -1,4 +1,5 @@
 import operator
+import os
 import psycopg2
 
 from pathlib import PosixPath
@@ -43,14 +44,14 @@ class DirectoryEntry(TreeEntry):
                 if child[OTYPE_IDX] == CONTENT:
                     self.children.append(FileEntry(
                         child[SWHID_IDX],
-                        PosixPath(child[PATH_IDX].decode('utf-8'))
+                        PosixPath(os.fsdecode(child[PATH_IDX]))
                     ))
 
                 elif child[OTYPE_IDX] == DIRECTORY:
                     self.children.append(DirectoryEntry(
                         self.conn,
                         child[SWHID_IDX],
-                        PosixPath(child[PATH_IDX].decode('utf-8'))
+                        PosixPath(os.fsdecode(child[PATH_IDX]))
                     ))
 
         return iter(self.children)

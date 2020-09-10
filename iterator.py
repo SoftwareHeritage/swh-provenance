@@ -1,5 +1,6 @@
 import io
 import psycopg2
+import threading
 
 from datetime import datetime
 from swh.model.identifiers import identifier_to_bytes
@@ -28,17 +29,17 @@ class FileRevisionIterator(RevisionIterator):
     def __init__(self, filename, limit=None):
         self.filename = filename
         self.limit = limit
-
-    def __iter__(self):
         self.file = io.open(self.filename)
         self.idx = 0
-        return self
+        self.mutex = threading.Lock()
 
-    def __next__(self):
+    def next(self):
+        self.mutex.acquire()
         line = self.file.readline().strip()
         if line and (self.limit is None or self.idx < self.limit):
             self.idx = self.idx + 1
             swhid, timestamp, directory = line.strip().split(',')
+            self.mutex.release()
 
             return RevisionEntry(
                 identifier_to_bytes(swhid),
@@ -46,7 +47,8 @@ class FileRevisionIterator(RevisionIterator):
                 identifier_to_bytes(directory)
             )
         else:
-            raise StopIteration
+            self.mutex.release()
+            return None
 
 
 class ArchiveRevisionIterator(RevisionIterator):
@@ -55,28 +57,25 @@ class ArchiveRevisionIterator(RevisionIterator):
     def __init__(self, conn, limit=None, chunksize=100):
         self.cur = conn.cursor()
         self.chunksize = chunksize
-        self.limit = limit
         self.records = []
-
-    def __del__(self):
-        self.cur.close()
-
-    def __iter__(self):
-        self.records.clear()
-        if self.limit is None:
+        if limit is None:
             self.cur.execute('''SELECT id, date, committer_date, directory
                             FROM revision''')
         else:
             self.cur.execute('''SELECT id, date, committer_date, directory
                             FROM revision
-                            LIMIT %s''', (self.limit,))
+                            LIMIT %s''', (limit,))
         for row in self.cur.fetchmany(self.chunksize):
             record = self.make_record(row)
             if record is not None:
                 self.records.append(record)
-        return self
+        self.mutex = threading.Lock()
 
-    def __next__(self):
+    def __del__(self):
+        self.cur.close()
+
+    def next(self):
+        self.mutex.acquire()
         if not self.records:
             self.records.clear()
             for row in self.cur.fetchmany(self.chunksize):
@@ -86,9 +85,11 @@ class ArchiveRevisionIterator(RevisionIterator):
 
         if self.records:
             revision, *self.records = self.records
+            self.mutex.release()
             return revision
         else:
-            raise StopIteration
+            self.mutex.release()
+            return None
 
     def make_record(self, row):
         # Only revision with author or commiter date are considered

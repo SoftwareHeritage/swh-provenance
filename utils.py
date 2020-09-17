@@ -1,3 +1,4 @@
+import io
 import psycopg2
 
 from configparser import ConfigParser
@@ -55,3 +56,11 @@ def connect(filename: PosixPath, section: str):
         print(error)
 
     return conn
+
+
+def execute_sql(conn: psycopg2.extensions.cursor, filename: PosixPath):
+    with io.open(filename) as file:
+        cur = conn.cursor()
+        cur.execute(file.read())
+        cur.close()
+        conn.commit()

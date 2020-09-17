@@ -1,5 +1,4 @@
 import click
-import io
 import logging
 import psycopg2
 import sys
@@ -24,14 +23,6 @@ from model import (
 )
 
 from swh.model.identifiers import identifier_to_str
-
-
-def create_tables(conn: psycopg2.extensions.cursor, filename: PosixPath='compact.sql'):
-    with io.open(filename) as file:
-        cur = conn.cursor()
-        cur.execute(file.read())
-        cur.close()
-        conn.commit()
 
 
 def revision_add(
@@ -339,7 +330,7 @@ def cli(count, compact, archive, database, filename, limit, threads):
     cursor = comp_conn.cursor()
 
     if reset:
-        create_tables(comp_conn)
+        utils.execute_sql(comp_conn, 'compact.sql')   # Create tables dopping existing ones
 
         if database is not None:
             logging.info(f'Reconstructing compact model from {database} database (limit={limit})')

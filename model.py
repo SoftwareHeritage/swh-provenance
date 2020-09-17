@@ -4,7 +4,7 @@ import psycopg2
 
 from pathlib import PosixPath
 
-from swh.storage.db import Db
+from swh.storage.postgresql.db import Db
 
 CONTENT = "file"
 DIRECTORY = "dir"

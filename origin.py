@@ -113,10 +113,10 @@ def origin_add_revision(
     origin: OriginEntry,
     revision: RevisionEntry
 ):
-    env = [(origin, None, revision)]
+    stack = [(origin, None, revision)]
 
-    while env:
-        origin, relative, revision = env.pop()
+    while stack:
+        origin, relative, revision = stack.pop()
 
         # Check if current revision has no prefered origin and update if necessary.
         cursor.execute('''SELECT COALESCE(org, 0) FROM revision WHERE id=%s''',
@@ -143,7 +143,7 @@ def origin_add_revision(
                               (revision.swhid, origin.id))
 
             if not visited:
-                # revision_walk_history(cursor, origin, revision.swhid, revision, depth)
+                # revision_walk_history(cursor, origin, revision.swhid, revision)
                 env.append((origin, revision.swhid, revision))
 
         else:
@@ -190,8 +190,8 @@ def origin_add_revision(
                 if parent is not None:
                     parent = parent.to_dict()
                     parent = RevisionEntry(parent['id'], parent['parents'])
-                    # origin_add_revision(cursor, origin, parent, depth+1)
-                    env.append((origin, None, parent))
+                    # origin_add_revision(cursor, origin, parent)
+                    stack.append((origin, None, parent))
 
             for parent in storage.revision_get(to_rev):
                 if parent is not None:
@@ -200,8 +200,8 @@ def origin_add_revision(
                     logging.debug(f'Adding parent revision {identifier_to_str(parent.swhid)} to revision {identifier_to_str(relative)}')
                     cursor.execute('''INSERT INTO revision_before_rev VALUES (%s,%s)''',
                                       (parent.swhid, relative))
-                    # revision_walk_history(cursor, origin, relative, parent, depth+1)
-                    env.append((origin, relative, parent))
+                    # revision_walk_history(cursor, origin, relative, parent)
+                    stack.append((origin, relative, parent))
 
 
 if __name__ == "__main__":

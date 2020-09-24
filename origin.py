@@ -105,7 +105,7 @@ class OriginIterator:
                         yield OriginEntry(status['origin'], revisions)
 
                         idx = idx + 1
-                        if idx == 1: return
+                        if idx == 100: return
 
 
 def origin_add_revision(
@@ -118,10 +118,23 @@ def origin_add_revision(
     while env:
         origin, relative, revision = env.pop()
 
+        # Check if current revision has no prefered origin and update if necessary.
+        cursor.execute('''SELECT COALESCE(org, 0) FROM revision WHERE id=%s''',
+                          (revision.swhid,))
+        row = cursor.fetchone()
+        prefered = row[0] if row is not None else None
+        print(f'Prefered origin for revision {identifier_to_str(revision.swhid)}: {prefered}')
+
+        if prefered == 0:
+            cursor.execute('''UPDATE TABLE revision SET org=%s WHERE id=%s''',
+                              (origin.id, revision.swhid))
+        ########################################################################
+
         if relative is None:
             # This revision is pointed directly by the origin.
             logging.debug(f'Adding revision {identifier_to_str(revision.swhid)} to origin {origin.id}')
-            cursor.execute('''SELECT 1 FROM revision_in_org WHERE rev=%s''', (revision.swhid,))
+            cursor.execute('''SELECT 1 FROM revision_in_org WHERE rev=%s''',
+                              (revision.swhid,))
             visited = cursor.fetchone() is not None
             print(f'Revision {identifier_to_str(revision.swhid)} in origin {origin.id}: {visited}')
 
@@ -148,7 +161,8 @@ def origin_add_revision(
                 if not visited:
                     # The parent revision has never been seen before pointing
                     # directly to an origin.
-                    cursor.execute('''SELECT 1 FROM revision_before_rev WHERE prev=%s''', (parent,))
+                    cursor.execute('''SELECT 1 FROM revision_before_rev WHERE prev=%s''',
+                                      (parent,))
                     known = cursor.fetchone() is not None
                     print(f'Revision {identifier_to_str(parent)} before revision: {visited}')
 
@@ -220,19 +234,12 @@ if __name__ == "__main__":
             if origin.id is None:
                 # If the origin is seen for the first time, current revision is
                 # the prefered one.
-                cursor.execute('''INSERT INTO origin (url, rev) VALUES (%s,%s)''',
-                                  (origin.url, revision.swhid))
-
+                cursor.execute('''INSERT INTO origin (url) VALUES (%s)''',
+                                  (origin.url,))
                 # Retrieve current origin's internal id (just generated).
-                cursor.execute('''SELECT id FROM origin WHERE url=%s''', (origin.url,))
+                cursor.execute('''SELECT id FROM origin WHERE url=%s''',
+                                  (origin.url,))
                 origin.id = cursor.fetchone()[0]
-
-            else:
-                # TODO: we should check whether current revision is prefered
-                # over the stored one to perform an update.
-                pass
-                # cursor.execute('''UPDATE origin SET rev=%s WHERE id=%s''',
-                #                   (revision.swhid, origin.id))
 
             origin_add_revision(cursor, origin, revision)
             comp_conn.commit()

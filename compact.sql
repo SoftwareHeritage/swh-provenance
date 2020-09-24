@@ -33,11 +33,13 @@ drop table if exists revision;
 create table revision
 (
     id      sha1_git primary key,   -- id of the revision
-    date    timestamptz not null    -- timestamp of the revision
+    date    timestamptz not null,   -- timestamp of the revision
+    org     bigint                  -- id of the prefered origin
 );
 
 comment on column revision.id is 'Revision identifier';
 comment on column revision.date is 'Revision timestamp';
+comment on column revision.org is 'Prefered origin for the revision';
 
 
 drop table if exists content_early_in_rev;

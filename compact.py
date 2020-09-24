@@ -36,7 +36,7 @@ def revision_add(
     directory = Tree(archive, revision.directory).root
     revision_process_directory(cursor, revision, directory, directory.name)
     # Add current revision to the compact DB
-    cursor.execute('INSERT INTO revision VALUES (%s,%s)', (revision.swhid, revision.timestamp))
+    cursor.execute('INSERT INTO revision VALUES (%s,%s, NULL)', (revision.swhid, revision.timestamp))
 
 
 def content_find_first(

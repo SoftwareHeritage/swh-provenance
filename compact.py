@@ -313,7 +313,7 @@ class Worker(threading.Thread):
 @click.option('-l', '--limit', type=int)
 @click.option('-t', '--threads', type=int, default=1)
 def cli(count, compact, archive, database, filename, limit, threads):
-    """Compact model utility."""
+    """Compact model revision-content layer utility."""
     logging.basicConfig(level=logging.INFO)
     # logging.basicConfig(filename='compact.log', level=logging.DEBUG)
 

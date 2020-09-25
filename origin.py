@@ -144,7 +144,7 @@ def origin_add_revision(
 
             if not visited:
                 # revision_walk_history(cursor, origin, revision.swhid, revision)
-                env.append((origin, revision.swhid, revision))
+                stack.append((origin, revision.swhid, revision))
 
         else:
             # This revision a parent of another one in the history of the

@@ -2,4 +2,7 @@
 *.log
 *.txt
 __pycache__
+compact.egg.info
+content-revision
 PKG-INFO
+revision-origin

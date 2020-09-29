@@ -24,7 +24,7 @@ class OriginEntry:
 class RevisionEntry:
     def __init__(self, swhid, parents):
         self.swhid = swhid
-        self.parents = parents
+        self.parents = list(dict.fromkeys(parents))
 
     def __str__(self):
         return f'{type(self).__name__}(swhid={identifier_to_str(self.swhid)}, parents={list(map(identifier_to_str, self.parents))})'
@@ -147,7 +147,7 @@ def origin_add_revision(
                 stack.append((origin, revision.swhid, revision))
 
         else:
-            # This revision a parent of another one in the history of the
+            # This revision is a parent of another one in the history of the
             # relative revision.
             to_org = []
             to_rev = []
@@ -156,7 +156,7 @@ def origin_add_revision(
                 cursor.execute('''SELECT 1 FROM revision_in_org WHERE rev=%s''',
                                   (parent,))
                 visited = cursor.fetchone() is not None
-                print(f'Parent {identifier_to_str(parent)} in origin {origin.id}: {visited}')
+                print(f'Parent {identifier_to_str(parent)} in some origin: {visited}')
 
                 if not visited:
                     # The parent revision has never been seen before pointing

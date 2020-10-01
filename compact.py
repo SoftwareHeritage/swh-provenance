@@ -1,6 +1,7 @@
 import click
 import logging
 import psycopg2
+import swh.storage
 import sys
 import time
 import threading
@@ -27,13 +28,13 @@ from swh.model.identifiers import identifier_to_str
 
 def revision_add(
     cursor: psycopg2.extensions.cursor,
-    archive: psycopg2.extensions.connection,
+    storage: swh.storage.interface.StorageInterface,
     revision: RevisionEntry,
     id : int
 ):
     logging.info(f'Thread {id} - Processing revision {identifier_to_str(revision.swhid)} (timestamp: {revision.timestamp})')
     # Processed content starting from the revision's root directory
-    directory = Tree(archive, revision.directory).root
+    directory = Tree(storage, revision.directory).root
     revision_process_directory(cursor, revision, directory, directory.name)
     # Add current revision to the compact DB
     cursor.execute('INSERT INTO revision VALUES (%s,%s, NULL)', (revision.swhid, revision.timestamp))
@@ -213,16 +214,19 @@ def revision_process_directory(
         revision, directory, path = stack.pop()
 
         timestamp = directory_get_early_timestamp(cursor, directory)
+        logging.debug(timestamp)
 
         if timestamp is None:
             # The directory has never been seen on the isochrone graph of a
             # revision. Its children should be checked.
             timestamps = []
             for child in iter(directory):
+                logging.debug(f'child {child}')
                 if isinstance(child, FileEntry):
                     timestamps.append(content_get_early_timestamp(cursor, child))
                 else:
                     timestamps.append(directory_get_early_timestamp(cursor, child))
+            logging.debug(timestamps)
 
             if timestamps != [] and None not in timestamps and max(timestamps) <= revision.timestamp:
                 # The directory belongs to the isochrone frontier of the current
@@ -260,7 +264,7 @@ def revision_process_directory(
                     content_add_to_revision(cursor, revision, child, path)
                 else:
                     # revision_process_directory(cursor, revision, child, path / child.name)
-                    stack.append((cursor, revision, child, path / child.name))
+                    stack.append((revision, child, path / child.name))
             ####################################################################
             directory_set_early_timestamp(cursor, directory, revision.timestamp)
 
@@ -281,15 +285,15 @@ class Worker(threading.Thread):
         id : int,
         conf : str,
         database : str,
-        archive : psycopg2.extensions.connection,
+        storage : swh.storage.interface.StorageInterface,
         revisions : RevisionIterator
     ):
         super().__init__()
         self.id = id
         self.conf = conf
         self.database = database
-        self.archive = archive
         self.revisions = revisions
+        self.storage = storage
 
 
     def run(self):
@@ -302,12 +306,14 @@ class Worker(threading.Thread):
 
                 while not processed:
                     try:
-                        revision_add(cursor, self.archive, revision, self.id)
+                        revision_add(cursor, self.storage, revision, self.id)
                         conn.commit()
                         processed = True
-                    except:
+                    except psycopg2.DatabaseError:
                         logging.warning(f'Thread {self.id} - Failed to process revision {identifier_to_str(revision.swhid)} (timestamp: {revision.timestamp})')
                         conn.rollback()
+                    except Exception as error:
+                        logging.warning(f'Exection: {error}')
         conn.close()
 
 
@@ -333,6 +339,7 @@ def cli(count, compact, archive, database, filename, limit, threads):
         logging.error('Error: -a option is compulsatory when -d or -f options are set')
         exit()
 
+    # TODO: improve the way a connection to PSQL is configured.
     comp_conn = utils.connect(compact[0], compact[1])
     cursor = comp_conn.cursor()
 
@@ -347,18 +354,21 @@ def cli(count, compact, archive, database, filename, limit, threads):
             logging.info(f'Reconstructing compact model from {filename} CSV file (limit={limit})')
             revisions = FileRevisionIterator(filename, limit=limit)
 
-        arch_conn = utils.connect(archive[0], archive[1])
+        # TODO: take this arguments from the command line.
+        kwargs = {
+            "cls" : "remote",
+            "url" : "http://uffizi.internal.softwareheritage.org:5002"
+        }
+        storage = swh.storage.get_storage(**kwargs)
 
         workers = []
         for id in range(threads):
-            worker = Worker(id, compact[0], compact[1], arch_conn, revisions)
+            worker = Worker(id, compact[0], compact[1], storage, revisions)
             worker.start()
             workers.append(worker)
 
         for worker in workers:
             worker.join()
-
-        arch_conn.close()
 
         if database is not None:
             data_conn.close()

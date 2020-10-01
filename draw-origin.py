@@ -23,7 +23,7 @@ if __name__ == "__main__":
         orgid = str(org[0])
         orgurl = str(org[1])
         dot = Digraph(comment=f'Revision history of origin {orgurl}')
-        dot.node(orgurl, f'ORIGIN ({orgid})\n{orgurl}')
+        dot.node(orgid, f'ORIGIN ({orgid})\n{orgurl}')
 
         revs = dict()
         orgcur = comp_conn.cursor()
@@ -34,9 +34,9 @@ if __name__ == "__main__":
         for rev in orgcur.fetchall():
             revid = identifier_to_str(rev[0])
             if revid in revs.keys():
-                revs[revid].append(orgurl)
+                revs[revid].append(orgid)
             else:
-                revs[revid] = ([orgurl])
+                revs[revid] = ([orgid])
 
 
             revcur = comp_conn.cursor()

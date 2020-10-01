@@ -1,22 +1,23 @@
 import operator
 import os
-import psycopg2
+# import psycopg2
+import swh.storage.interface
 
 from pathlib import PosixPath
 
-from swh.storage.postgresql.db import Db
+# from swh.storage.postgresql.db import Db
 
 CONTENT = "file"
 DIRECTORY = "dir"
 
-OTYPE_IDX = 1
-PATH_IDX = 3
-SWHID_IDX = 2
+# OTYPE_IDX = 1
+# PATH_IDX = 3
+# SWHID_IDX = 2
 
 
 class Tree:
-    def __init__(self, conn: psycopg2.extensions.connection, swhid: str):
-        self.root = DirectoryEntry(conn, swhid, PosixPath('.'))
+    def __init__(self, storage: swh.storage.interface.StorageInterface, swhid: str):
+        self.root = DirectoryEntry(storage, swhid, PosixPath('.'))
 
 
 class TreeEntry:
@@ -28,30 +29,29 @@ class TreeEntry:
 class DirectoryEntry(TreeEntry):
     def __init__(
         self,
-        conn: psycopg2.extensions.connection,
+        storage: swh.storage.interface.StorageInterface,
         swhid: str,
         name: PosixPath
     ):
         super().__init__(swhid, name)
-        self.conn = conn
+        self.storage = storage
         self.children = None
 
     def __iter__(self):
         if self.children is None:
             self.children = []
-            storage = Db(self.conn)
-            for child in storage.directory_walk_one(self.swhid):
-                if child[OTYPE_IDX] == CONTENT:
+            for child in self.storage.directory_ls(self.swhid):
+                if child['type'] == CONTENT:
                     self.children.append(FileEntry(
-                        child[SWHID_IDX],
-                        PosixPath(os.fsdecode(child[PATH_IDX]))
+                        child['target'],
+                        PosixPath(os.fsdecode(child['name']))
                     ))
 
-                elif child[OTYPE_IDX] == DIRECTORY:
+                elif child['type'] == DIRECTORY:
                     self.children.append(DirectoryEntry(
-                        self.conn,
-                        child[SWHID_IDX],
-                        PosixPath(os.fsdecode(child[PATH_IDX]))
+                        self.storage,
+                        child['target'],
+                        PosixPath(os.fsdecode(child['name']))
                     ))
 
         return iter(self.children)

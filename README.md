@@ -1,5 +1,5 @@
-swh-py-template
-===============
+swh-provenance
+==============
 
-Python module template, used as skeleton to create new modules.
-
+Provenance DB module to query the provenance of source code artifacts present
+in the Software Heritage archive.

@@ -6,6 +6,7 @@ __pycache__
 compact.egg.info
 content-revision
 build
+data
 debian
 dumps
 PKG-INFO

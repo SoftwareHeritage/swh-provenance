@@ -58,7 +58,7 @@ def connect(filename: PosixPath, section: str):
     return conn
 
 
-def execute_sql(conn: psycopg2.extensions.cursor, filename: PosixPath):
+def execute_sql(conn: psycopg2.extensions.connection, filename: PosixPath):
     with io.open(filename) as file:
         cur = conn.cursor()
         cur.execute(file.read())

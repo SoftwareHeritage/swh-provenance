@@ -234,11 +234,11 @@ if __name__ == "__main__":
             if origin.id is None:
                 # If the origin is seen for the first time, current revision is
                 # the prefered one.
-                cursor.execute('''INSERT INTO origin (url) VALUES (%s)''',
+                cursor.execute('''INSERT INTO origin (url) VALUES (%s) RETURNING id''',
                                   (origin.url,))
                 # Retrieve current origin's internal id (just generated).
-                cursor.execute('''SELECT id FROM origin WHERE url=%s''',
-                                  (origin.url,))
+                # cursor.execute('''SELECT id FROM origin WHERE url=%s''',
+                #                   (origin.url,))
                 origin.id = cursor.fetchone()[0]
 
             origin_add_revision(cursor, origin, revision)

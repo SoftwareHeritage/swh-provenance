@@ -1,9 +1,12 @@
 *.csv
+*.egg*
 *.log
-*.txt
+*.zip
 __pycache__
 compact.egg.info
 content-revision
+build
+debian
 dumps
 PKG-INFO
 revision-origin

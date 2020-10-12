@@ -1,38 +1,62 @@
-import click
 import logging
+import os
 import psycopg2
-import swh.storage
-import sys
 import time
 import threading
-import utils
 
-from datetime import datetime
-from pathlib import PosixPath
-
-from iterator import (
-    RevisionEntry,
-    RevisionIterator,
-    ArchiveRevisionIterator,
-    FileRevisionIterator
+from .db_utils import (
+    adapt_conn,
+    execute_sql
 )
-from model import (
+from .model import (
     DirectoryEntry,
     FileEntry,
     TreeEntry,
     Tree
 )
+from .revision import (
+    RevisionEntry,
+    RevisionIterator,
+    ArchiveRevisionIterator,
+    FileRevisionIterator
+)
 
-from swh.model.identifiers import identifier_to_str
+from datetime import datetime
+from pathlib import PosixPath
+
+from swh.core.db import db_utils    # TODO: remove this in favour of local db_utils module
+from swh.model.hashutil import hash_to_hex
+from swh.storage.interface import StorageInterface
+
+
+def create_database(
+    conn: psycopg2.extensions.connection,
+    conninfo: str,
+    name: str
+):
+    conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+
+    # Create new database dropping previous one if exists
+    cursor = conn.cursor();
+    cursor.execute(f'''DROP DATABASE IF EXISTS {name}''')
+    cursor.execute(f'''CREATE DATABASE {name};''');
+    conn.close()
+
+    # Reconnect to server selecting newly created database to add tables
+    conn = db_utils.connect_to_conninfo(os.path.join(conninfo, name))
+    adapt_conn(conn)
+
+    dir = os.path.dirname(os.path.realpath(__file__))
+    execute_sql(conn, os.path.join(dir, 'db/provenance.sql'))
 
 
 def revision_add(
     cursor: psycopg2.extensions.cursor,
-    storage: swh.storage.interface.StorageInterface,
+    storage: StorageInterface,
     revision: RevisionEntry,
     id : int
 ):
-    logging.info(f'Thread {id} - Processing revision {identifier_to_str(revision.swhid)} (timestamp: {revision.timestamp})')
+    logging.info(f'Thread {id} - Processing revision {hash_to_hex(revision.swhid)} (timestamp: {revision.timestamp})')
     # Processed content starting from the revision's root directory
     directory = Tree(storage, revision.directory).root
     revision_process_directory(cursor, revision, directory, directory.name)
@@ -44,7 +68,7 @@ def content_find_first(
     cursor: psycopg2.extensions.cursor,
     swhid: str
 ):
-    logging.info(f'Retrieving first occurrence of content {identifier_to_str(swhid)}')
+    logging.info(f'Retrieving first occurrence of content {hash_to_hex(swhid)}')
     cursor.execute('''SELECT blob, rev, date, path
                       FROM content_early_in_rev JOIN revision ON revision.id=content_early_in_rev.rev
                       WHERE content_early_in_rev.blob=%s ORDER BY date, rev, path ASC LIMIT 1''', (swhid,))
@@ -55,7 +79,7 @@ def content_find_all(
     cursor: psycopg2.extensions.cursor,
     swhid: str
 ):
-    logging.info(f'Retrieving all occurrences of content {identifier_to_str(swhid)}')
+    logging.info(f'Retrieving all occurrences of content {hash_to_hex(swhid)}')
     cursor.execute('''(SELECT blob, rev, date, path
                       FROM content_early_in_rev JOIN revision ON revision.id=content_early_in_rev.rev
                       WHERE content_early_in_rev.blob=%s)
@@ -71,6 +95,7 @@ def content_find_all(
                             WHERE content_in_dir.blob=%s) AS content_in_rev
                       JOIN revision ON revision.id=content_in_rev.rev)
                       ORDER BY date, rev, path''', (swhid, swhid))
+                      # POSTGRESQL EXPLAIN
     yield from cursor.fetchall()
 
 
@@ -89,7 +114,7 @@ def content_get_early_timestamp(
     cursor: psycopg2.extensions.cursor,
     blob: FileEntry
 ):
-    logging.debug(f'Getting content {identifier_to_str(blob.swhid)} early timestamp')
+    logging.debug(f'Getting content {hash_to_hex(blob.swhid)} early timestamp')
     start = time.perf_counter_ns()
     cursor.execute('SELECT date FROM content WHERE id=%s', (blob.swhid,))
     row = cursor.fetchone()
@@ -103,7 +128,7 @@ def content_set_early_timestamp(
     blob: FileEntry,
     timestamp: datetime
 ):
-    logging.debug(f'EARLY occurrence of blob {identifier_to_str(blob.swhid)} (timestamp: {timestamp})')
+    logging.debug(f'EARLY occurrence of blob {hash_to_hex(blob.swhid)} (timestamp: {timestamp})')
     start = time.perf_counter_ns()
     cursor.execute('''INSERT INTO content VALUES (%s,%s)
                       ON CONFLICT (id) DO UPDATE SET date=%s''',
@@ -118,7 +143,7 @@ def content_add_to_directory(
     blob: FileEntry,
     prefix: PosixPath
 ):
-    logging.debug(f'NEW occurrence of content {identifier_to_str(blob.swhid)} in directory {identifier_to_str(directory.swhid)} (path: {prefix / blob.name})')
+    logging.debug(f'NEW occurrence of content {hash_to_hex(blob.swhid)} in directory {hash_to_hex(directory.swhid)} (path: {prefix / blob.name})')
     start = time.perf_counter_ns()
     cursor.execute('INSERT INTO content_in_dir VALUES (%s,%s,%s)',
                     (blob.swhid, directory.swhid, bytes(normalize(prefix / blob.name))))
@@ -132,7 +157,7 @@ def content_add_to_revision(
     blob: FileEntry,
     prefix: PosixPath
 ):
-    logging.debug(f'EARLY occurrence of blob {identifier_to_str(blob.swhid)} in revision {identifier_to_str(revision.swhid)} (path: {prefix / blob.name})')
+    logging.debug(f'EARLY occurrence of blob {hash_to_hex(blob.swhid)} in revision {hash_to_hex(revision.swhid)} (path: {prefix / blob.name})')
     start = time.perf_counter_ns()
     cursor.execute('INSERT INTO content_early_in_rev VALUES (%s,%s,%s)',
                     (blob.swhid, revision.swhid, bytes(normalize(prefix / blob.name))))
@@ -144,7 +169,7 @@ def directory_get_early_timestamp(
     cursor: psycopg2.extensions.cursor,
     directory: DirectoryEntry
 ):
-    logging.debug(f'Getting directory {identifier_to_str(directory.swhid)} early timestamp')
+    logging.debug(f'Getting directory {hash_to_hex(directory.swhid)} early timestamp')
     start = time.perf_counter_ns()
     cursor.execute('SELECT date FROM directory WHERE id=%s', (directory.swhid,))
     row = cursor.fetchone()
@@ -158,7 +183,7 @@ def directory_set_early_timestamp(
     directory: DirectoryEntry,
     timestamp: datetime
 ):
-    logging.debug(f'EARLY occurrence of directory {identifier_to_str(directory.swhid)} on the ISOCHRONE FRONTIER (timestamp: {timestamp})')
+    logging.debug(f'EARLY occurrence of directory {hash_to_hex(directory.swhid)} on the ISOCHRONE FRONTIER (timestamp: {timestamp})')
     start = time.perf_counter_ns()
     cursor.execute('''INSERT INTO directory VALUES (%s,%s)
                       ON CONFLICT (id) DO UPDATE SET date=%s''',
@@ -173,7 +198,7 @@ def directory_add_to_revision(
     directory: DirectoryEntry,
     path: PosixPath
 ):
-    logging.debug(f'NEW occurrence of directory {identifier_to_str(directory.swhid)} on the ISOCHRONE FRONTIER of revision {identifier_to_str(revision.swhid)} (path: {path})')
+    logging.debug(f'NEW occurrence of directory {hash_to_hex(directory.swhid)} on the ISOCHRONE FRONTIER of revision {hash_to_hex(revision.swhid)} (path: {path})')
     start = time.perf_counter_ns()
     cursor.execute('INSERT INTO directory_in_rev VALUES (%s,%s,%s)',
                     (directory.swhid, revision.swhid, bytes(normalize(path))))
@@ -210,6 +235,7 @@ def revision_process_directory(
 ):
     stack = [(revision, directory, path)]
 
+    # TODO: try to cache the info and psotpone inserts
     while stack:
         revision, directory, path = stack.pop()
 
@@ -233,7 +259,7 @@ def revision_process_directory(
                 # revision, and this is the first time it appears as such.
                 directory_set_early_timestamp(cursor, directory, max(timestamps))
                 directory_add_to_revision(cursor, revision, directory, path)
-                directory_process_content(cursor, directory, directory, PosixPath('.'))
+                directory_process_content(cursor, directory=directory, relative=directory, prefix=PosixPath('.'))
             else:
                 # The directory is not on the isochrone frontier of the current
                 # revision. Its child nodes should be analyzed.
@@ -241,6 +267,7 @@ def revision_process_directory(
                 ################################################################
                 for child in iter(directory):
                     if isinstance(child, FileEntry):
+                        # TODO: store info from previous iterator to avoid quering twice!
                         timestamp = content_get_early_timestamp(cursor, child)
                         if timestamp is None or revision.timestamp < timestamp:
                             content_set_early_timestamp(cursor, child, revision.timestamp)
@@ -279,25 +306,24 @@ def revision_process_directory(
 ################################################################################
 
 
-class Worker(threading.Thread):
+class RevisionWorker(threading.Thread):
     def __init__(
         self,
         id : int,
-        conf : str,
-        database : str,
-        storage : swh.storage.interface.StorageInterface,
+        conninfo : str,
+        storage : StorageInterface,
         revisions : RevisionIterator
     ):
         super().__init__()
         self.id = id
-        self.conf = conf
-        self.database = database
+        self.conninfo = conninfo
         self.revisions = revisions
         self.storage = storage
 
 
     def run(self):
-        conn = utils.connect(self.conf, self.database)
+        conn = db_utils.connect_to_conninfo(self.conninfo)
+        adapt_conn(conn)
         with conn.cursor() as cursor:
             while True:
                 processed = False
@@ -310,82 +336,13 @@ class Worker(threading.Thread):
                         conn.commit()
                         processed = True
                     except psycopg2.DatabaseError:
-                        logging.warning(f'Thread {self.id} - Failed to process revision {identifier_to_str(revision.swhid)} (timestamp: {revision.timestamp})')
+                        logging.warning(f'Thread {self.id} - Failed to process revision {hash_to_hex(revision.swhid)} (timestamp: {revision.timestamp})')
                         conn.rollback()
+                        # TODO: maybe serialize and auto-merge transations.
+                        # The only conflicts are on:
+                        #   - content: we keep the earliest timestamp
+                        #   - directory: we keep the earliest timestamp
+                        #   - content_in_dir: there should be just duplicated entries.
                     except Exception as error:
                         logging.warning(f'Exection: {error}')
         conn.close()
-
-
-@click.command()
-@click.argument('count', type=int)
-@click.option('-c', '--compact', nargs=2, required=True)
-@click.option('-a', '--archive', nargs=2)
-@click.option('-d', '--database', nargs=2)
-@click.option('-f', '--filename')
-@click.option('-l', '--limit', type=int)
-@click.option('-t', '--threads', type=int, default=1)
-def cli(count, compact, archive, database, filename, limit, threads):
-    """Compact model revision-content layer utility."""
-    logging.basicConfig(level=logging.INFO)
-    # logging.basicConfig(filename='compact.log', level=logging.DEBUG)
-
-    click.echo(f'{count} {compact} {archive} {database} {filename} {limit}')
-    if not database: database = None
-    if not archive: archive = None
-
-    reset = database is not None or filename is not None
-    if reset and archive is None:
-        logging.error('Error: -a option is compulsatory when -d or -f options are set')
-        exit()
-
-    # TODO: improve the way a connection to PSQL is configured.
-    comp_conn = utils.connect(compact[0], compact[1])
-    cursor = comp_conn.cursor()
-
-    if reset:
-        utils.execute_sql(comp_conn, 'compact.sql')   # Create tables dopping existing ones
-
-        if database is not None:
-            logging.info(f'Reconstructing compact model from {database} database (limit={limit})')
-            data_conn = utils.connect(database[0], database[1])
-            revisions = ArchiveRevisionIterator(data_conn, limit=limit)
-        else:
-            logging.info(f'Reconstructing compact model from {filename} CSV file (limit={limit})')
-            revisions = FileRevisionIterator(filename, limit=limit)
-
-        # TODO: take this arguments from the command line.
-        kwargs = {
-            "cls" : "remote",
-            "url" : "http://uffizi.internal.softwareheritage.org:5002"
-        }
-        storage = swh.storage.get_storage(**kwargs)
-
-        workers = []
-        for id in range(threads):
-            worker = Worker(id, compact[0], compact[1], storage, revisions)
-            worker.start()
-            workers.append(worker)
-
-        for worker in workers:
-            worker.join()
-
-        if database is not None:
-            data_conn.close()
-
-    cursor.execute(f'SELECT DISTINCT id FROM content ORDER BY id LIMIT {count}')
-    for idx, row in enumerate(cursor.fetchall()):
-        swhid = row[0]
-        print(f'Test blob {idx}: {identifier_to_str(swhid)}')
-
-        fst = content_find_first(cursor, swhid)
-        print(f'  First occurrence:')
-        print(f'    {identifier_to_str(fst[0])}, {identifier_to_str(fst[1])}, {fst[2]}, {fst[3].decode("utf-8")}')
-
-        print(f'  All occurrences:')
-        for row in content_find_all(cursor, swhid):
-            print(f'    {identifier_to_str(row[0])}, {identifier_to_str(row[1])}, {row[2]}, {row[3].decode("utf-8")}')
-
-        print(f'========================================')
-
-    comp_conn.close()

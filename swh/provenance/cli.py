@@ -30,7 +30,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "cls": "remote",
         "url": "http://uffizi.internal.softwareheritage.org:5002"
     },
-    "db": "postgresql://postgres:postgres@localhost/provenance"
+    "db": "postgresql://postgres:postgres@localhost/provenance" # TODO: fix this!
 }
 
 
@@ -100,7 +100,7 @@ def create(ctx, name):
     conninfo = os.path.dirname(ctx.obj["config"]["db"])
     conn = db_utils.connect_to_conninfo(conninfo)
     adapt_conn(conn)
-    
+
     create_database(conn, conninfo, name)
 
 

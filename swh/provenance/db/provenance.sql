@@ -47,7 +47,7 @@ create table content_in_dir
 
 comment on column content_in_dir.blob is 'Content identifier';
 comment on column content_in_dir.dir is 'Directory identifier';
--- comment on column content_early_in_rev.path is 'Path to content in directory';
+comment on column content_in_dir.path is 'Path to content in directory';
 
 
 drop table if exists directory;

@@ -1,7 +1,6 @@
 import logging
 import os
 import psycopg2
-import time
 import threading
 
 from .db_utils import (
@@ -112,102 +111,108 @@ def normalize(path: PosixPath) -> PosixPath:
 
 def content_get_early_timestamp(
     cursor: psycopg2.extensions.cursor,
+    cache: dict,
     blob: FileEntry
 ):
     logging.debug(f'Getting content {hash_to_hex(blob.swhid)} early timestamp')
-    start = time.perf_counter_ns()
-    cursor.execute('SELECT date FROM content WHERE id=%s', (blob.swhid,))
-    row = cursor.fetchone()
-    stop = time.perf_counter_ns()
-    logging.debug(f'  Time elapsed: {stop-start}ns')
-    return row[0] if row is not None else None
+    if blob.swhid in cache['content'].keys():
+        return cache['content'][blob.swhid]
+    else:
+        cursor.execute('SELECT date FROM content WHERE id=%s',
+                        (blob.swhid,))
+        row = cursor.fetchone()
+        return row[0] if row is not None else None
 
 
 def content_set_early_timestamp(
     cursor: psycopg2.extensions.cursor,
+    cache: dict,
     blob: FileEntry,
     timestamp: datetime
 ):
     logging.debug(f'EARLY occurrence of blob {hash_to_hex(blob.swhid)} (timestamp: {timestamp})')
-    start = time.perf_counter_ns()
-    cursor.execute('''INSERT INTO content VALUES (%s,%s)
-                      ON CONFLICT (id) DO UPDATE SET date=%s''',
-                      (blob.swhid, timestamp, timestamp))
-    stop = time.perf_counter_ns()
-    logging.debug(f'  Time elapsed: {stop-start}ns')
+    # cursor.execute('''INSERT INTO content VALUES (%s,%s)
+    #                   ON CONFLICT (id) DO UPDATE SET date=%s''',
+    #                   (blob.swhid, timestamp, timestamp))
+    cache['content'][blob.swhid] = timestamp
 
 
 def content_add_to_directory(
     cursor: psycopg2.extensions.cursor,
+    cache: dict,
     directory: DirectoryEntry,
     blob: FileEntry,
     prefix: PosixPath
 ):
     logging.debug(f'NEW occurrence of content {hash_to_hex(blob.swhid)} in directory {hash_to_hex(directory.swhid)} (path: {prefix / blob.name})')
-    start = time.perf_counter_ns()
-    cursor.execute('INSERT INTO content_in_dir VALUES (%s,%s,%s)',
-                    (blob.swhid, directory.swhid, bytes(normalize(prefix / blob.name))))
-    stop = time.perf_counter_ns()
-    logging.debug(f'  Time elapsed: {stop-start}ns')
+    # cursor.execute('INSERT INTO content_in_dir VALUES (%s,%s,%s)',
+    #                 (blob.swhid, directory.swhid, bytes(normalize(prefix / blob.name))))
+    cache['content_in_dir'].append(
+        (blob.swhid, directory.swhid, bytes(normalize(prefix / blob.name)))
+    )
 
 
 def content_add_to_revision(
     cursor: psycopg2.extensions.cursor,
+    cache: dict,
     revision: RevisionEntry,
     blob: FileEntry,
     prefix: PosixPath
 ):
     logging.debug(f'EARLY occurrence of blob {hash_to_hex(blob.swhid)} in revision {hash_to_hex(revision.swhid)} (path: {prefix / blob.name})')
-    start = time.perf_counter_ns()
-    cursor.execute('INSERT INTO content_early_in_rev VALUES (%s,%s,%s)',
-                    (blob.swhid, revision.swhid, bytes(normalize(prefix / blob.name))))
-    stop = time.perf_counter_ns()
-    logging.debug(f'  Time elapsed: {stop-start}ns')
+    # cursor.execute('INSERT INTO content_early_in_rev VALUES (%s,%s,%s)',
+    #                 (blob.swhid, revision.swhid, bytes(normalize(prefix / blob.name))))
+    cache['content_early_in_rev'].append(
+        (blob.swhid, revision.swhid, bytes(normalize(prefix / blob.name)))
+    )
 
 
 def directory_get_early_timestamp(
     cursor: psycopg2.extensions.cursor,
+    cache: dict,
     directory: DirectoryEntry
 ):
     logging.debug(f'Getting directory {hash_to_hex(directory.swhid)} early timestamp')
-    start = time.perf_counter_ns()
-    cursor.execute('SELECT date FROM directory WHERE id=%s', (directory.swhid,))
-    row = cursor.fetchone()
-    stop = time.perf_counter_ns()
-    logging.debug(f'  Time elapsed: {stop-start}ns')
-    return row[0] if row is not None else None
+    if directory.swhid in cache['directory'].keys():
+        return cache['directory'][directory.swhid]
+    else:
+        cursor.execute('SELECT date FROM directory WHERE id=%s',
+                        (directory.swhid,))
+        row = cursor.fetchone()
+        return row[0] if row is not None else None
 
 
 def directory_set_early_timestamp(
     cursor: psycopg2.extensions.cursor,
+    cache: dict,
     directory: DirectoryEntry,
     timestamp: datetime
 ):
     logging.debug(f'EARLY occurrence of directory {hash_to_hex(directory.swhid)} on the ISOCHRONE FRONTIER (timestamp: {timestamp})')
-    start = time.perf_counter_ns()
-    cursor.execute('''INSERT INTO directory VALUES (%s,%s)
-                      ON CONFLICT (id) DO UPDATE SET date=%s''',
-                      (directory.swhid, timestamp, timestamp))
-    stop = time.perf_counter_ns()
-    logging.debug(f'  Time elapsed: {stop-start}ns')
+    # cursor.execute('''INSERT INTO directory VALUES (%s,%s)
+    #                   ON CONFLICT (id) DO UPDATE SET date=%s''',
+    #                   (directory.swhid, timestamp, timestamp))
+    cache['directory'][directory.swhid] = timestamp
 
 
 def directory_add_to_revision(
     cursor: psycopg2.extensions.cursor,
+    cache: dict,
     revision: RevisionEntry,
     directory: DirectoryEntry,
     path: PosixPath
 ):
     logging.debug(f'NEW occurrence of directory {hash_to_hex(directory.swhid)} on the ISOCHRONE FRONTIER of revision {hash_to_hex(revision.swhid)} (path: {path})')
-    start = time.perf_counter_ns()
-    cursor.execute('INSERT INTO directory_in_rev VALUES (%s,%s,%s)',
-                    (directory.swhid, revision.swhid, bytes(normalize(path))))
-    stop = time.perf_counter_ns()
-    logging.debug(f'  Time elapsed: {stop-start}ns')
+    # cursor.execute('INSERT INTO directory_in_rev VALUES (%s,%s,%s)',
+    #                 (directory.swhid, revision.swhid, bytes(normalize(path))))
+    cache['directory_in_rev'].append(
+        (directory.swhid, revision.swhid, bytes(normalize(path)))
+    )
 
 
 def directory_process_content(
     cursor: psycopg2.extensions.cursor,
+    cache: dict,
     directory: DirectoryEntry,
     relative: DirectoryEntry,
     prefix: PosixPath
@@ -220,7 +225,7 @@ def directory_process_content(
         for child in iter(directory):
             if isinstance(child, FileEntry):
                 # Add content to the relative directory with the computed prefix.
-                content_add_to_directory(cursor, relative, child, prefix)
+                content_add_to_directory(cursor, cache, relative, child, prefix)
             else:
                 # Recursively walk the child directory.
                 # directory_process_content(cursor, child, relative, prefix / child.name)
@@ -234,44 +239,47 @@ def revision_process_directory(
     path: PosixPath
 ):
     stack = [(revision, directory, path)]
+    cache = {
+        "content": dict(),
+        "content_early_in_rev": list(),
+        "content_in_dir": list(),
+        "directory": dict(),
+        "directory_in_rev": list()
+    }
 
-    # TODO: try to cache the info and psotpone inserts
     while stack:
         revision, directory, path = stack.pop()
 
-        timestamp = directory_get_early_timestamp(cursor, directory)
-        logging.debug(timestamp)
+        timestamp = directory_get_early_timestamp(cursor, cache, directory)
 
         if timestamp is None:
             # The directory has never been seen on the isochrone graph of a
             # revision. Its children should be checked.
-            timestamps = []
+            children = []
             for child in iter(directory):
-                logging.debug(f'child {child}')
                 if isinstance(child, FileEntry):
-                    timestamps.append(content_get_early_timestamp(cursor, child))
+                    children.append((child, content_get_early_timestamp(cursor, cache, child)))
                 else:
-                    timestamps.append(directory_get_early_timestamp(cursor, child))
-            logging.debug(timestamps)
+                    children.append((child, directory_get_early_timestamp(cursor, cache, child)))
+            timestamps = [x[1] for x in children]
+            # timestamps = list(zip(*children))[1]
 
             if timestamps != [] and None not in timestamps and max(timestamps) <= revision.timestamp:
                 # The directory belongs to the isochrone frontier of the current
                 # revision, and this is the first time it appears as such.
-                directory_set_early_timestamp(cursor, directory, max(timestamps))
-                directory_add_to_revision(cursor, revision, directory, path)
-                directory_process_content(cursor, directory=directory, relative=directory, prefix=PosixPath('.'))
+                directory_set_early_timestamp(cursor, cache, directory, max(timestamps))
+                directory_add_to_revision(cursor, cache, revision, directory, path)
+                directory_process_content(cursor, cache, directory=directory, relative=directory, prefix=PosixPath('.'))
             else:
                 # The directory is not on the isochrone frontier of the current
                 # revision. Its child nodes should be analyzed.
                 # revision_process_content(cursor, revision, directory, path)
                 ################################################################
-                for child in iter(directory):
+                for child, timestamp in children:
                     if isinstance(child, FileEntry):
-                        # TODO: store info from previous iterator to avoid quering twice!
-                        timestamp = content_get_early_timestamp(cursor, child)
                         if timestamp is None or revision.timestamp < timestamp:
-                            content_set_early_timestamp(cursor, child, revision.timestamp)
-                        content_add_to_revision(cursor, revision, child, path)
+                            content_set_early_timestamp(cursor, cache, child, revision.timestamp)
+                        content_add_to_revision(cursor, cache, revision, child, path)
                     else:
                         # revision_process_directory(cursor, revision, child, path / child.name)
                         stack.append((revision, child, path / child.name))
@@ -285,20 +293,59 @@ def revision_process_directory(
             ####################################################################
             for child in iter(directory):
                 if isinstance(child, FileEntry):
-                    timestamp = content_get_early_timestamp(cursor, child)
+                    timestamp = content_get_early_timestamp(cursor, cache, child)
                     if timestamp is None or revision.timestamp < timestamp:
-                        content_set_early_timestamp(cursor, child, revision.timestamp)
-                    content_add_to_revision(cursor, revision, child, path)
+                        content_set_early_timestamp(cursor, cache, child, revision.timestamp)
+                    content_add_to_revision(cursor, cache, revision, child, path)
                 else:
                     # revision_process_directory(cursor, revision, child, path / child.name)
                     stack.append((revision, child, path / child.name))
             ####################################################################
-            directory_set_early_timestamp(cursor, directory, revision.timestamp)
+            directory_set_early_timestamp(cursor, cache, directory, revision.timestamp)
 
         else:
             # The directory has already been seen on the isochrone frontier of an
             # earlier revision. Just add it to the current revision.
-            directory_add_to_revision(cursor, revision, directory, path)
+            directory_add_to_revision(cursor, cache, revision, directory, path)
+
+    perform_insertions(cursor, cache)
+
+
+def perform_insertions(
+    cursor: psycopg2.extensions.cursor,
+    cache: dict
+):
+    psycopg2.extras.execute_values(
+        cursor,
+        '''INSERT INTO content(id, date) VALUES %s
+           ON CONFLICT (id) DO UPDATE SET date=excluded.date''',
+        cache['content'].items()
+    )
+
+    psycopg2.extras.execute_values(
+        cursor,
+        '''INSERT INTO content_early_in_rev VALUES %s''',
+        cache['content_early_in_rev']
+    )
+
+    psycopg2.extras.execute_values(
+        cursor,
+        '''INSERT INTO content_in_dir VALUES %s''',
+        cache['content_in_dir']
+    )
+
+    psycopg2.extras.execute_values(
+        cursor,
+        '''INSERT INTO directory(id, date) VALUES %s
+           ON CONFLICT (id) DO UPDATE SET date=excluded.date''',
+        cache['directory'].items()
+    )
+
+    psycopg2.extras.execute_values(
+        cursor,
+        '''INSERT INTO directory_in_rev VALUES %s''',
+        cache['directory_in_rev']
+    )
 
 
 ################################################################################
@@ -309,10 +356,10 @@ def revision_process_directory(
 class RevisionWorker(threading.Thread):
     def __init__(
         self,
-        id : int,
-        conninfo : str,
-        storage : StorageInterface,
-        revisions : RevisionIterator
+        id: int,
+        conninfo: str,
+        storage: StorageInterface,
+        revisions: RevisionIterator
     ):
         super().__init__()
         self.id = id

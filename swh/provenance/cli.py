@@ -111,8 +111,8 @@ def create(ctx, name):
 @click.pass_context
 def iter_revisions(ctx, filename, limit, threads):
     """Iterate over provided list of revisions and add them to the provenance database."""
-    from .provenance import FileRevisionIterator
-    from .provenance import RevisionWorker
+    from .revision import FileRevisionIterator
+    from .revision import RevisionWorker
 
     conninfo = ctx.obj["config"]["db"]
     revisions = FileRevisionIterator(filename, limit=limit)

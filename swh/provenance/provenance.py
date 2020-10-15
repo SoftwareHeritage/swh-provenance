@@ -47,8 +47,8 @@ def revision_add(
     storage: StorageInterface,
     revision: RevisionEntry
 ):
-    with conn.cursor() as cursor:
-        try:
+    try:
+        with conn.cursor() as cursor:
             # Processed content starting from the revision's root directory
             directory = Tree(storage, revision.root).root
             revision_process_dir(cursor, revision, directory)
@@ -57,25 +57,25 @@ def revision_add(
             cursor.execute('INSERT INTO revision VALUES (%s,%s,NULL)',
                             (revision.id, revision.date))
 
-            # Commit changes (one transaction per revision)
-            conn.commit()
-            return True
+        # Commit changes (one transaction per revision)
+        conn.commit()
+        return True
 
-        except psycopg2.DatabaseError:
-            # Database error occurred, rollback all changes
-            conn.rollback()
-            # TODO: maybe serialize and auto-merge transations.
-            # The only conflicts are on:
-            #   - content: we keep the earliest date
-            #   - directory: we keep the earliest date
-            #   - content_in_dir: there should be just duplicated entries.
-            return False
+    except psycopg2.DatabaseError:
+        # Database error occurred, rollback all changes
+        conn.rollback()
+        # TODO: maybe serialize and auto-merge transations.
+        # The only conflicts are on:
+        #   - content: we keep the earliest date
+        #   - directory: we keep the earliest date
+        #   - content_in_dir: there should be just duplicated entries.
+        return False
 
-        except Exception as error:
-            # Unexpected error occurred, rollback all changes and log message
-            logging.warning(f'Unexpected error: {error}')
-            conn.rollback()
-            return False
+    except Exception as error:
+        # Unexpected error occurred, rollback all changes and log message
+        logging.warning(f'Unexpected error: {error}')
+        conn.rollback()
+        return False
 
 
 def content_find_first(

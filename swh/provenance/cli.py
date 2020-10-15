@@ -115,8 +115,8 @@ def iter_revisions(ctx, filename, limit, threads):
     from .revision import RevisionWorker
 
     conninfo = ctx.obj["config"]["db"]
-    revisions = FileRevisionIterator(filename, limit=limit)
     storage = get_storage(**ctx.obj["config"]["storage"])
+    revisions = FileRevisionIterator(filename, storage, limit=limit)
     workers = []
 
     for id in range(threads):
@@ -126,6 +126,24 @@ def iter_revisions(ctx, filename, limit, threads):
 
     for worker in workers:
         worker.join()
+
+
+@cli.command(name="iter-origins")
+@click.argument("filename")
+@click.option('-l', '--limit', type=int)
+#@click.option('-t', '--threads', type=int, default=1)
+@click.pass_context
+#def iter_revisions(ctx, filename, limit, threads):
+def iter_origins(ctx, filename, limit):
+    """Iterate over provided list of revisions and add them to the provenance database."""
+    from .origin import FileOriginIterator
+    from .origin import origin_add
+
+    conn = ctx.obj["conn"]
+    storage = get_storage(**ctx.obj["config"]["storage"])
+
+    for origin in FileOriginIterator(filename, storage, limit=limit):
+        origin_add(conn, storage, origin)
 
 
 @cli.command(name="find-first")

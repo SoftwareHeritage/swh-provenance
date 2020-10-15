@@ -5,18 +5,18 @@ from swh.storage.interface import StorageInterface
 
 
 class Tree:
-    def __init__(self, storage: StorageInterface, id: str):
+    def __init__(self, storage: StorageInterface, id: bytes):
         self.root = DirectoryEntry(storage, id, PosixPath('.'))
 
 
 class TreeEntry:
-    def __init__(self, id: str, name: PosixPath):
+    def __init__(self, id: bytes, name: PosixPath):
         self.id = id
         self.name = name
 
 
 class DirectoryEntry(TreeEntry):
-    def __init__(self, storage: StorageInterface, id: str, name: PosixPath):
+    def __init__(self, storage: StorageInterface, id: bytes, name: PosixPath):
         super().__init__(id, name)
         self.storage = storage
         self.children = None

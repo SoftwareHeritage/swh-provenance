@@ -6,15 +6,39 @@ from .db_utils import adapt_conn
 from datetime import datetime
 
 from swh.core.db import db_utils    # TODO: remove this in favour of local db_utils module
-from swh.model.hashutil import (hash_to_bytes, hash_to_hex)
+from swh.model.hashutil import hash_to_bytes, hash_to_hex
 from swh.storage.interface import StorageInterface
 
 
 class RevisionEntry:
-    def __init__(self, id, date, root):
+    def __init__(
+        self,
+        storage: StorageInterface,
+        id: bytes,
+        date: datetime=None,
+        root: bytes=None,
+        parents: list=None
+    ):
         self.id = id
         self.date = date
+        self.parents = parents
         self.root = root
+        self.storage = storage
+
+    def __iter__(self):
+        if self.parents is None:
+            self.parents = []
+            for parent in self.storage.revision_get([self.id]):
+                if parent is not None:
+                    self.parents.append(
+                        RevisionEntry(
+                            self.storage,
+                            parent.id,
+                            parents=[RevisionEntry(self.storage, id) for id in parent.parents]
+                        )
+                    )
+
+        return iter(self.parents)
 
 
 ################################################################################
@@ -33,12 +57,12 @@ class RevisionIterator:
 class FileRevisionIterator(RevisionIterator):
     """Iterator over revisions present in the given CSV file."""
 
-    def __init__(self, filename, limit=None):
-        self.filename = filename
-        self.limit = limit
-        self.file = open(self.filename)
+    def __init__(self, filename: str, storage: StorageInterface, limit: int=None):
+        self.file = open(filename)
         self.idx = 0
+        self.limit = limit
         self.mutex = threading.Lock()
+        self.storage = storage
 
     def next(self):
         self.mutex.acquire()
@@ -49,9 +73,10 @@ class FileRevisionIterator(RevisionIterator):
             self.mutex.release()
 
             return RevisionEntry(
+                self.storage,
                 hash_to_bytes(id),
-                datetime.strptime(date, '%Y-%m-%d %H:%M:%S%z'),
-                hash_to_bytes(root)
+                date=datetime.strptime(date, '%Y-%m-%d %H:%M:%S%z'),
+                root=hash_to_bytes(root)
             )
         else:
             self.mutex.release()

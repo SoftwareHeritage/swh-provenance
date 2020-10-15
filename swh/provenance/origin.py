@@ -1,13 +1,15 @@
 import logging
 import psycopg2
-import utils
 
 import swh.storage
 import swh.storage.algos.origin
 import swh.storage.algos.snapshot
-import swh.storage.interface
 
-from swh.model.identifiers import identifier_to_str
+from .revision import RevisionEntry
+
+from swh.model.hashutil import hash_to_hex
+from swh.model.model import Origin, ObjectType, TargetType
+from swh.storage.interface import StorageInterface
 
 
 class OriginEntry:
@@ -16,233 +18,258 @@ class OriginEntry:
         self.url = url
         self.revisions = revisions
 
-    def __str__(self):
-        # return f'{type(self).__name__}(id={self.id}, url={self.url}, revisions={list(map(str, self.revisions))})'
-        return f'{type(self).__name__}(id={self.id}, url={self.url})'
+    # def __str__(self):
+    #     # return f'{type(self).__name__}(id={self.id}, url={self.url}, revisions={list(map(str, self.revisions))})'
+    #     return f'{type(self).__name__}(id={self.id}, url={self.url})'
 
 
-class RevisionEntry:
-    def __init__(self, swhid, parents):
-        self.swhid = swhid
-        self.parents = list(dict.fromkeys(parents))
-
-    def __str__(self):
-        return f'{type(self).__name__}(swhid={identifier_to_str(self.swhid)}, parents={list(map(identifier_to_str, self.parents))})'
-
+################################################################################
+################################################################################
 
 class OriginIterator:
-    def __init__(self, storage: swh.storage.interface.StorageInterface):
+    """Iterator interface."""
+
+    def __iter__(self):
+        pass
+
+    def __next__(self):
+        pass
+
+
+class FileOriginIterator(OriginIterator):
+    """Iterator over origins present in the given CSV file."""
+
+    def __init__(self, filename: str, storage: StorageInterface, limit: int=None):
+        self.file = open(filename)
+        self.limit = limit
+        # self.mutex = threading.Lock()
         self.storage = storage
 
     def __iter__(self):
-        yield from self.iterate()
-
-    def iterate(self):
-        idx = 0
-        for origin in swh.storage.algos.origin.iter_origins(self.storage):
-            # print(f'{idx:03} -> {origin}')
-            origin = origin.to_dict()
-
-            for visit in swh.storage.algos.origin.iter_origin_visits(self.storage, origin['url']):
-                # print(f'    +--> {visit}')
-                visit = visit.to_dict()
-
-                if 'visit' in visit:
-                    for status in swh.storage.algos.origin.iter_origin_visit_statuses(self.storage, origin['url'], visit['visit']):
-                        # print(f'      +--> {status}')
-                        # TODO: may filter only those whose status is 'full'??
-                        status = status.to_dict()
-
-                        targets = []
-                        releases = []
-
-                        snapshot = swh.storage.algos.snapshot.snapshot_get_all_branches(storage, status['snapshot'])
-                        if snapshot is not None:
-                            branches = snapshot.to_dict()['branches']
-                            for branch in branches:
-                                # print(f'        +--> {branch} : {branches[branch]}')
-                                target = branches[branch]['target']
-                                target_type = branches[branch]['target_type']
-
-                                if target_type == 'revision':
-                                    targets.append(target)
-
-                                elif target_type == 'release':
-                                    releases.append(target)
-
-                        # print(f'      ############################################################')
-                        # print(list(map(identifier_to_str, releases)))
-
-                        # print(f'      ### RELEASES ###############################################')
-                        # This is done to keep the query in release_get small, hence avoiding a timeout.
-                        limit = 100
-                        for i in range(0, len(releases), limit):
-                            for release in storage.release_get(releases[i:i+limit]):
-                                if release is not None:
-                                    # print(f'** {release}')
-
-                                    release = release.to_dict()
-                                    target = release['target']
-                                    target_type = release['target_type']
-
-                                    if target_type == 'revision':
-                                        targets.append(target)
-
-                        # print(f'      ############################################################')
-                        # print(list(map(identifier_to_str, targets)))
-
-                        # print(f'      ### REVISIONS ##############################################')
-                        # This is done to keep the query in revision_get small, hence avoiding a timeout.
-                        revisions = []
-                        limit = 100
-                        for i in range(0, len(targets), limit):
-                            for revision in storage.revision_get(targets[i:i+limit]):
-                                if revision is not None:
-                                    # print(f'** {revision}')
-                                    revision = revision.to_dict()
-                                    revisions.append(RevisionEntry(revision['id'], revision['parents']))
-
-                        yield OriginEntry(status['origin'], revisions)
-
-                        idx = idx + 1
-                        if idx == 100: return
+        yield from iterate_origin_visit_statuses(
+            [Origin(url.strip()) for url in self.file],
+            self.storage,
+            self.limit
+        )
 
 
-def origin_add_revision(
+class ArchiveOriginIterator:
+    """Iterator over origins present in the given storage."""
+
+    def __init__(self, storage: StorageInterface, limit: int=None):
+        self.limit = limit
+        # self.mutex = threading.Lock()
+        self.storage = storage
+
+    def __iter__(self):
+        yield from iterate_origin_visit_statuses(
+            swh.storage.algos.origin.iter_origins(self.storage),
+            self.storage,
+            self.limit
+        )
+
+
+def iterate_origin_visit_statuses(origins, storage: StorageInterface, limit: int=None):
+    idx = 0
+    for origin in origins:
+        for visit in swh.storage.algos.origin.iter_origin_visits(storage, origin.url):
+            for status in swh.storage.algos.origin.iter_origin_visit_statuses(storage, origin.url, visit.visit):
+                # TODO: may filter only those whose status is 'full'??
+                targets = []
+                releases = []
+
+                snapshot = swh.storage.algos.snapshot.snapshot_get_all_branches(storage, status.snapshot)
+                if snapshot is not None:
+                    for branch in snapshot.branches:
+                        if snapshot.branches[branch].target_type == TargetType.REVISION:
+                            targets.append(snapshot.branches[branch].target)
+
+                        elif snapshot.branches[branch].target_type == TargetType.RELEASE:
+                            releases.append(snapshot.branches[branch].target)
+
+                # This is done to keep the query in release_get small, hence avoiding a timeout.
+                limit = 100
+                for i in range(0, len(releases), limit):
+                    for release in storage.release_get(releases[i:i+limit]):
+                        if revision is not None:
+                            if release.target_type == ObjectType.REVISION:
+                                targets.append(release.target)
+
+                # This is done to keep the query in revision_get small, hence avoiding a timeout.
+                revisions = []
+                limit = 100
+                for i in range(0, len(targets), limit):
+                    for revision in storage.revision_get(targets[i:i+limit]):
+                        if revision is not None:
+                            parents = list(map(lambda id: RevisionEntry(storage, id), revision.parents))
+                            revisions.append(RevisionEntry(storage, revision.id, parents=parents))
+
+                yield OriginEntry(status.origin, revisions)
+
+                idx = idx + 1
+                if idx == limit: return
+
+
+################################################################################
+################################################################################
+
+def revision_add_before_rev(
+    cursor: psycopg2.extensions.cursor,
+    relative: RevisionEntry,
+    revision: RevisionEntry
+):
+    cursor.execute('''INSERT INTO revision_before_rev VALUES (%s,%s)''',
+                      (revision.id, relative.id))
+
+
+def revision_add_to_org(
     cursor: psycopg2.extensions.cursor,
     origin: OriginEntry,
     revision: RevisionEntry
 ):
-    stack = [(origin, None, revision)]
+    cursor.execute('''INSERT INTO revision_in_org VALUES (%s,%s)
+                      ON CONFLICT DO NOTHING''',
+                      (revision.id, origin.id))
+
+
+def revision_get_prefered_org(
+    cursor: psycopg2.extensions.cursor,
+    revision: RevisionEntry
+) -> int:
+    cursor.execute('''SELECT COALESCE(org,0) FROM revision WHERE id=%s''',
+                      (revision.id,))
+    row = cursor.fetchone()
+    # None means revision is not in database
+    # 0 means revision has no prefered origin
+    return row[0] if row is not None and row[0] != 0 else None
+
+
+def revision_set_prefered_org(
+    cursor: psycopg2.extensions.cursor,
+    origin: OriginEntry,
+    revision: RevisionEntry
+):
+    cursor.execute('''UPDATE revision SET org=%s WHERE id=%s''',
+                     (origin.id, revision.id))
+
+
+def revision_visited(
+    cursor: psycopg2.extensions.cursor,
+    revision: RevisionEntry
+) -> bool:
+    cursor.execute('''SELECT 1 FROM revision_in_org WHERE rev=%s''',
+                      (revision.id,))
+    return cursor.fetchone() is not None
+
+
+def revision_in_history(
+    cursor: psycopg2.extensions.cursor,
+    revision: RevisionEntry
+) -> bool:
+    cursor.execute('''SELECT 1 FROM revision_before_rev WHERE prev=%s''',
+                      (revision.id,))
+    return cursor.fetchone() is not None
+
+
+def origin_add_revision(
+    cursor: psycopg2.extensions.cursor,
+    storage: StorageInterface,
+    origin: OriginEntry,
+    revision: RevisionEntry
+):
+    stack = [(None, revision)]
 
     while stack:
-        origin, relative, revision = stack.pop()
+        relative, rev = stack.pop()
 
         # Check if current revision has no prefered origin and update if necessary.
-        cursor.execute('''SELECT COALESCE(org, 0) FROM revision WHERE id=%s''',
-                          (revision.swhid,))
-        row = cursor.fetchone()
-        prefered = row[0] if row is not None else None
-        print(f'Prefered origin for revision {identifier_to_str(revision.swhid)}: {prefered}')
+        prefered = revision_get_prefered_org(cursor, rev)
+        logging.debug(f'Prefered origin for revision {hash_to_hex(rev.id)}: {prefered}')
 
-        if prefered == 0:
-            cursor.execute('''UPDATE TABLE revision SET org=%s WHERE id=%s''',
-                              (origin.id, revision.swhid))
+        if prefered is None:
+            revision_set_prefered_org(cursor, origin, rev)
         ########################################################################
 
         if relative is None:
             # This revision is pointed directly by the origin.
-            logging.debug(f'Adding revision {identifier_to_str(revision.swhid)} to origin {origin.id}')
-            cursor.execute('''SELECT 1 FROM revision_in_org WHERE rev=%s''',
-                              (revision.swhid,))
-            visited = cursor.fetchone() is not None
-            print(f'Revision {identifier_to_str(revision.swhid)} in origin {origin.id}: {visited}')
+            visited = revision_visited(cursor, rev)
+            logging.debug(f'Revision {hash_to_hex(rev.id)} in origin {origin.id}: {visited}')
 
-            cursor.execute('''INSERT INTO revision_in_org VALUES (%s, %s)
-                              ON CONFLICT DO NOTHING''',
-                              (revision.swhid, origin.id))
+            logging.debug(f'Adding revision {hash_to_hex(rev.id)} to origin {origin.id}')
+            revision_add_to_org(cursor, origin, rev)
 
             if not visited:
-                # revision_walk_history(cursor, origin, revision.swhid, revision)
-                stack.append((origin, revision.swhid, revision))
+                # revision_walk_history(cursor, origin, rev.id, rev)
+                stack.append((rev, rev))
 
         else:
             # This revision is a parent of another one in the history of the
             # relative revision.
-            to_org = []
-            to_rev = []
-
-            for parent in revision.parents:
-                cursor.execute('''SELECT 1 FROM revision_in_org WHERE rev=%s''',
-                                  (parent,))
-                visited = cursor.fetchone() is not None
-                print(f'Parent {identifier_to_str(parent)} in some origin: {visited}')
+            for parent in iter(rev):
+                visited = revision_visited(cursor, parent)
+                logging.debug(f'Parent {hash_to_hex(parent.id)} in some origin: {visited}')
 
                 if not visited:
                     # The parent revision has never been seen before pointing
                     # directly to an origin.
-                    cursor.execute('''SELECT 1 FROM revision_before_rev WHERE prev=%s''',
-                                      (parent,))
-                    known = cursor.fetchone() is not None
-                    print(f'Revision {identifier_to_str(parent)} before revision: {visited}')
+                    known = revision_in_history(cursor, parent)
+                    logging.debug(f'Revision {hash_to_hex(parent.id)} before revision: {known}')
 
                     if known:
                         # The parent revision is already known in some other
                         # revision's history. We should point it directly to
                         # the origin and (eventually) walk its history.
-                        to_org.append(parent)
+                        logging.debug(f'Adding revision {hash_to_hex(parent.id)} directly to origin {origin.id}')
+                        # origin_add_revision(cursor, origin, parent)
+                        stack.append((None, parent))
                     else:
                         # The parent revision was never seen before. We should
                         # walk its history and associate it with the same
                         # relative revision.
-                        to_rev.append(parent)
-
+                        logging.debug(f'Adding parent revision {hash_to_hex(parent.id)} to revision {hash_to_hex(relative.id)}')
+                        revision_add_before_rev(cursor, relative, parent)
+                        # revision_walk_history(cursor, origin, relative, parent)
+                        stack.append((relative, parent))
                 else:
                     # The parent revision already points to an origin, so its
                     # history was properly processed before. We just need to
                     # make sure it points to the current origin as well.
-                    logging.debug(f'Adding parent revision {identifier_to_str(parent)} to origin {origin.id}')
-                    cursor.execute('''INSERT INTO revision_in_org VALUES (%s,%s)
-                                      ON CONFLICT DO NOTHING''',
-                                      (parent, origin.id))
-
-            for parent in storage.revision_get(to_org):
-                if parent is not None:
-                    parent = parent.to_dict()
-                    parent = RevisionEntry(parent['id'], parent['parents'])
-                    # origin_add_revision(cursor, origin, parent)
-                    stack.append((origin, None, parent))
-
-            for parent in storage.revision_get(to_rev):
-                if parent is not None:
-                    parent = parent.to_dict()
-                    parent = RevisionEntry(parent['id'], parent['parents'])
-                    logging.debug(f'Adding parent revision {identifier_to_str(parent.swhid)} to revision {identifier_to_str(relative)}')
-                    cursor.execute('''INSERT INTO revision_before_rev VALUES (%s,%s)''',
-                                      (parent.swhid, relative))
-                    # revision_walk_history(cursor, origin, relative, parent)
-                    stack.append((origin, relative, parent))
+                    logging.debug(f'Adding parent revision {hash_to_hex(parent.id)} to origin {origin.id}')
+                    revision_add_to_org(cursor, origin, parent)
 
 
-if __name__ == "__main__":
-    """Compact model origin-revision layer utility."""
-    # logging.basicConfig(level=logging.DEBUG)
-    logging.basicConfig(filename='origin.log', level=logging.DEBUG)
-
-    comp_conn = utils.connect('database.conf', 'compact')
-    cursor = comp_conn.cursor()
-
-    utils.execute_sql(comp_conn, 'origin.sql') # Create tables dopping existing ones
-
-    kwargs = {
-        "cls" : "remote",
-        "url" : "http://uffizi.internal.softwareheritage.org:5002"
-    }
-    storage = swh.storage.get_storage(**kwargs)
-
-    for origin in OriginIterator(storage):
-        print(f'* {origin}')
-
+def origin_get_id(
+    cursor: psycopg2.extensions.cursor,
+    origin: OriginEntry
+) -> int:
+    if origin.id is None:
         # Check if current origin is already known and retrieve its internal id.
         cursor.execute('''SELECT id FROM origin WHERE url=%s''', (origin.url,))
         row = cursor.fetchone()
-        origin.id = row[0] if row is not None else None
+
+        if row is None:
+            # If the origin is seen for the first time, current revision is
+            # the prefered one.
+            cursor.execute('''INSERT INTO origin (url) VALUES (%s) RETURNING id''',
+                              (origin.url,))
+            return cursor.fetchone()[0]
+        else:
+            return row[0]
+    else:
+        return origin.id
+
+
+def origin_add(
+    conn: psycopg2.extensions.connection,
+    storage: StorageInterface,
+    origin: OriginEntry
+):
+    with conn.cursor() as cursor:
+        origin.id = origin_get_id(cursor, origin)
 
         for revision in origin.revisions:
-            print(f'** {revision}')
+            logging.info(f'Processing revision {hash_to_hex(revision.id)} from origin {origin.url}')
+            origin_add_revision(cursor, storage, origin, revision)
 
-            if origin.id is None:
-                # If the origin is seen for the first time, current revision is
-                # the prefered one.
-                cursor.execute('''INSERT INTO origin (url) VALUES (%s) RETURNING id''',
-                                  (origin.url,))
-                # Retrieve current origin's internal id (just generated).
-                # cursor.execute('''SELECT id FROM origin WHERE url=%s''',
-                #                   (origin.url,))
-                origin.id = cursor.fetchone()[0]
-
-            origin_add_revision(cursor, origin, revision)
-            comp_conn.commit()
-        print(f'##################################################################')
-
-    comp_conn.close()
+            # Commit after each revision
+            conn.commit()

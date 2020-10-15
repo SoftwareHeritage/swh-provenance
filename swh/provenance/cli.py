@@ -137,12 +137,13 @@ def iter_revisions(ctx, filename, limit, threads):
 def iter_origins(ctx, filename, limit):
     """Iterate over provided list of revisions and add them to the provenance database."""
     from .origin import FileOriginIterator
-    from .origin import origin_add
+    from .provenance import origin_add
 
     conn = ctx.obj["conn"]
     storage = get_storage(**ctx.obj["config"]["storage"])
 
     for origin in FileOriginIterator(filename, storage, limit=limit):
+        # TODO: consider using threads and a OriginWorker class
         origin_add(conn, storage, origin)
 
 

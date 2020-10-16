@@ -63,8 +63,9 @@ PROVENANCE_HELP = f"""Software Heritage Scanner tools.
     type=click.Path(exists=False, dir_okay=False, path_type=str),
     help="""YAML configuration file""",
 )
+@click.option("--profile", is_flag=True)
 @click.pass_context
-def cli(ctx, config_file: Optional[str]):
+def cli(ctx, config_file: Optional[str], profile: bool):
     if config_file is None and config.config_exists(DEFAULT_PATH):
         config_file = DEFAULT_PATH
 
@@ -79,6 +80,25 @@ def cli(ctx, config_file: Optional[str]):
 
     ctx.ensure_object(dict)
     ctx.obj["config"] = conf
+
+    if profile:
+        import cProfile
+        import pstats
+        import io
+        import atexit
+
+        print("Profiling...")
+        pr = cProfile.Profile()
+        pr.enable()
+
+        def exit():
+            pr.disable()
+            print("Profiling completed")
+            s = io.StringIO()
+            pstats.Stats(pr, stream=s).sort_stats("cumulative").print_stats()
+            print(s.getvalue())
+
+        atexit.register(exit)
 
 
 @cli.command(name="create")

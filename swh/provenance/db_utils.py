@@ -39,16 +39,12 @@ def adapt_conn(conn):
     psycopg2.extensions.register_type(t_bytes_array, conn)
 
 
-def connect(filename: PosixPath, section: str):
+def connect(params: dict):
     """ Connect to the PostgreSQL database server """
     conn = None
 
     try:
-        # read connection parameters
-        params = config(filename, section)
-
         # connect to the PostgreSQL server
-        # print('Connecting to the PostgreSQL database...')
         conn = psycopg2.connect(**params)
         adapt_conn(conn)
 

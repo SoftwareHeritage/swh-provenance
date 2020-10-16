@@ -1,8 +1,9 @@
 import logging
 import os
 import psycopg2
+import psycopg2.extras
 
-from .db_utils import adapt_conn, execute_sql
+from .db_utils import connect, execute_sql
 from .model import DirectoryEntry, FileEntry, Tree
 from .origin import OriginEntry
 from .revision import RevisionEntry
@@ -10,7 +11,6 @@ from .revision import RevisionEntry
 from datetime import datetime
 from pathlib import PosixPath
 
-from swh.core.db import db_utils    # TODO: remove this in favour of local db_utils module
 from swh.model.hashutil import hash_to_hex
 from swh.storage.interface import StorageInterface
 
@@ -24,7 +24,7 @@ def normalize(path: PosixPath) -> PosixPath:
 
 def create_database(
     conn: psycopg2.extensions.connection,
-    conninfo: str,
+    conninfo: dict,
     name: str
 ):
     conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
@@ -32,12 +32,12 @@ def create_database(
     # Create new database dropping previous one if exists
     cursor = conn.cursor();
     cursor.execute(f'''DROP DATABASE IF EXISTS {name}''')
-    cursor.execute(f'''CREATE DATABASE {name};''');
+    cursor.execute(f'''CREATE DATABASE {name}''');
     conn.close()
 
     # Reconnect to server selecting newly created database to add tables
-    conn = db_utils.connect_to_conninfo(os.path.join(conninfo, name))
-    adapt_conn(conn)
+    conninfo['database'] = name
+    conn = connect(conninfo)
 
     sqldir = os.path.dirname(os.path.realpath(__file__))
     execute_sql(conn, os.path.join(sqldir, 'db/provenance.sql'))

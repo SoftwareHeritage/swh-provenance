@@ -8,15 +8,12 @@
 import os
 from typing import Any, Dict, Optional
 
-from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
-
 import click
 import yaml
 
 from swh.core import config
 from swh.core.cli import CONTEXT_SETTINGS
 from swh.core.cli import swh as swh_cli_group
-from swh.core.db import db_utils    # TODO: remove this in favour of local db_utils module
 from swh.model.hashutil import (hash_to_bytes, hash_to_hex)
 from swh.storage import get_storage
 
@@ -30,7 +27,12 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "cls": "remote",
         "url": "http://uffizi.internal.softwareheritage.org:5002"
     },
-    "db": "postgresql://postgres:postgres@localhost/provenance" # TODO: fix this!
+    "db": {
+        "host": "localhost",
+        "database": "provenance",
+        "user": "postgres",
+        "password": "postgres"
+    }
 }
 
 
@@ -63,8 +65,6 @@ PROVENANCE_HELP = f"""Software Heritage Scanner tools.
 )
 @click.pass_context
 def cli(ctx, config_file: Optional[str]):
-    from .db_utils import adapt_conn
-
     if config_file is None and config.config_exists(DEFAULT_PATH):
         config_file = DEFAULT_PATH
 
@@ -80,26 +80,22 @@ def cli(ctx, config_file: Optional[str]):
     ctx.ensure_object(dict)
     ctx.obj["config"] = conf
 
-    conn = db_utils.connect_to_conninfo(conf["db"])
-    adapt_conn(conn)
-    ctx.obj["conn"] = conn
-
 
 @cli.command(name="create")
-@click.option("--name", default='provenance')
+@click.option("--name", default=None)
 @click.pass_context
 def create(ctx, name):
     """Create new provenance database."""
+    from .db_utils import connect
     from .provenance import create_database
-    from .db_utils import adapt_conn
-
-    # Close default connection as it won't be used
-    ctx.obj["conn"].close()
 
     # Connect to server without selecting a database
-    conninfo = os.path.dirname(ctx.obj["config"]["db"])
-    conn = db_utils.connect_to_conninfo(conninfo)
-    adapt_conn(conn)
+    conninfo = ctx.obj["config"]["db"]
+    database = conninfo.pop('database', None)
+    conn = connect(conninfo)
+
+    if name is None:
+        name = database
 
     create_database(conn, conninfo, name)
 
@@ -136,10 +132,11 @@ def iter_revisions(ctx, filename, limit, threads):
 #def iter_revisions(ctx, filename, limit, threads):
 def iter_origins(ctx, filename, limit):
     """Iterate over provided list of revisions and add them to the provenance database."""
+    from .db_utils import connect
     from .origin import FileOriginIterator
     from .provenance import origin_add
 
-    conn = ctx.obj["conn"]
+    conn = connect(ctx.obj["config"]["db"])
     storage = get_storage(**ctx.obj["config"]["storage"])
 
     for origin in FileOriginIterator(filename, storage, limit=limit):
@@ -152,12 +149,16 @@ def iter_origins(ctx, filename, limit):
 @click.pass_context
 def find_first(ctx, swhid):
     """Find first occurrence of the requested blob."""
+    from .db_utils import connect
     from .provenance import content_find_first
 
-    conn = ctx.obj["conn"]
-    cursor = conn.cursor();
-    row = content_find_first(cursor, hash_to_bytes(swhid))
-    print(f'{hash_to_hex(row[0])}, {hash_to_hex(row[1])}, {row[2]}, {os.fsdecode(row[3])}')
+    with connect(ctx.obj["config"]["db"]).cursor() as cursor:
+        # TODO: return a dictionary with proper keys for each field
+        row = content_find_first(cursor, hash_to_bytes(swhid))
+        if row is not None:
+            print(f'{hash_to_hex(row[0])}, {hash_to_hex(row[1])}, {row[2]}, {os.fsdecode(row[3])}')
+        else:
+            print(f'Cannot find a content with the id {swhid}')
 
 
 @cli.command(name="find-all")
@@ -165,9 +166,10 @@ def find_first(ctx, swhid):
 @click.pass_context
 def find_all(ctx, swhid):
     """Find all occurrences of the requested blob."""
+    from .db_utils import connect
     from .provenance import content_find_all
 
-    conn = ctx.obj["conn"]
-    cursor = conn.cursor();
-    for row in content_find_all(cursor, hash_to_bytes(swhid)):
-        print(f'{hash_to_hex(row[0])}, {hash_to_hex(row[1])}, {row[2]}, {os.fsdecode(row[3])}')
+    with connect(ctx.obj["config"]["db"]).cursor() as cursor:
+        # TODO: return a dictionary with proper keys for each field
+        for row in content_find_all(cursor, hash_to_bytes(swhid)):
+            print(f'{hash_to_hex(row[0])}, {hash_to_hex(row[1])}, {row[2]}, {os.fsdecode(row[3])}')

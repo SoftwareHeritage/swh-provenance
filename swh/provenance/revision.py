@@ -1,11 +1,10 @@
 import logging
 import threading
 
-from .db_utils import adapt_conn
+from .db_utils import connect
 
 from datetime import datetime
 
-from swh.core.db import db_utils    # TODO: remove this in favour of local db_utils module
 from swh.model.hashutil import hash_to_bytes, hash_to_hex
 from swh.storage.interface import StorageInterface
 
@@ -140,7 +139,7 @@ class RevisionWorker(threading.Thread):
     def __init__(
         self,
         id: int,
-        conninfo: str,
+        conninfo: dict,
         storage: StorageInterface,
         revisions: RevisionIterator
     ):
@@ -154,8 +153,7 @@ class RevisionWorker(threading.Thread):
     def run(self):
         from .provenance import revision_add
 
-        conn = db_utils.connect_to_conninfo(self.conninfo)
-        adapt_conn(conn)
+        conn = connect(self.conninfo)
 
         while True:
             revision = self.revisions.next()

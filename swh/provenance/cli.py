@@ -15,7 +15,6 @@ from swh.core import config
 from swh.core.cli import CONTEXT_SETTINGS
 from swh.core.cli import swh as swh_cli_group
 from swh.model.hashutil import (hash_to_bytes, hash_to_hex)
-from swh.storage import get_storage
 
 # All generic config code should reside in swh.core.config
 CONFIG_ENVVAR = "SWH_CONFIG_FILE"
@@ -23,13 +22,22 @@ DEFAULT_CONFIG_PATH = os.path.join(click.get_app_dir("swh"), "global.yml")
 DEFAULT_PATH = os.environ.get(CONFIG_ENVVAR, DEFAULT_CONFIG_PATH)
 
 DEFAULT_CONFIG: Dict[str, Any] = {
-    "storage": {
-        "cls": "remote",
-        "url": "http://uffizi.internal.softwareheritage.org:5002"
+    "archive": {
+        # "cls": "api",
+        # "storage": {
+        #     "cls": "remote",
+        #     "url": "http://uffizi.internal.softwareheritage.org:5002"
+        # }
+        "cls": "ps",
+        "db": {
+            "host": "db.internal.softwareheritage.org",
+            "database": "softwareheritage",
+            "user": "guest"
+        }
     },
     "db": {
         "host": "localhost",
-        "database": "provenance",
+        "database": "test3",
         "user": "postgres",
         "password": "postgres"
     }
@@ -63,9 +71,9 @@ PROVENANCE_HELP = f"""Software Heritage Scanner tools.
     type=click.Path(exists=False, dir_okay=False, path_type=str),
     help="""YAML configuration file""",
 )
-@click.option("--profile", is_flag=True)
+@click.option("--profile", default=None)
 @click.pass_context
-def cli(ctx, config_file: Optional[str], profile: bool):
+def cli(ctx, config_file: Optional[str], profile: str):
     if config_file is None and config.config_exists(DEFAULT_PATH):
         config_file = DEFAULT_PATH
 
@@ -80,25 +88,26 @@ def cli(ctx, config_file: Optional[str], profile: bool):
 
     ctx.ensure_object(dict)
     ctx.obj["config"] = conf
+    ctx.obj["profile"] = profile
 
-    if profile:
-        import cProfile
-        import pstats
-        import io
-        import atexit
-
-        print("Profiling...")
-        pr = cProfile.Profile()
-        pr.enable()
-
-        def exit():
-            pr.disable()
-            print("Profiling completed")
-            s = io.StringIO()
-            pstats.Stats(pr, stream=s).sort_stats("cumulative").print_stats()
-            print(s.getvalue())
-
-        atexit.register(exit)
+    # if profile:
+    #     import cProfile
+    #     import pstats
+    #     import io
+    #     import atexit
+    #
+    #     print("Profiling...")
+    #     pr = cProfile.Profile()
+    #     pr.enable()
+    #
+    #     def exit():
+    #         pr.disable()
+    #         print("Profiling completed")
+    #         s = io.StringIO()
+    #         pstats.Stats(pr, stream=s).sort_stats("cumulative").print_stats()
+    #         print(s.getvalue())
+    #
+    #     atexit.register(exit)
 
 
 @cli.command(name="create")
@@ -127,21 +136,55 @@ def create(ctx, name):
 @click.pass_context
 def iter_revisions(ctx, filename, limit, threads):
     """Iterate over provided list of revisions and add them to the provenance database."""
+    from .archive import get_archive
     from .revision import FileRevisionIterator
-    from .revision import RevisionWorker
+    # from .revision import RevisionWorker
 
-    conninfo = ctx.obj["config"]["db"]
-    storage = get_storage(**ctx.obj["config"]["storage"])
-    revisions = FileRevisionIterator(filename, storage, limit=limit)
-    workers = []
+    # conninfo = ctx.obj["config"]["db"]
+    # archive = get_archive(**ctx.obj["config"]["archive"])
+    # revisions = FileRevisionIterator(filename, archive, limit=limit)
+    # workers = []
+    #
+    # for id in range(threads):
+    #     worker = RevisionWorker(id, conninfo, archive, revisions)
+    #     worker.start()
+    #     workers.append(worker)
+    #
+    # for worker in workers:
+    #     worker.join()
 
-    for id in range(threads):
-        worker = RevisionWorker(id, conninfo, storage, revisions)
-        worker.start()
-        workers.append(worker)
+    ############################################################################
+    archive = get_archive(**ctx.obj["config"]["archive"])
+    revisions = FileRevisionIterator(filename, archive, limit=limit)
 
-    for worker in workers:
-        worker.join()
+    if ctx.obj["profile"]:
+        from .provenance import get_provenance, revision_add
+        import cProfile
+
+        provenance = get_provenance(ctx.obj["config"]["db"])
+        command = """
+while True:
+    revision = revisions.next()
+    if revision is None: break
+    revision_add(provenance, archive, revision)
+        """
+
+        cProfile.runctx(command, globals(), locals(), filename=ctx.obj["profile"])
+
+    else:
+        from .revision import RevisionWorker
+
+        conninfo = ctx.obj["config"]["db"]
+        workers = []
+
+        for id in range(threads):
+            worker = RevisionWorker(id, conninfo, archive, revisions)
+            worker.start()
+            workers.append(worker)
+
+        for worker in workers:
+            worker.join()
+    ############################################################################
 
 
 @cli.command(name="iter-origins")
@@ -152,16 +195,16 @@ def iter_revisions(ctx, filename, limit, threads):
 #def iter_revisions(ctx, filename, limit, threads):
 def iter_origins(ctx, filename, limit):
     """Iterate over provided list of revisions and add them to the provenance database."""
-    from .db_utils import connect
+    from .archive import get_archive
     from .origin import FileOriginIterator
-    from .provenance import origin_add
+    from .provenance import get_provenance, origin_add
 
-    conn = connect(ctx.obj["config"]["db"])
-    storage = get_storage(**ctx.obj["config"]["storage"])
+    provenance = get_provenance(ctx.obj["config"]["db"])
+    archive = get_archive(**ctx.obj["config"]["archive"])
 
-    for origin in FileOriginIterator(filename, storage, limit=limit):
+    for origin in FileOriginIterator(filename, archive, limit=limit):
         # TODO: consider using threads and a OriginWorker class
-        origin_add(conn, storage, origin)
+        origin_add(provenance, origin)
 
 
 @cli.command(name="find-first")
@@ -169,16 +212,15 @@ def iter_origins(ctx, filename, limit):
 @click.pass_context
 def find_first(ctx, swhid):
     """Find first occurrence of the requested blob."""
-    from .db_utils import connect
-    from .provenance import content_find_first
+    from .provenance import get_provenance
 
-    with connect(ctx.obj["config"]["db"]).cursor() as cursor:
-        # TODO: return a dictionary with proper keys for each field
-        row = content_find_first(cursor, hash_to_bytes(swhid))
-        if row is not None:
-            print(f'{hash_to_hex(row[0])}, {hash_to_hex(row[1])}, {row[2]}, {os.fsdecode(row[3])}')
-        else:
-            print(f'Cannot find a content with the id {swhid}')
+    provenance = get_provenance(ctx.obj["config"]["db"])
+    # TODO: return a dictionary with proper keys for each field
+    row = provenance.content_find_first(hash_to_bytes(swhid))
+    if row is not None:
+        print(f'{hash_to_hex(row[0])}, {hash_to_hex(row[1])}, {row[2]}, {os.fsdecode(row[3])}')
+    else:
+        print(f'Cannot find a content with the id {swhid}')
 
 
 @cli.command(name="find-all")
@@ -186,10 +228,9 @@ def find_first(ctx, swhid):
 @click.pass_context
 def find_all(ctx, swhid):
     """Find all occurrences of the requested blob."""
-    from .db_utils import connect
-    from .provenance import content_find_all
+    from .provenance import get_provenance
 
-    with connect(ctx.obj["config"]["db"]).cursor() as cursor:
-        # TODO: return a dictionary with proper keys for each field
-        for row in content_find_all(cursor, hash_to_bytes(swhid)):
-            print(f'{hash_to_hex(row[0])}, {hash_to_hex(row[1])}, {row[2]}, {os.fsdecode(row[3])}')
+    provenance = get_provenance(ctx.obj["config"]["db"])
+    # TODO: return a dictionary with proper keys for each field
+    for row in provenance.content_find_all(hash_to_bytes(swhid)):
+        print(f'{hash_to_hex(row[0])}, {hash_to_hex(row[1])}, {row[2]}, {os.fsdecode(row[3])}')

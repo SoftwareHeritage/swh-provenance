@@ -1,39 +1,39 @@
 import logging
 import threading
 
+from .archive import ArchiveInterface
 from .db_utils import connect
 
 from datetime import datetime
 
 from swh.model.hashutil import hash_to_bytes, hash_to_hex
-from swh.storage.interface import StorageInterface
 
 
 class RevisionEntry:
     def __init__(
         self,
-        storage: StorageInterface,
+        archive: ArchiveInterface,
         id: bytes,
         date: datetime=None,
         root: bytes=None,
         parents: list=None
     ):
+        self.archive = archive
         self.id = id
         self.date = date
         self.parents = parents
         self.root = root
-        self.storage = storage
 
     def __iter__(self):
         if self.parents is None:
             self.parents = []
-            for parent in self.storage.revision_get([self.id]):
+            for parent in self.archive.revision_get([self.id]):
                 if parent is not None:
                     self.parents.append(
                         RevisionEntry(
-                            self.storage,
+                            self.archive,
                             parent.id,
-                            parents=[RevisionEntry(self.storage, id) for id in parent.parents]
+                            parents=[RevisionEntry(self.archive, id) for id in parent.parents]
                         )
                     )
 
@@ -56,12 +56,12 @@ class RevisionIterator:
 class FileRevisionIterator(RevisionIterator):
     """Iterator over revisions present in the given CSV file."""
 
-    def __init__(self, filename: str, storage: StorageInterface, limit: int=None):
+    def __init__(self, filename: str, archive: ArchiveInterface, limit: int=None):
         self.file = open(filename)
         self.idx = 0
         self.limit = limit
         self.mutex = threading.Lock()
-        self.storage = storage
+        self.archive = archive
 
     def next(self):
         self.mutex.acquire()
@@ -72,9 +72,9 @@ class FileRevisionIterator(RevisionIterator):
             self.mutex.release()
 
             return RevisionEntry(
-                self.storage,
+                self.archive,
                 hash_to_bytes(id),
-                date=datetime.strptime(date, '%Y-%m-%d %H:%M:%S%z'),
+                date=datetime.fromisoformat(date),
                 root=hash_to_bytes(root)
             )
         else:
@@ -140,20 +140,21 @@ class RevisionWorker(threading.Thread):
         self,
         id: int,
         conninfo: dict,
-        storage: StorageInterface,
+        archive: ArchiveInterface,
         revisions: RevisionIterator
     ):
+        from .provenance import get_provenance
+
         super().__init__()
+        self.archive = archive
         self.id = id
-        self.conninfo = conninfo
+        self.provenance = get_provenance(conninfo)
         self.revisions = revisions
-        self.storage = storage
 
 
     def run(self):
         from .provenance import revision_add
 
-        conn = connect(self.conninfo)
 
         while True:
             revision = self.revisions.next()
@@ -162,8 +163,6 @@ class RevisionWorker(threading.Thread):
             processed = False
             while not processed:
                 logging.info(f'Thread {self.id} - Processing revision {hash_to_hex(revision.id)} (timestamp: {revision.date})')
-                processed = revision_add(conn, self.storage, revision)
+                processed = revision_add(self.provenance, self.archive, revision)
                 if not processed:
                     logging.warning(f'Thread {self.id} - Failed to process revision {hash_to_hex(revision.id)} (timestamp: {revision.date})')
-
-        conn.close()

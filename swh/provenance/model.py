@@ -1,12 +1,13 @@
 import os
 
+from .archive import ArchiveInterface
+
 from pathlib import PosixPath
-from swh.storage.interface import StorageInterface
 
 
 class Tree:
-    def __init__(self, storage: StorageInterface, id: bytes):
-        self.root = DirectoryEntry(storage, id, PosixPath('.'))
+    def __init__(self, archive: ArchiveInterface, id: bytes):
+        self.root = DirectoryEntry(archive, id, PosixPath('.'))
 
 
 class TreeEntry:
@@ -16,18 +17,18 @@ class TreeEntry:
 
 
 class DirectoryEntry(TreeEntry):
-    def __init__(self, storage: StorageInterface, id: bytes, name: PosixPath):
+    def __init__(self, archive: ArchiveInterface, id: bytes, name: PosixPath):
         super().__init__(id, name)
-        self.storage = storage
+        self.archive = archive
         self.children = None
 
     def __iter__(self):
         if self.children is None:
             self.children = []
-            for child in self.storage.directory_ls(self.id):
+            for child in self.archive.directory_ls(self.id):
                 if child['type'] == 'dir':
                     self.children.append(DirectoryEntry(
-                        self.storage,
+                        self.archive,
                         child['target'],
                         PosixPath(os.fsdecode(child['name']))
                     ))

@@ -5,9 +5,9 @@ from .archive import ArchiveInterface
 from pathlib import PosixPath
 
 
-class Tree:
-    def __init__(self, archive: ArchiveInterface, id: bytes):
-        self.root = DirectoryEntry(archive, id, PosixPath('.'))
+# class Tree:
+#     def __init__(self, archive: ArchiveInterface, id: bytes):
+#         self.root = DirectoryEntry(archive, id, PosixPath('.'))
 
 
 class TreeEntry:

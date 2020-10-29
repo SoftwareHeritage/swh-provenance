@@ -59,10 +59,6 @@ class Archive(ArchiveInterface):
          LEFT JOIN directory_entry_file e ON ls_f.entry_id=e.id
          LEFT JOIN skipped_content c ON e.target=c.sha1_git
          WHERE NOT EXISTS (SELECT 1 FROM known_contents WHERE known_contents.sha1_git=e.target)))
-    UNION
-    (SELECT 'rev'::directory_entry_type AS type, e.target, e.name, NULL::sha1_git
-     FROM ls_r
-     LEFT JOIN directory_entry_rev e ON ls_r.entry_id=e.id)
     ORDER BY name
         ''', (id,))
         for row in self.cursor.fetchall():

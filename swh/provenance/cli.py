@@ -37,7 +37,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     },
     "db": {
         "host": "localhost",
-        "database": "test3",
+        "database": "new_test",
         "user": "postgres",
         "password": "postgres"
     }

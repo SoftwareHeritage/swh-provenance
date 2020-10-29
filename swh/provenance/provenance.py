@@ -6,7 +6,7 @@ import psycopg2.extras
 
 from .archive import ArchiveInterface
 from .db_utils import connect, execute_sql
-from .model import DirectoryEntry, FileEntry, Tree
+from .model import DirectoryEntry, FileEntry
 from .origin import OriginEntry
 from .revision import RevisionEntry
 
@@ -161,21 +161,21 @@ class ProvenanceInterface:
         yield from self.cursor.fetchall()
 
 
-    # def content_get_early_date(self, blob: FileEntry) -> datetime:
-    #     logging.debug(f'Getting content {hash_to_hex(blob.id)} early date')
-    #     # First check if the date is being modified by current transection.
-    #     date = self.insert_cache['content'].get(blob.id, None)
-    #     if date is None:
-    #         # If not, check whether it's been query before
-    #         date = self.select_cache['content'].get(blob.id, None)
-    #         if date is None:
-    #             # Otherwise, query the database and cache the value
-    #             self.cursor.execute('''SELECT date FROM content WHERE id=%s''',
-    #                                    (blob.id,))
-    #             row = self.cursor.fetchone()
-    #             date = row[0] if row is not None else None
-    #             self.select_cache['content'][blob.id] = date
-    #     return date
+    def content_get_early_date(self, blob: FileEntry) -> datetime:
+        logging.debug(f'Getting content {hash_to_hex(blob.id)} early date')
+        # First check if the date is being modified by current transection.
+        date = self.insert_cache['content'].get(blob.id, None)
+        if date is None:
+            # If not, check whether it's been query before
+            date = self.select_cache['content'].get(blob.id, None)
+            if date is None:
+                # Otherwise, query the database and cache the value
+                self.cursor.execute('''SELECT date FROM content WHERE id=%s''',
+                                       (blob.id,))
+                row = self.cursor.fetchone()
+                date = row[0] if row is not None else None
+                self.select_cache['content'][blob.id] = date
+        return date
 
 
     def content_get_early_dates(self, blobs: List[FileEntry]) -> Dict[bytes, datetime]:
@@ -226,7 +226,7 @@ class ProvenanceInterface:
         )
 
 
-    def directory_date_in_isochrone_frontier(self, directory: DirectoryEntry) -> datetime:
+    def directory_get_date_in_isochrone_frontier(self, directory: DirectoryEntry) -> datetime:
         # logging.debug(f'Getting directory {hash_to_hex(directory.id)} early date')
         # First check if the date is being modified by current transection.
         date = self.insert_cache['directory'].get(directory.id, None)
@@ -269,7 +269,7 @@ class ProvenanceInterface:
         return dates
 
 
-    def directory_add_to_isochrone_frontier(self, directory: DirectoryEntry,date: datetime):
+    def directory_set_date_in_isochrone_frontier(self, directory: DirectoryEntry, date: datetime):
         # logging.debug(f'EARLY occurrence of directory {hash_to_hex(directory.id)} on the ISOCHRONE FRONTIER (timestamp: {date})')
         # self.cursor.execute('''INSERT INTO directory VALUES (%s,%s)
         #                        ON CONFLICT (id) DO UPDATE SET date=%s''',
@@ -282,7 +282,14 @@ class ProvenanceInterface:
         psycopg2.extras.execute_values(
             self.cursor,
             '''INSERT INTO content(id, date) VALUES %s
-               ON CONFLICT (id) DO UPDATE SET date=excluded.date''',    # TODO: keep earliest date on conflict
+               ON CONFLICT (id) DO UPDATE SET date=EXCLUDED.date''',    # TODO: keep earliest date on conflict
+            # '''INSERT INTO content(id, date) VALUES %s
+            #    ON CONFLICT (id) DO
+            #        UPDATE SET date = CASE
+            #            WHEN EXCLUDED.date < content.date
+            #                THEN EXCLUDED.date
+            #                ELSE content.date
+            #        END''',
             self.insert_cache['content'].items()
         )
 
@@ -303,7 +310,14 @@ class ProvenanceInterface:
         psycopg2.extras.execute_values(
             self.cursor,
             '''INSERT INTO directory(id, date) VALUES %s
-               ON CONFLICT (id) DO UPDATE SET date=excluded.date''',    # TODO: keep earliest date on conflict
+               ON CONFLICT (id) DO UPDATE SET date=EXCLUDED.date''',    # TODO: keep earliest date on conflict
+            # '''INSERT INTO directory(id, date) VALUES %s
+            #    ON CONFLICT (id) DO
+            #        UPDATE SET date = CASE
+            #            WHEN EXCLUDED.date < directory.date
+            #                THEN EXCLUDED.date
+            #                ELSE directory.date
+            #        END''',
             self.insert_cache['directory'].items()
         )
 
@@ -317,7 +331,14 @@ class ProvenanceInterface:
         psycopg2.extras.execute_values(
             self.cursor,
             '''INSERT INTO revision(id, date) VALUES %s
-               ON CONFLICT (id) DO UPDATE SET date=excluded.date''',    # TODO: keep earliest date on conflict
+               ON CONFLICT (id) DO UPDATE SET date=EXCLUDED.date''',    # TODO: keep earliest date on conflict
+            # '''INSERT INTO revision(id, date) VALUES %s
+            #    ON CONFLICT (id) DO
+            #        UPDATE SET date = CASE
+            #            WHEN EXCLUDED.date < revision.date
+            #                THEN EXCLUDED.date
+            #                ELSE revision.date
+            #        END''',
             self.insert_cache['revision'].items()
         )
 
@@ -506,11 +527,14 @@ def revision_add(
     revision: RevisionEntry
 ):
     # Processed content starting from the revision's root directory
-    directory = Tree(archive, revision.root).root
     date = provenance.revision_get_early_date(revision)
     if date is None or revision.date < date:
         provenance.revision_add(revision)
-        revision_process_content(provenance, revision, directory)
+        revision_process_content(
+            provenance,
+            revision,
+            DirectoryEntry(archive, revision.root, PosixPath('.'))
+        )
     return provenance.commit()
 
 
@@ -519,10 +543,14 @@ def revision_process_content(
     revision: RevisionEntry,
     directory: DirectoryEntry
 ):
-    stack = [(directory, provenance.directory_date_in_isochrone_frontier(directory), directory.name)]
+    date = provenance.directory_get_date_in_isochrone_frontier(directory)
+    stack = [(directory, date, directory.name)]
+    # stack = [(directory, directory.name)]
 
     while stack:
         dir, date, path = stack.pop()
+        # dir, path = stack.pop()
+        # date = provenance.directory_get_date_in_isochrone_frontier(dir)
 
         if date is None:
             # The directory has never been seen on the isochrone graph of a
@@ -531,16 +559,21 @@ def revision_process_content(
             dirs = [child for child in iter(dir) if isinstance(child, DirectoryEntry)]
 
             blobdates = provenance.content_get_early_dates(blobs)
+            # TODO: this will only return timestamps for diretories that were
+            # seen in an isochrone frontier. But a directory may only cointain a
+            # subdirectory whose contents are already known. Which one should be
+            # added to the fronties then (the root or the sub directory)?
             dirdates = provenance.directory_get_early_dates(dirs)
 
             if blobs + dirs:
                 dates = list(blobdates.values()) + list(dirdates.values())
+                if None in dates: print(dates)
 
                 if len(dates) == len(blobs) + len(dirs) and max(dates) <= revision.date:
                     # The directory belongs to the isochrone frontier of the
                     # current revision, and this is the first time it appears
                     # as such.
-                    provenance.directory_add_to_isochrone_frontier(dir, max(dates))
+                    provenance.directory_set_date_in_isochrone_frontier(dir, max(dates))
                     provenance.directory_add_to_revision(revision, dir, path)
                     directory_process_content(
                         provenance,
@@ -555,13 +588,16 @@ def revision_process_content(
                     ############################################################
                     for child in blobs:
                         date = blobdates.get(child.id, None)
+                        # date = provenance.content_get_early_date(child)
                         if date is None or revision.date < date:
                             provenance.content_set_early_date(child, revision.date)
                         provenance.content_add_to_revision(revision, child, path)
 
                     for child in dirs:
                         date = dirdates.get(child.id, None)
+                        # date = provenance.directory_get_date_in_isochrone_frontier(child)
                         stack.append((child, date, path / child.name))
+                        # stack.append((child, path / child.name))
                     ############################################################
 
         elif revision.date < date:
@@ -576,17 +612,20 @@ def revision_process_content(
 
             ####################################################################
             for child in blobs:
-                date = blobdates.get(child.id, None)
+                # date = blobdates.get(child.id, None)
+                date = provenance.content_get_early_date(child)
                 if date is None or revision.date < date:
                     provenance.content_set_early_date(child, revision.date)
                 provenance.content_add_to_revision(revision, child, path)
 
             for child in dirs:
-                date = dirdates.get(child.id, None)
+                # date = dirdates.get(child.id, None)
+                date = provenance.directory_get_date_in_isochrone_frontier(child)
                 stack.append((child, date, path / child.name))
+                # stack.append((child, path / child.name))
             ####################################################################
 
-            provenance.directory_add_to_isochrone_frontier(dir, revision.date)
+            provenance.directory_set_date_in_isochrone_frontier(dir, revision.date)
 
         else:
             # The directory has already been seen on the isochrone frontier of

@@ -2,7 +2,6 @@ import logging
 import threading
 
 from .archive import ArchiveInterface
-from .db_utils import connect
 
 from datetime import datetime
 

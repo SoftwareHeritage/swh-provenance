@@ -2,9 +2,6 @@ from .archive import ArchiveInterface
 from .revision import RevisionEntry
 
 from swh.model.model import Origin, ObjectType, TargetType
-# from swh.storage.algos.origin import iter_origin_visits, iter_origin_visit_statuses
-# from swh.storage.algos.snapshot import snapshot_get_all_branches
-# from swh.storage.interface import StorageInterface
 
 
 class OriginEntry:

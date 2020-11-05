@@ -35,11 +35,14 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         #     "user": "guest"
         # }
     },
-    "db": {
-        "host": "localhost",
-        "database": "new_test",
-        "user": "postgres",
-        "password": "postgres"
+    "provenance": {
+        "cls": "ps",
+        "db": {
+            "host": "localhost",
+            "database": "new_test",
+            "user": "postgres",
+            "password": "postgres"
+        }
     }
 }
 
@@ -110,11 +113,11 @@ def cli(ctx, config_file: Optional[str], profile: str):
 @click.pass_context
 def create(ctx, name):
     """Create new provenance database."""
-    from .db_utils import connect
-    from .provenance import create_database
+    from .postgresql.db_utils import connect
+    from .postgresql.provenance import create_database
 
     # Connect to server without selecting a database
-    conninfo = ctx.obj["config"]["db"]
+    conninfo = ctx.obj["config"]["provenance"]["db"]
     database = conninfo.pop('database', None)
     conn = connect(conninfo)
 
@@ -127,16 +130,15 @@ def create(ctx, name):
 @cli.command(name="iter-revisions")
 @click.argument("filename")
 @click.option('-l', '--limit', type=int)
-@click.option('-t', '--threads', type=int, default=1)
 @click.pass_context
-def iter_revisions(ctx, filename, limit, threads):
+def iter_revisions(ctx, filename, limit):
     """Iterate over provided list of revisions and add them to the provenance database."""
-    from .archive import get_archive
-    from .provenance import get_provenance, revision_add
+    from . import get_archive, get_provenance
     from .revision import FileRevisionIterator
+    from .provenance import revision_add
 
     archive = get_archive(**ctx.obj["config"]["archive"])
-    provenance = get_provenance(ctx.obj["config"]["db"])
+    provenance = get_provenance(**ctx.obj["config"]["provenance"])
     revisions = FileRevisionIterator(filename, archive, limit=limit)
 
     while True:
@@ -153,12 +155,12 @@ def iter_revisions(ctx, filename, limit, threads):
 #def iter_revisions(ctx, filename, limit, threads):
 def iter_origins(ctx, filename, limit):
     """Iterate over provided list of revisions and add them to the provenance database."""
-    from .archive import get_archive
+    from . import get_archive, get_provenance
     from .origin import FileOriginIterator
-    from .provenance import get_provenance, origin_add
+    from .provenance import origin_add
 
-    provenance = get_provenance(ctx.obj["config"]["db"])
     archive = get_archive(**ctx.obj["config"]["archive"])
+    provenance = get_provenance(**ctx.obj["config"]["provenance"])
 
     for origin in FileOriginIterator(filename, archive, limit=limit):
         origin_add(provenance, origin)
@@ -171,7 +173,7 @@ def find_first(ctx, swhid):
     """Find first occurrence of the requested blob."""
     from .provenance import get_provenance
 
-    provenance = get_provenance(ctx.obj["config"]["db"])
+    provenance = get_provenance(**ctx.obj["config"]["provenance"])
     # TODO: return a dictionary with proper keys for each field
     row = provenance.content_find_first(hash_to_bytes(swhid))
     if row is not None:
@@ -185,9 +187,9 @@ def find_first(ctx, swhid):
 @click.pass_context
 def find_all(ctx, swhid):
     """Find all occurrences of the requested blob."""
-    from .provenance import get_provenance
+    from swh.provenance import get_provenance
 
-    provenance = get_provenance(ctx.obj["config"]["db"])
+    provenance = get_provenance(**ctx.obj["config"]["provenance"])
     # TODO: return a dictionary with proper keys for each field
     for row in provenance.content_find_all(hash_to_bytes(swhid)):
         print(f'{hash_to_hex(row[0])}, {hash_to_hex(row[1])}, {row[2]}, {os.fsdecode(row[3])}')

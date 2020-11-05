@@ -135,34 +135,34 @@ class FileRevisionIterator(RevisionIterator):
 ################################################################################
 ################################################################################
 
-class RevisionWorker(threading.Thread):
-    def __init__(
-        self,
-        id: int,
-        conninfo: dict,
-        archive: ArchiveInterface,
-        revisions: RevisionIterator
-    ):
-        from .provenance import get_provenance
-
-        super().__init__()
-        self.archive = archive
-        self.id = id
-        self.provenance = get_provenance(conninfo)
-        self.revisions = revisions
-
-
-    def run(self):
-        from .provenance import revision_add
-
-
-        while True:
-            revision = self.revisions.next()
-            if revision is None: break
-
-            processed = False
-            while not processed:
-                logging.info(f'Thread {self.id} - Processing revision {hash_to_hex(revision.id)} (timestamp: {revision.date})')
-                processed = revision_add(self.provenance, self.archive, revision)
-                if not processed:
-                    logging.warning(f'Thread {self.id} - Failed to process revision {hash_to_hex(revision.id)} (timestamp: {revision.date})')
+# class RevisionWorker(threading.Thread):
+#     def __init__(
+#         self,
+#         id: int,
+#         conninfo: dict,
+#         archive: ArchiveInterface,
+#         revisions: RevisionIterator
+#     ):
+#         from .provenance import get_provenance
+#
+#         super().__init__()
+#         self.archive = archive
+#         self.id = id
+#         self.provenance = get_provenance(conninfo)
+#         self.revisions = revisions
+#
+#
+#     def run(self):
+#         from .provenance import revision_add
+#
+#
+#         while True:
+#             revision = self.revisions.next()
+#             if revision is None: break
+#
+#             processed = False
+#             while not processed:
+#                 logging.info(f'Thread {self.id} - Processing revision {hash_to_hex(revision.id)} (timestamp: {revision.date})')
+#                 processed = revision_add(self.provenance, self.archive, revision)
+#                 if not processed:
+#                     logging.warning(f'Thread {self.id} - Failed to process revision {hash_to_hex(revision.id)} (timestamp: {revision.date})')

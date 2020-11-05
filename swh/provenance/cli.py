@@ -88,29 +88,21 @@ def cli(ctx, config_file: Optional[str], profile: str):
 
     ctx.ensure_object(dict)
     ctx.obj["config"] = conf
-    ctx.obj["profile"] = profile
+    # ctx.obj["profile"] = profile
 
-    # if profile:
-    #     import cProfile
-    #     import pstats
-    #     import io
-    #     import atexit
-    #
-    #     print("Profiling...")
-    #     pr = cProfile.Profile()
-    #     pr.enable()
-    #
-    #     def exit():
-    #         pr.disable()
-    #         # print("Profiling completed")
-    #         # s = io.StringIO()
-    #         # pstats.Stats(pr, stream=s).sort_stats(SortKey.CUMULATIVE)
-    #         # print(s.getvalue())
-    #         ps = pstats.Stats(pr).sort_stats(SortKey.CUMULATIVE)
-    #         with io.open(ctx.obj["profile"], 'wb') as prof:
-    #             prof.write(ps)
-    #
-    #     atexit.register(exit)
+    if profile:
+        import cProfile
+        import atexit
+
+        print("Profiling...")
+        pr = cProfile.Profile()
+        pr.enable()
+
+        def exit():
+            pr.disable()
+            pr.dump_stats(profile)
+
+        atexit.register(exit)
 
 
 @cli.command(name="create")
@@ -140,54 +132,17 @@ def create(ctx, name):
 def iter_revisions(ctx, filename, limit, threads):
     """Iterate over provided list of revisions and add them to the provenance database."""
     from .archive import get_archive
+    from .provenance import get_provenance, revision_add
     from .revision import FileRevisionIterator
-    # from .revision import RevisionWorker
 
-    # conninfo = ctx.obj["config"]["db"]
-    # archive = get_archive(**ctx.obj["config"]["archive"])
-    # revisions = FileRevisionIterator(filename, archive, limit=limit)
-    # workers = []
-    #
-    # for id in range(threads):
-    #     worker = RevisionWorker(id, conninfo, archive, revisions)
-    #     worker.start()
-    #     workers.append(worker)
-    #
-    # for worker in workers:
-    #     worker.join()
-
-    ############################################################################
     archive = get_archive(**ctx.obj["config"]["archive"])
+    provenance = get_provenance(ctx.obj["config"]["db"])
     revisions = FileRevisionIterator(filename, archive, limit=limit)
 
-    if ctx.obj["profile"]:
-        from .provenance import get_provenance, revision_add
-        import cProfile
-
-        provenance = get_provenance(ctx.obj["config"]["db"])
-        command = """
-while True:
-    revision = revisions.next()
-    if revision is None: break
-    revision_add(provenance, archive, revision)
-        """
-
-        cProfile.runctx(command, globals(), locals(), filename=ctx.obj["profile"])
-
-    else:
-        from .revision import RevisionWorker
-
-        conninfo = ctx.obj["config"]["db"]
-        workers = []
-
-        for id in range(threads):
-            worker = RevisionWorker(id, conninfo, archive, revisions)
-            worker.start()
-            workers.append(worker)
-
-        for worker in workers:
-            worker.join()
-    ############################################################################
+    while True:
+        revision = revisions.next()
+        if revision is None: break
+        revision_add(provenance, archive, revision)
 
 
 @cli.command(name="iter-origins")
@@ -206,7 +161,6 @@ def iter_origins(ctx, filename, limit):
     archive = get_archive(**ctx.obj["config"]["archive"])
 
     for origin in FileOriginIterator(filename, archive, limit=limit):
-        # TODO: consider using threads and a OriginWorker class
         origin_add(provenance, origin)
 
 

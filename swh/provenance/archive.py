@@ -14,7 +14,22 @@ class ArchiveInterface:
     def directory_ls(self, id: bytes):
         raise NotImplementedError
 
+    def iter_origins(self):
+        raise NotImplementedError
+
+    def iter_origin_visits(self, origin: str):
+        raise NotImplementedError
+
+    def iter_origin_visit_statuses(self, origin: str, visit: int):
+        raise NotImplementedError
+
+    def release_get(self, ids: List[bytes]):
+        raise NotImplementedError
+
     def revision_get(self, ids: List[bytes]):
+        raise NotImplementedError
+
+    def snapshot_get_all_branches(self, snapshot: bytes):
         raise NotImplementedError
 
 
@@ -26,9 +41,32 @@ class ArchiveStorage(ArchiveInterface):
         # TODO: filter unused fields
         yield from self.storage.directory_ls(id)
 
+    def iter_origins(self):
+        from swh.storage.algos.origin import iter_origins
+        yield from iter_origins(self.storage)
+
+    def iter_origin_visits(self, origin: str):
+        from swh.storage.algos.origin import iter_origin_visits
+        # TODO: filter unused fields
+        yield from iter_origin_visits(self.storage, origin)
+
+    def iter_origin_visit_statuses(self, origin: str, visit: int):
+        from swh.storage.algos.origin import iter_origin_visit_statuses
+        # TODO: filter unused fields
+        yield from iter_origin_visit_statuses(self.storage, origin, visit)
+
+    def release_get(self, ids: List[bytes]):
+        # TODO: filter unused fields
+        yield from self.storage.release_get(ids)
+
     def revision_get(self, ids: List[bytes]):
         # TODO: filter unused fields
         yield from self.storage.revision_get(ids)
+
+    def snapshot_get_all_branches(self, snapshot: bytes):
+        from swh.storage.algos.snapshot import snapshot_get_all_branches
+        # TODO: filter unused fields
+        return snapshot_get_all_branches(self.storage, snapshot)
 
 
 class Archive(ArchiveInterface):
@@ -63,9 +101,6 @@ class Archive(ArchiveInterface):
         ''', (id,))
         for row in self.cursor.fetchall():
             yield {'type': row[0], 'target': row[1], 'name': row[2]}
-
-    def revision_get(self, ids: List[bytes]):
-        raise NotImplementedError
 
 
 def get_archive(cls: str, **kwargs) -> ArchiveInterface:

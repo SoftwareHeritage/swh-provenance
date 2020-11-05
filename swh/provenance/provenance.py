@@ -448,7 +448,7 @@ def origin_add(
     provenance: ProvenanceInterface,
     origin: OriginEntry
 ):
-    origin.id = provenance.origin_get_id(cursor, origin)
+    origin.id = provenance.origin_get_id(origin)
 
     for revision in origin.revisions:
         # logging.info(f'Processing revision {hash_to_hex(revision.id)} from origin {origin.url}')
@@ -562,7 +562,7 @@ def revision_process_content(
             # TODO: this will only return timestamps for diretories that were
             # seen in an isochrone frontier. But a directory may only cointain a
             # subdirectory whose contents are already known. Which one should be
-            # added to the fronties then (the root or the sub directory)?
+            # added to the frontier then (the root or the sub directory)?
             dirdates = provenance.directory_get_early_dates(dirs)
 
             if blobs + dirs:

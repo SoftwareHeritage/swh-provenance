@@ -23,17 +23,17 @@ DEFAULT_PATH = os.environ.get(CONFIG_ENVVAR, DEFAULT_CONFIG_PATH)
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "archive": {
-        # "cls": "api",
-        # "storage": {
-        #     "cls": "remote",
-        #     "url": "http://uffizi.internal.softwareheritage.org:5002"
-        # }
-        "cls": "ps",
-        "db": {
-            "host": "db.internal.softwareheritage.org",
-            "database": "softwareheritage",
-            "user": "guest"
+        "cls": "api",
+        "storage": {
+            "cls": "remote",
+            "url": "http://uffizi.internal.softwareheritage.org:5002"
         }
+        # "cls": "ps",
+        # "db": {
+        #     "host": "db.internal.softwareheritage.org",
+        #     "database": "softwareheritage",
+        #     "user": "guest"
+        # }
     },
     "db": {
         "host": "localhost",
@@ -102,10 +102,13 @@ def cli(ctx, config_file: Optional[str], profile: str):
     #
     #     def exit():
     #         pr.disable()
-    #         print("Profiling completed")
-    #         s = io.StringIO()
-    #         pstats.Stats(pr, stream=s).sort_stats("cumulative").print_stats()
-    #         print(s.getvalue())
+    #         # print("Profiling completed")
+    #         # s = io.StringIO()
+    #         # pstats.Stats(pr, stream=s).sort_stats(SortKey.CUMULATIVE)
+    #         # print(s.getvalue())
+    #         ps = pstats.Stats(pr).sort_stats(SortKey.CUMULATIVE)
+    #         with io.open(ctx.obj["profile"], 'wb') as prof:
+    #             prof.write(ps)
     #
     #     atexit.register(exit)
 

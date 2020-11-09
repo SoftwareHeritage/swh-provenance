@@ -39,7 +39,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "cls": "ps",
         "db": {
             "host": "localhost",
-            "database": "new_test",
+            "database": "provenance",
             "user": "postgres",
             "password": "postgres"
         }
@@ -91,7 +91,6 @@ def cli(ctx, config_file: Optional[str], profile: str):
 
     ctx.ensure_object(dict)
     ctx.obj["config"] = conf
-    # ctx.obj["profile"] = profile
 
     if profile:
         import cProfile

@@ -240,93 +240,179 @@ def revision_add(
 def revision_process_content(
     provenance: ProvenanceInterface,
     revision: RevisionEntry,
-    directory: DirectoryEntry
-):
-    date = provenance.directory_get_date_in_isochrone_frontier(directory)
-    stack = [(directory, date, directory.name)]
-    # stack = [(directory, directory.name)]
+    directory: DirectoryEntry):
 
+    rootcmaxdates = provenance.directory_get_date_in_isochrone_frontier(directory)
+    # we check if root directory is known as part of the outer isochrone frontier
+    if rootcmaxdates==None or rootcmaxdates>=revision.date:
+        stack = [(directory, rootcmaxdates, directory.name, None, None, None)]
+    else:
+        # rootcmaxdates is defined and < revision.date
+        provenance.directory_add_to_revision(revision, dir, path)
+        # and we are done
+        stack=[]
+
+    TE={} # used to store cmaxdates through recursive calls
+            
     while stack:
-        dir, date, path = stack.pop()
+        # stack is used to implement a recursive call without python intrinsic limitation in the max depth of recursive call
+        dir, cmaxdates, path, dirs, cTEblobs, cTEdirs = stack.pop()
         # dir, path = stack.pop()
-        # date = provenance.directory_get_date_in_isochrone_frontier(dir)
+        # cmaxdate 
+        # dirs = list of dirs that need to be processed recursively
+        # cTEblobs : cTEblobs[child.id]=[final date (Value),intial date (None or Value)]
+        # cTEdirs : cTEdirs[child.id]=[final date (Value),intial date (None or Value)]
 
-        if date is None:
-            # The directory has never been seen on the isochrone graph of a
-            # revision. Its children should be checked.
+        if nextdirs is None:
+            # first time we process this dir
             blobs = [child for child in iter(dir) if isinstance(child, FileEntry)]
             dirs = [child for child in iter(dir) if isinstance(child, DirectoryEntry)]
-
-            blobdates = provenance.content_get_early_dates(blobs)
-            # TODO: this will only return timestamps for diretories that were
-            # seen in an isochrone frontier. But a directory may only cointain a
-            # subdirectory whose contents are already known. Which one should be
-            # added to the frontier then (the root or the sub directory)?
-            dirdates = provenance.directory_get_early_dates(dirs)
-
-            if blobs + dirs:
-                dates = list(blobdates.values()) + list(dirdates.values())
-                if None in dates: print(dates)
-
-                if len(dates) == len(blobs) + len(dirs) and max(dates) <= revision.date:
-                    # The directory belongs to the isochrone frontier of the
-                    # current revision, and this is the first time it appears
-                    # as such.
-                    provenance.directory_set_date_in_isochrone_frontier(dir, max(dates))
-                    provenance.directory_add_to_revision(revision, dir, path)
-                    directory_process_content(
-                        provenance,
-                        directory=dir,
-                        relative=dir,
-                        prefix=PosixPath('.')
-                    )
-
-                else:
-                    # The directory is not on the isochrone frontier of the
-                    # current revision. Its child nodes should be analyzed.
-                    ############################################################
-                    for child in blobs:
-                        date = blobdates.get(child.id, None)
-                        # date = provenance.content_get_early_date(child)
-                        if date is None or revision.date < date:
-                            provenance.content_set_early_date(child, revision.date)
-                        provenance.content_add_to_revision(revision, child, path)
-
-                    for child in dirs:
-                        date = dirdates.get(child.id, None)
-                        # date = provenance.directory_get_date_in_isochrone_frontier(child)
-                        stack.append((child, date, path / child.name))
-                        # stack.append((child, path / child.name))
-                    ############################################################
-
-        elif revision.date < date:
-            # The directory has already been seen on the isochrone frontier of
-            # a revision, but current revision is earlier. Its children should
-            # be updated.
-            blobs = [child for child in iter(dir) if isinstance(child, FileEntry)]
-            dirs = [child for child in iter(dir) if isinstance(child, DirectoryEntry)]
-
-            blobdates = provenance.content_get_early_dates(blobs)
-            dirdates = provenance.directory_get_early_dates(dirs)
-
-            ####################################################################
-            for child in blobs:
-                # date = blobdates.get(child.id, None)
-                date = provenance.content_get_early_date(child)
-                if date is None or revision.date < date:
-                    provenance.content_set_early_date(child, revision.date)
-                provenance.content_add_to_revision(revision, child, path)
-
-            for child in dirs:
-                # date = dirdates.get(child.id, None)
-                date = provenance.directory_get_date_in_isochrone_frontier(child)
-                stack.append((child, date, path / child.name))
-                # stack.append((child, path / child.name))
-            ####################################################################
-
-            provenance.directory_set_date_in_isochrone_frontier(dir, revision.date)
-
+            cTEblobs={}
+            cTEdirs={}
         else:
-            # The directory has already been seen on the isochrone frontier of
-            # an earlier revision. Just add it to the current revision.
-            provenance.directory_add_to_revision(revision, dir, path)
+            # all blobs have been processed already
+            blobs=[]
+
+        nextdirs=[]
+        cstack=[]
+
+        blobdates = provenance.content_get_early_dates(blobs)
+        dirdates = provenance.directory_get_early_dates(dirs)
+
+        cblobdates = []
+        for child in blobs: 
+            cdate = blobdates.get(child.id, None)
+            if cdate is None:
+                cTEblobs[child.id]=[revision.date,None]
+            elif cdate<revision.date:
+                cTEblobs[child.id]=[cdate,cdate]
+            elif cdate==revision.date:
+                cTEblobs[child.id]=[cdate,cdate]
+            else:
+                # cdate>revision.date
+                cTEblobs[child.id]=[revision.date,cdate]
+
+            cblobdates.append(cTEblobs[child.id][0])
+
+        cdirdates = []
+        for child in dirs:
+            cdate = dirdates.get(child.id, None)
+            # check if thid directory has been processed through the stack
+            if child.id in TE and TE[child.id]!=None:
+                cdate=TE[child.id]
+            if cdate is None:
+                cTEdirs[child.id]=[None,None]
+                cstack.append((child, None, path / child.name, None, None, None))
+            elif cdate<revision.date:
+                # outer frontier
+                cTEdirs[child.id]=[cdate,cdate]
+            elif cdate==revision.date:
+                # inner frontier
+                cTEdirs[child.id]=[cdate,cdate]
+            elif cdate>revision.date:
+                # need to be processed to update all TE
+                cTEdirs[child.id]=[None,cdate]
+                cstack.append((child, None, path / child.name, None, None, None))
+
+            if cTEdirs[child.id][0]!=None:
+                cdirdates.append(cTEdirs[child.id][0])
+            else:
+                nextdirs.append(child)
+
+        # define max of cmaxdates according to new values
+        # starting from previous value (ie blobs and dirs already processed)
+
+        if cblobdates:
+            if cmaxdates is None:
+                cmaxdates=max(cblobdates)
+            else:
+                cmaxdates=max(max(cblobdates),cmaxdates)
+
+        if cdirdates:
+            if cmaxdates is None:
+                cmaxdates=max(cdirdates)
+            else:
+                cmaxdates=max(max(cdirdates),cmaxdates)
+
+        # if at least one dir is None, we need to fill the stack recursively
+        if nextdirs: 
+            # ! the parent dir must be append before the child directories
+            stack.append((dir, cmaxdates, path / child.name, nextdirs, cTEblobs, cTEdirs))
+            stack+=cstack
+            for child in nextdirs: 
+                if child.id not in TE:
+                    TE[child.id]=None
+        else:
+            # we can proceed
+            if cmaxdates is None:
+                # we may have a problem or not.
+                # only possible for an empty directory 
+                # return revision.date
+                if len(cTEblobs)!=0: 
+                    print("ERROR")
+                else:
+                    if dir.id in TE:
+                        TE[dir.id]=revision.date
+            elif cmaxdates<revision.date:
+                # the directory is outside the isochrone graph.
+                # if this is the root directory we are almost done
+                # or we need to process upper directories
+                if stack:
+                    # this is not the root directory
+                    # update TE and move forward (value will be used later)
+                    if dir.id in TE:
+                        TE[dir.id]=cmaxdates
+                else:
+                    # this is the root directory (it means that the root directory has been seen earlier)
+                    # if D not in directory
+                    if rootcmaxdates==None:
+                        directory_process_content(
+	                        provenance,
+	                        directory=dir,
+	                        relative=dir,
+	                        prefix=PosixPath('.')
+                                )
+                    else:
+                        if rootcmaxdates>cmaxdates:
+                            # ! update with min on the DB side (it may have change while processing the revision
+                            # if more than one process running
+                            provenance.directory_set_date_in_isochrone_frontier(dir, cmaxdates)
+                    # fill D-R
+                    provenance.directory_add_to_revision(revision, dir, path)
+            elif cmaxdates==revision.date:
+                # the current directory is in the inner isochrone frontier
+                blobs = [child for child in iter(dir) if isinstance(child, FileEntry)]
+                dirs = [child for child in iter(dir) if isinstance(child, DirectoryEntry)]
+                for child in blobs:
+                    cdate=cTEblobs[child.id][0]
+                    if (cTEblobs[child.id][1] is None) or (cdate<cTEblobs[child.id][1]): 
+                        provenance.content_set_early_date(child, cdate)
+                    provenance.content_add_to_revision(revision, child, path)
+                    # update earliest
+                for child in dirs:
+                    cdate=cTEdirs[child.id][0]
+                    if cdate<revision.date:
+                        # child directory is in the outer isochrone frontier
+                        # fill D-R
+                        provenance.directory_add_to_revision(revision, child, path)
+                        # D not in directory, or need update
+                        if (cTEdirs[child.id][1] is None) or (cdate<cTEdirs[child.id][1]): 
+                                provenance.directory_set_date_in_isochrone_frontier(child, cdate)
+                        # D not in directory, need to fill C-D
+                        if cTEdirs[child.id][1]==None:
+                            directory_process_content(
+	                            provenance,
+	                            directory=child,
+	                            relative=child,
+	                            prefix=PosixPath('.')
+                                    )
+                    else:
+                        # cdate=revision.date
+                        # nothing to do
+                        pass
+            elif cmaxdates>revision.date:
+                # should not happend
+                pass
+            else:
+                # should not happend
+                pass

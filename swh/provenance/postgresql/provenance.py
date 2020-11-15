@@ -38,7 +38,7 @@ def create_database(
     conn.close()
 
     # Reconnect to server selecting newly created database to add tables
-    conninfo['database'] = name
+    conninfo['dbname'] = name
     conn = connect(conninfo)
 
     sqldir = os.path.dirname(os.path.realpath(__file__))

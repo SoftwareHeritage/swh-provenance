@@ -31,7 +31,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         # "cls": "ps",
         # "db": {
         #     "host": "db.internal.softwareheritage.org",
-        #     "database": "softwareheritage",
+        #     "dbname": "softwareheritage",
         #     "user": "guest"
         # }
     },
@@ -39,9 +39,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "cls": "ps",
         "db": {
             "host": "localhost",
-            "database": "provenance",
-            "user": "postgres",
-            "password": "postgres"
+            "dbname": "provenance"
         }
     }
 }
@@ -117,7 +115,8 @@ def create(ctx, name):
 
     # Connect to server without selecting a database
     conninfo = ctx.obj["config"]["provenance"]["db"]
-    database = conninfo.pop('database', None)
+    #database = conninfo.pop('dbname', None)
+    #print(conninfo)
     conn = connect(conninfo)
 
     if name is None:

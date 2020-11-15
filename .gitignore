@@ -1,7 +1,9 @@
 *.csv
 *.egg*
 *.log
+*.prof
 *.zip
+.vscode
 __pycache__
 compact.egg.info
 content-revision

@@ -103,26 +103,6 @@ class ProvenanceInterface:
         raise NotImplementedError
 
 
-    def revision_get_early_date(self, revision: RevisionEntry) -> datetime:
-        raise NotImplementedError
-
-
-    def revision_get_prefered_origin(self, revision: RevisionEntry) -> int:
-        raise NotImplementedError
-
-
-    def revision_in_history(self, revision: RevisionEntry) -> bool:
-        raise NotImplementedError
-
-
-    def revision_set_prefered_origin(self, origin: OriginEntry, revision: RevisionEntry):
-        raise NotImplementedError
-
-
-    def revision_visited(self, revision: RevisionEntry) -> bool:
-        raise NotImplementedError
-
-
 def directory_process_content(
     provenance: ProvenanceInterface,
     directory: DirectoryEntry,

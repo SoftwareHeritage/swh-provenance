@@ -264,11 +264,11 @@ def revision_process_content(
             # added to the frontier then (the root or the sub directory)?
             dirdates = provenance.directory_get_early_dates(dirs)
 
-            if blobs + dirs:
+            ids = list(dict.fromkeys([child.id for child in blobs + dirs]))
+            if ids:
                 dates = list(blobdates.values()) + list(dirdates.values())
-                if None in dates: print(dates)
 
-                if len(dates) == len(blobs) + len(dirs) and max(dates) <= revision.date:
+                if len(dates) == len(ids) and max(dates) <= revision.date:
                     # The directory belongs to the isochrone frontier of the
                     # current revision, and this is the first time it appears
                     # as such.

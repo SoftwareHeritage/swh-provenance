@@ -115,12 +115,7 @@ def create(ctx, name):
 
     # Connect to server without selecting a database
     conninfo = ctx.obj["config"]["provenance"]["db"]
-    #database = conninfo.pop('dbname', None)
-    #print(conninfo)
     conn = connect(conninfo)
-
-    if name is None:
-        name = database
 
     create_database(conn, conninfo, name)
 
@@ -148,9 +143,7 @@ def iter_revisions(ctx, filename, limit):
 @cli.command(name="iter-origins")
 @click.argument("filename")
 @click.option('-l', '--limit', type=int)
-#@click.option('-t', '--threads', type=int, default=1)
 @click.pass_context
-#def iter_revisions(ctx, filename, limit, threads):
 def iter_origins(ctx, filename, limit):
     """Iterate over provided list of revisions and add them to the provenance database."""
     from . import get_archive, get_provenance
@@ -169,7 +162,7 @@ def iter_origins(ctx, filename, limit):
 @click.pass_context
 def find_first(ctx, swhid):
     """Find first occurrence of the requested blob."""
-    from .provenance import get_provenance
+    from . import get_provenance
 
     provenance = get_provenance(**ctx.obj["config"]["provenance"])
     # TODO: return a dictionary with proper keys for each field

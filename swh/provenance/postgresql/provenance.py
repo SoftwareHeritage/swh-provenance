@@ -32,9 +32,9 @@ def create_database(
     conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
 
     # Create new database dropping previous one if exists
-    cursor = conn.cursor();
+    cursor = conn.cursor()
     cursor.execute(f'''DROP DATABASE IF EXISTS {name}''')
-    cursor.execute(f'''CREATE DATABASE {name}''');
+    cursor.execute(f'''CREATE DATABASE {name}''')
     conn.close()
 
     # Reconnect to server selecting newly created database to add tables
@@ -50,10 +50,9 @@ def create_database(
 ################################################################################
 
 class ProvenancePostgreSQL(ProvenanceInterface):
-    # TODO: turn this into a real interface and move PostgreSQL implementation
-    # to a separate file
     def __init__(self, conn: psycopg2.extensions.connection):
         # TODO: consider addind a mutex for thread safety
+        # conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
         self.conn = conn
         self.cursor = self.conn.cursor()
         self.insert_cache = None
@@ -278,8 +277,6 @@ class ProvenancePostgreSQL(ProvenanceInterface):
 
 
     def insert_all(self):
-        # self.conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
-
         # Performe insertions with cached information
         psycopg2.extras.execute_values(
             self.cursor,
@@ -287,11 +284,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
                ON CONFLICT (id) DO UPDATE SET date=EXCLUDED.date''',    # TODO: keep earliest date on conflict
             # '''INSERT INTO content(id, date) VALUES %s
             #    ON CONFLICT (id) DO
-            #        UPDATE SET date = CASE
-            #            WHEN EXCLUDED.date < content.date
-            #                THEN EXCLUDED.date
-            #                ELSE content.date
-            #        END''',
+            #        UPDATE SET date=LEAST(EXCLUDED.date,content.date)''',
             self.insert_cache['content'].items()
         )
 
@@ -315,11 +308,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
                ON CONFLICT (id) DO UPDATE SET date=EXCLUDED.date''',    # TODO: keep earliest date on conflict
             # '''INSERT INTO directory(id, date) VALUES %s
             #    ON CONFLICT (id) DO
-            #        UPDATE SET date = CASE
-            #            WHEN EXCLUDED.date < directory.date
-            #                THEN EXCLUDED.date
-            #                ELSE directory.date
-            #        END''',
+            #        UPDATE SET date=LEAST(EXCLUDED.date,content.date)''',
             self.insert_cache['directory'].items()
         )
 
@@ -336,15 +325,9 @@ class ProvenancePostgreSQL(ProvenanceInterface):
                ON CONFLICT (id) DO UPDATE SET date=EXCLUDED.date''',    # TODO: keep earliest date on conflict
             # '''INSERT INTO revision(id, date) VALUES %s
             #    ON CONFLICT (id) DO
-            #        UPDATE SET date = CASE
-            #            WHEN EXCLUDED.date < revision.date
-            #                THEN EXCLUDED.date
-            #                ELSE revision.date
-            #        END''',
+            #        UPDATE SET date=LEAST(EXCLUDED.date,content.date)''',
             self.insert_cache['revision'].items()
         )
-
-        # self.conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_DEFAULT)
 
 
     def origin_get_id(self, origin: OriginEntry) -> int:
@@ -357,7 +340,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
                 # If the origin is seen for the first time, current revision is
                 # the prefered one.
                 self.cursor.execute('''INSERT INTO origin (url) VALUES (%s) RETURNING id''',
-                                  (origin.url,))
+                                       (origin.url,))
                 return self.cursor.fetchone()[0]
             else:
                 return row[0]
@@ -371,11 +354,13 @@ class ProvenancePostgreSQL(ProvenanceInterface):
 
 
     def revision_add_before_revision(self, relative: RevisionEntry, revision: RevisionEntry):
+        # TODO: postpone insertion to commit.
         self.cursor.execute('''INSERT INTO revision_before_rev VALUES (%s,%s)''',
                                (revision.id, relative.id))
 
 
     def revision_add_to_origin(self, origin: OriginEntry, revision: RevisionEntry):
+        # TODO: postpone insertion to commit.
         self.cursor.execute('''INSERT INTO revision_in_org VALUES (%s,%s)
                                ON CONFLICT DO NOTHING''',
                                (revision.id, origin.id))

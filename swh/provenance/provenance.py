@@ -13,8 +13,6 @@ from swh.model.hashutil import hash_to_hex
 
 
 class ProvenanceInterface:
-    # TODO: turn this into a real interface and move PostgreSQL implementation
-    # to a separate file
     def __init__(self, **kwargs):
         raise NotImplementedError
 

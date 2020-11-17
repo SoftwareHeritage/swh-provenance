@@ -3,6 +3,7 @@ import psycopg2
 from ..archive import ArchiveInterface
 
 # from functools import lru_cache
+from methodtools import lru_cache
 from typing import List
 from swh.storage import get_storage
 
@@ -11,10 +12,10 @@ class ArchiveStorage(ArchiveInterface):
     def __init__(self, cls: str, **kwargs):
         self.storage = get_storage(cls, **kwargs)
 
-    # @lru_cache
+    @lru_cache(maxsize=None)
     def directory_ls(self, id: bytes):
         # TODO: filter unused fields
-        yield from self.storage.directory_ls(id)
+        return [entry for entry in self.storage.directory_ls(id)]
 
     def iter_origins(self):
         from swh.storage.algos.origin import iter_origins

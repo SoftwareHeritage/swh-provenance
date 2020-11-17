@@ -3,6 +3,7 @@ import psycopg2
 from ..archive import ArchiveInterface
 
 # from functools import lru_cache
+from methodtools import lru_cache
 from typing import List
 
 
@@ -11,7 +12,7 @@ class ArchivePostgreSQL(ArchiveInterface):
         self.conn = conn
         self.cursor = conn.cursor()
 
-    # @lru_cache
+    @lru_cache(maxsize=None)
     def directory_ls(self, id: bytes):
         self.cursor.execute('''WITH
             dir  AS (SELECT id AS dir_id, dir_entries, file_entries, rev_entries
@@ -37,5 +38,4 @@ class ArchivePostgreSQL(ArchiveInterface):
                 WHERE NOT EXISTS (SELECT 1 FROM known_contents WHERE known_contents.sha1_git=e.target)))
             ORDER BY name
         ''', (id,))
-        for row in self.cursor.fetchall():
-            yield {'type': row[0], 'target': row[1], 'name': row[2]}
+        return [{'type': row[0], 'target': row[1], 'name': row[2]} for row in self.cursor.fetchall()]

@@ -12,7 +12,7 @@ class ArchiveStorage(ArchiveInterface):
     def __init__(self, cls: str, **kwargs):
         self.storage = get_storage(cls, **kwargs)
 
-    @lru_cache(maxsize=None)
+    @lru_cache(maxsize=1000000)
     def directory_ls(self, id: bytes):
         # TODO: filter unused fields
         return [entry for entry in self.storage.directory_ls(id)]

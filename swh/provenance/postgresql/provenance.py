@@ -31,6 +31,9 @@ def create_database(
 ):
     conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
 
+    # Normalize dbname to avoid issues when reconnecting below
+    name = name.casefold()
+
     # Create new database dropping previous one if exists
     cursor = conn.cursor()
     cursor.execute(f'''DROP DATABASE IF EXISTS {name}''')
@@ -51,8 +54,8 @@ def create_database(
 
 class ProvenancePostgreSQL(ProvenanceInterface):
     def __init__(self, conn: psycopg2.extensions.connection):
-        # TODO: consider addind a mutex for thread safety
-        # conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+        # TODO: consider adding a mutex for thread safety
+        conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
         self.conn = conn
         self.cursor = self.conn.cursor()
         self.insert_cache = None
@@ -67,7 +70,9 @@ class ProvenancePostgreSQL(ProvenanceInterface):
             "content_in_dir": list(),
             "directory": dict(),
             "directory_in_rev": list(),
-            "revision": dict()
+            "revision": dict(),
+            "revision_before_rev": list(),
+            "revision_in_org": list()
         }
         self.select_cache = {
             "content": dict(),
@@ -80,22 +85,22 @@ class ProvenancePostgreSQL(ProvenanceInterface):
         result = False
         try:
             self.insert_all()
-            self.conn.commit()
+            # self.conn.commit()
             result = True
 
-        except psycopg2.DatabaseError:
-            # Database error occurred, rollback all changes
-            self.conn.rollback()
-            # TODO: maybe serialize and auto-merge transations.
-            # The only conflicts are on:
-            #   - content: we keep the earliest date
-            #   - directory: we keep the earliest date
-            #   - content_in_dir: there should be just duplicated entries.
+        # except psycopg2.DatabaseError:
+        #     # Database error occurred, rollback all changes
+        #     self.conn.rollback()
+        #     # TODO: maybe serialize and auto-merge transations.
+        #     # The only conflicts are on:
+        #     #   - content: we keep the earliest date
+        #     #   - directory: we keep the earliest date
+        #     #   - content_in_dir: there should be just duplicated entries.
 
         except Exception as error:
             # Unexpected error occurred, rollback all changes and log message
             logging.warning(f'Unexpected error: {error}')
-            self.conn.rollback()
+            # self.conn.rollback()
 
         finally:
             self.clear_caches()
@@ -278,56 +283,72 @@ class ProvenancePostgreSQL(ProvenanceInterface):
 
     def insert_all(self):
         # Performe insertions with cached information
-        psycopg2.extras.execute_values(
-            self.cursor,
-            '''INSERT INTO content(id, date) VALUES %s
-               ON CONFLICT (id) DO UPDATE SET date=EXCLUDED.date''',    # TODO: keep earliest date on conflict
-            # '''INSERT INTO content(id, date) VALUES %s
-            #    ON CONFLICT (id) DO
-            #        UPDATE SET date=LEAST(EXCLUDED.date,content.date)''',
-            self.insert_cache['content'].items()
-        )
+        if self.insert_cache['content']:
+            psycopg2.extras.execute_values(
+                self.cursor,
+                '''INSERT INTO content(id, date) VALUES %s
+                   ON CONFLICT (id) DO
+                       UPDATE SET date=LEAST(EXCLUDED.date,content.date)''',
+                self.insert_cache['content'].items()
+            )
 
-        psycopg2.extras.execute_values(
-            self.cursor,
-            '''INSERT INTO content_early_in_rev VALUES %s
-               ON CONFLICT DO NOTHING''',
-            self.insert_cache['content_early_in_rev']
-        )
+        if self.insert_cache['content_early_in_rev']:
+            psycopg2.extras.execute_values(
+                self.cursor,
+                '''INSERT INTO content_early_in_rev VALUES %s
+                   ON CONFLICT DO NOTHING''',
+                self.insert_cache['content_early_in_rev']
+            )
 
-        psycopg2.extras.execute_values(
-            self.cursor,
-            '''INSERT INTO content_in_dir VALUES %s
-               ON CONFLICT DO NOTHING''',
-            self.insert_cache['content_in_dir']
-        )
+        if self.insert_cache['content_in_dir']:
+            psycopg2.extras.execute_values(
+                self.cursor,
+                '''INSERT INTO content_in_dir VALUES %s
+                   ON CONFLICT DO NOTHING''',
+                self.insert_cache['content_in_dir']
+            )
 
-        psycopg2.extras.execute_values(
-            self.cursor,
-            '''INSERT INTO directory(id, date) VALUES %s
-               ON CONFLICT (id) DO UPDATE SET date=EXCLUDED.date''',    # TODO: keep earliest date on conflict
-            # '''INSERT INTO directory(id, date) VALUES %s
-            #    ON CONFLICT (id) DO
-            #        UPDATE SET date=LEAST(EXCLUDED.date,content.date)''',
-            self.insert_cache['directory'].items()
-        )
+        if self.insert_cache['directory']:
+            psycopg2.extras.execute_values(
+                self.cursor,
+                '''INSERT INTO directory(id, date) VALUES %s
+                   ON CONFLICT (id) DO
+                       UPDATE SET date=LEAST(EXCLUDED.date,directory.date)''',
+                self.insert_cache['directory'].items()
+            )
 
-        psycopg2.extras.execute_values(
-            self.cursor,
-            '''INSERT INTO directory_in_rev VALUES %s
-               ON CONFLICT DO NOTHING''',
-            self.insert_cache['directory_in_rev']
-        )
+        if self.insert_cache['directory_in_rev']:
+            psycopg2.extras.execute_values(
+                self.cursor,
+                '''INSERT INTO directory_in_rev VALUES %s
+                   ON CONFLICT DO NOTHING''',
+                self.insert_cache['directory_in_rev']
+            )
 
-        psycopg2.extras.execute_values(
-            self.cursor,
-            '''INSERT INTO revision(id, date) VALUES %s
-               ON CONFLICT (id) DO UPDATE SET date=EXCLUDED.date''',    # TODO: keep earliest date on conflict
-            # '''INSERT INTO revision(id, date) VALUES %s
-            #    ON CONFLICT (id) DO
-            #        UPDATE SET date=LEAST(EXCLUDED.date,content.date)''',
-            self.insert_cache['revision'].items()
-        )
+        if self.insert_cache['revision']:
+            psycopg2.extras.execute_values(
+                self.cursor,
+                '''INSERT INTO revision(id, date) VALUES %s
+                   ON CONFLICT (id) DO
+                       UPDATE SET date=LEAST(EXCLUDED.date,revision.date)''',
+                self.insert_cache['revision'].items()
+            )
+
+        if self.insert_cache['revision_before_rev']:
+            psycopg2.extras.execute_values(
+                self.cursor,
+                '''INSERT INTO revision_before_rev VALUES %s
+                   ON CONFLICT DO NOTHING''',
+                self.insert_cache['revision_before_rev']
+            )
+
+        if self.insert_cache['revision_in_org']:
+            psycopg2.extras.execute_values(
+                self.cursor,
+                '''INSERT INTO revision_in_org VALUES %s
+                   ON CONFLICT DO NOTHING''',
+                self.insert_cache['revision_in_org']
+            )
 
 
     def origin_get_id(self, origin: OriginEntry) -> int:
@@ -354,16 +375,17 @@ class ProvenancePostgreSQL(ProvenanceInterface):
 
 
     def revision_add_before_revision(self, relative: RevisionEntry, revision: RevisionEntry):
-        # TODO: postpone insertion to commit.
-        self.cursor.execute('''INSERT INTO revision_before_rev VALUES (%s,%s)''',
-                               (revision.id, relative.id))
+        # self.cursor.execute('''INSERT INTO revision_before_rev VALUES (%s,%s)
+        #                        ON CONFLICT DO NOTHING''',
+        #                        (revision.id, relative.id))
+        self.insert_cache['revision_before_rev'].append((revision.id, relative.id))
 
 
     def revision_add_to_origin(self, origin: OriginEntry, revision: RevisionEntry):
-        # TODO: postpone insertion to commit.
-        self.cursor.execute('''INSERT INTO revision_in_org VALUES (%s,%s)
-                               ON CONFLICT DO NOTHING''',
-                               (revision.id, origin.id))
+        # self.cursor.execute('''INSERT INTO revision_in_org VALUES (%s,%s)
+        #                        ON CONFLICT DO NOTHING''',
+        #                        (revision.id, origin.id))
+        self.insert_cache['revision_in_org'].append((revision.id, origin.id))
 
 
     def revision_get_early_date(self, revision: RevisionEntry) -> datetime:
@@ -384,6 +406,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
 
 
     def revision_get_prefered_origin(self, revision: RevisionEntry) -> int:
+        # TODO: adapt this method to consider cached values
         self.cursor.execute('''SELECT COALESCE(org,0) FROM revision WHERE id=%s''',
                                (revision.id,))
         row = self.cursor.fetchone()
@@ -393,17 +416,20 @@ class ProvenancePostgreSQL(ProvenanceInterface):
 
 
     def revision_in_history(self, revision: RevisionEntry) -> bool:
+        # TODO: adapt this method to consider cached values
         self.cursor.execute('''SELECT 1 FROM revision_before_rev WHERE prev=%s''',
                                (revision.id,))
         return self.cursor.fetchone() is not None
 
 
     def revision_set_prefered_origin(self, origin: OriginEntry, revision: RevisionEntry):
+        # TODO: adapt this method to consider cached values
         self.cursor.execute('''UPDATE revision SET org=%s WHERE id=%s''',
                                (origin.id, revision.id))
 
 
     def revision_visited(self, revision: RevisionEntry) -> bool:
+        # TODO: adapt this method to consider cached values
         self.cursor.execute('''SELECT 1 FROM revision_in_org WHERE rev=%s''',
                                (revision.id,))
         return self.cursor.fetchone() is not None

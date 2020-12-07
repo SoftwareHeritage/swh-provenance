@@ -3,6 +3,7 @@
 *.log
 *.prof
 *.zip
+.tox
 .vscode
 __pycache__
 compact.egg.info

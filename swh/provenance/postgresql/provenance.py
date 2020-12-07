@@ -12,7 +12,7 @@ from ..revision import RevisionEntry
 
 from datetime import datetime
 from pathlib import PosixPath
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from swh.model.hashutil import hash_to_hex
 
@@ -45,7 +45,7 @@ def create_database(
     conn = connect(conninfo)
 
     sqldir = os.path.dirname(os.path.realpath(__file__))
-    execute_sql(conn, os.path.join(sqldir, 'provenance.sql'))
+    execute_sql(conn, PosixPath(os.path.join(sqldir, 'provenance.sql')))
 
 
 ################################################################################
@@ -58,8 +58,8 @@ class ProvenancePostgreSQL(ProvenanceInterface):
         conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
         self.conn = conn
         self.cursor = self.conn.cursor()
-        self.insert_cache = None
-        self.select_cache = None
+        self.insert_cache: Dict[str, Any] = {}
+        self.select_cache: Dict[str, Any] = {}
         self.clear_caches()
 
 

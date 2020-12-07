@@ -4,6 +4,7 @@ import threading
 from .archive import ArchiveInterface
 
 from datetime import datetime
+from typing import Optional
 
 from swh.model.hashutil import hash_to_bytes, hash_to_hex
 
@@ -13,9 +14,9 @@ class RevisionEntry:
         self,
         archive: ArchiveInterface,
         id: bytes,
-        date: datetime=None,
-        root: bytes=None,
-        parents: list=None
+        date: Optional[datetime]=None,
+        root: Optional[bytes]=None,
+        parents: Optional[list]=None
     ):
         self.archive = archive
         self.id = id
@@ -55,7 +56,7 @@ class RevisionIterator:
 class FileRevisionIterator(RevisionIterator):
     """Iterator over revisions present in the given CSV file."""
 
-    def __init__(self, filename: str, archive: ArchiveInterface, limit: int=None):
+    def __init__(self, filename: str, archive: ArchiveInterface, limit: Optional[int]=None):
         self.file = open(filename)
         self.idx = 0
         self.limit = limit

@@ -1,6 +1,8 @@
 from .archive import ArchiveInterface
 from .revision import RevisionEntry
 
+from typing import Optional
+
 from swh.model.model import Origin, ObjectType, TargetType
 
 
@@ -27,7 +29,7 @@ class OriginIterator:
 class FileOriginIterator(OriginIterator):
     """Iterator over origins present in the given CSV file."""
 
-    def __init__(self, filename: str, archive: ArchiveInterface, limit: int=None):
+    def __init__(self, filename: str, archive: ArchiveInterface, limit: Optional[int]=None):
         self.file = open(filename)
         self.limit = limit
         # self.mutex = threading.Lock()
@@ -44,7 +46,7 @@ class FileOriginIterator(OriginIterator):
 class ArchiveOriginIterator:
     """Iterator over origins present in the given storage."""
 
-    def __init__(self, archive: ArchiveInterface, limit: int=None):
+    def __init__(self, archive: ArchiveInterface, limit: Optional[int]=None):
         self.limit = limit
         # self.mutex = threading.Lock()
         self.archive = archive
@@ -57,7 +59,7 @@ class ArchiveOriginIterator:
         )
 
 
-def iterate_statuses(origins, archive: ArchiveInterface, limit: int=None):
+def iterate_statuses(origins, archive: ArchiveInterface, limit: Optional[int]=None):
     idx = 0
     for origin in origins:
         for visit in archive.iter_origin_visits(origin.url):
@@ -79,7 +81,7 @@ def iterate_statuses(origins, archive: ArchiveInterface, limit: int=None):
                 limit = 100
                 for i in range(0, len(releases), limit):
                     for release in archive.release_get(releases[i:i+limit]):
-                        if revision is not None:
+                        if release is not None:
                             if release.target_type == ObjectType.REVISION:
                                 targets.append(release.target)
 

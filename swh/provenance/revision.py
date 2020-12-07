@@ -1,4 +1,3 @@
-import logging
 import threading
 
 from .archive import ArchiveInterface
@@ -6,7 +5,7 @@ from .archive import ArchiveInterface
 from datetime import datetime
 from typing import Optional
 
-from swh.model.hashutil import hash_to_bytes, hash_to_hex
+from swh.model.hashutil import hash_to_bytes
 
 
 class RevisionEntry:
@@ -42,8 +41,8 @@ class RevisionEntry:
         return iter(self.parents)
 
 
-################################################################################
-################################################################################
+########################################################################################
+########################################################################################
 
 
 class RevisionIterator:
@@ -137,8 +136,8 @@ class FileRevisionIterator(RevisionIterator):
 #             return RevisionEntry(row[0], row[2], row[3])
 
 
-################################################################################
-################################################################################
+########################################################################################
+########################################################################################
 
 # class RevisionWorker(threading.Thread):
 #     def __init__(
@@ -167,7 +166,19 @@ class FileRevisionIterator(RevisionIterator):
 #
 #             processed = False
 #             while not processed:
-#                 logging.info(f'Thread {self.id} - Processing revision {hash_to_hex(revision.id)} (timestamp: {revision.date})')
+#                 logging.info(
+#                     f'Thread {(
+#                         self.id
+#                     )} - Processing revision {(
+#                         hash_to_hex(revision.id)
+#                     )} (timestamp: {revision.date})'
+#                 )
 #                 processed = revision_add(self.provenance, self.archive, revision)
 #                 if not processed:
-#                     logging.warning(f'Thread {self.id} - Failed to process revision {hash_to_hex(revision.id)} (timestamp: {revision.date})')
+#                     logging.warning(
+#                         f'Thread {(
+#                              self.id
+#                         )} - Failed to process revision {(
+#                             hash_to_hex(revision.id)
+#                         )} (timestamp: {revision.date})'
+#                     )

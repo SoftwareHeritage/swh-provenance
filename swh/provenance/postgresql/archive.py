@@ -21,24 +21,32 @@ class ArchivePostgreSQL(ArchiveInterface):
             ls_d AS (SELECT dir_id, unnest(dir_entries) AS entry_id from dir),
             ls_f AS (SELECT dir_id, unnest(file_entries) AS entry_id from dir),
             ls_r AS (SELECT dir_id, unnest(rev_entries) AS entry_id from dir)
-            (SELECT 'dir'::directory_entry_type AS type, e.target, e.name, NULL::sha1_git
+            (SELECT 'dir'::directory_entry_type AS type, e.target, e.name,
+                    NULL::sha1_git
                 FROM ls_d
                 LEFT JOIN directory_entry_dir e ON ls_d.entry_id=e.id)
             UNION
             (WITH known_contents AS
-            (SELECT 'file'::directory_entry_type AS type, e.target, e.name, c.sha1_git
-                FROM ls_f
-                LEFT JOIN directory_entry_file e ON ls_f.entry_id=e.id
-                INNER JOIN content c ON e.target=c.sha1_git)
-            SELECT * FROM known_contents
-            UNION
-            (SELECT 'file'::directory_entry_type AS type, e.target, e.name, c.sha1_git
-                FROM ls_f
-                LEFT JOIN directory_entry_file e ON ls_f.entry_id=e.id
-                LEFT JOIN skipped_content c ON e.target=c.sha1_git
-                WHERE NOT EXISTS (SELECT 1 FROM known_contents WHERE known_contents.sha1_git=e.target)))
+                (SELECT 'file'::directory_entry_type AS type, e.target, e.name,
+                        c.sha1_git
+                    FROM ls_f
+                    LEFT JOIN directory_entry_file e ON ls_f.entry_id=e.id
+                    INNER JOIN content c ON e.target=c.sha1_git)
+                SELECT * FROM known_contents
+                UNION
+                (SELECT 'file'::directory_entry_type AS type, e.target, e.name,
+                        c.sha1_git
+                    FROM ls_f
+                    LEFT JOIN directory_entry_file e ON ls_f.entry_id=e.id
+                    LEFT JOIN skipped_content c ON e.target=c.sha1_git
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM known_contents
+                            WHERE known_contents.sha1_git=e.target
+                    )
+                )
+            )
             ORDER BY name
-        """,
+            """,
             (id,),
         )
         return [

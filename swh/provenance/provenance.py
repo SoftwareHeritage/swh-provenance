@@ -1,5 +1,3 @@
-import logging
-
 from .archive import ArchiveInterface
 from .model import DirectoryEntry, FileEntry
 from .origin import OriginEntry
@@ -8,8 +6,6 @@ from .revision import RevisionEntry
 from datetime import datetime
 from pathlib import PosixPath
 from typing import Dict, List, Optional, Tuple
-
-from swh.model.hashutil import hash_to_hex
 
 
 class ProvenanceInterface:
@@ -159,7 +155,6 @@ def origin_add(provenance: ProvenanceInterface, origin: OriginEntry):
     origin.id = provenance.origin_get_id(origin)
 
     for revision in origin.revisions:
-        # logging.info(f'Processing revision {hash_to_hex(revision.id)} from origin {origin.url}')
         origin_add_revision(provenance, origin, revision)
 
         # Commit after each revision
@@ -176,7 +171,6 @@ def origin_add_revision(
 
         # Check if current revision has no prefered origin and update if necessary.
         prefered = provenance.revision_get_prefered_origin(current)
-        # logging.debug(f'Prefered origin for revision {hash_to_hex(rev.id)}: {prefered}')
 
         if prefered is None:
             provenance.revision_set_prefered_origin(origin, current)
@@ -185,13 +179,6 @@ def origin_add_revision(
         if relative is None:
             # This revision is pointed directly by the origin.
             visited = provenance.revision_visited(current)
-            logging.debug(
-                f"Revision {hash_to_hex(current.id)} in origin {origin.id}: {visited}"
-            )
-
-            logging.debug(
-                f"Adding revision {hash_to_hex(current.id)} to origin {origin.id}"
-            )
             provenance.revision_add_to_origin(origin, current)
 
             if not visited:
@@ -202,42 +189,27 @@ def origin_add_revision(
             # relative revision.
             for parent in iter(current):
                 visited = provenance.revision_visited(parent)
-                logging.debug(
-                    f"Parent {hash_to_hex(parent.id)} in some origin: {visited}"
-                )
 
                 if not visited:
                     # The parent revision has never been seen before pointing
                     # directly to an origin.
                     known = provenance.revision_in_history(parent)
-                    logging.debug(
-                        f"Revision {hash_to_hex(parent.id)} before revision: {known}"
-                    )
 
                     if known:
                         # The parent revision is already known in some other
                         # revision's history. We should point it directly to
                         # the origin and (eventually) walk its history.
-                        logging.debug(
-                            f"Adding revision {hash_to_hex(parent.id)} directly to origin {origin.id}"
-                        )
                         stack.append((None, parent))
                     else:
                         # The parent revision was never seen before. We should
                         # walk its history and associate it with the same
                         # relative revision.
-                        logging.debug(
-                            f"Adding parent revision {hash_to_hex(parent.id)} to revision {hash_to_hex(relative.id)}"
-                        )
                         provenance.revision_add_before_revision(relative, parent)
                         stack.append((relative, parent))
                 else:
                     # The parent revision already points to an origin, so its
                     # history was properly processed before. We just need to
                     # make sure it points to the current origin as well.
-                    logging.debug(
-                        f"Adding parent revision {hash_to_hex(parent.id)} to origin {origin.id}"
-                    )
                     provenance.revision_add_to_origin(origin, parent)
 
 

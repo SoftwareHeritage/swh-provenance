@@ -1,5 +1,3 @@
-import psycopg2
-
 from ..archive import ArchiveInterface
 
 # from functools import lru_cache

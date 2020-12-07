@@ -1,7 +1,6 @@
 import os
-import psycopg2
 
-from swh.model.hashutil import hash_to_bytes, hash_to_hex
+from swh.model.hashutil import hash_to_hex
 from swh.provenance.provenance import get_provenance
 
 

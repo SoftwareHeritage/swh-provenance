@@ -78,7 +78,8 @@ def iterate_statuses(origins, archive: ArchiveInterface, limit: Optional[int] = 
                         ):
                             releases.append(snapshot.branches[branch].target)
 
-                # This is done to keep the query in release_get small, hence avoiding a timeout.
+                # This is done to keep the query in release_get small, hence avoiding
+                # a timeout.
                 limit = 100
                 for i in range(0, len(releases), limit):
                     for release in archive.release_get(releases[i : i + limit]):
@@ -86,7 +87,8 @@ def iterate_statuses(origins, archive: ArchiveInterface, limit: Optional[int] = 
                             if release.target_type == ObjectType.REVISION:
                                 targets.append(release.target)
 
-                # This is done to keep the query in revision_get small, hence avoiding a timeout.
+                # This is done to keep the query in revision_get small, hence avoiding
+                # a timeout.
                 revisions = []
                 limit = 100
                 for i in range(0, len(targets), limit):

@@ -101,9 +101,6 @@ class ProvenancePostgreSQL(ProvenanceInterface):
     def content_add_to_directory(
         self, directory: DirectoryEntry, blob: FileEntry, prefix: PosixPath
     ):
-        # logging.debug(f'NEW occurrence of content {hash_to_hex(blob.id)} in directory {hash_to_hex(directory.id)} (path: {prefix / blob.name})')
-        # self.cursor.execute('''INSERT INTO content_in_dir VALUES (%s,%s,%s)''',
-        #                        (blob.id, directory.id, bytes(normalize(prefix / blob.name))))
         self.insert_cache["content_in_dir"].append(
             (blob.id, directory.id, bytes(normalize(prefix / blob.name)))
         )
@@ -111,9 +108,6 @@ class ProvenancePostgreSQL(ProvenanceInterface):
     def content_add_to_revision(
         self, revision: RevisionEntry, blob: FileEntry, prefix: PosixPath
     ):
-        # logging.debug(f'EARLY occurrence of blob {hash_to_hex(blob.id)} in revision {hash_to_hex(revision.id)} (path: {prefix / blob.name})')
-        # self.cursor.execute('''INSERT INTO content_early_in_rev VALUES (%s,%s,%s)''',
-        #                        (blob.id, revision.id, bytes(normalize(prefix / blob.name))))
         self.insert_cache["content_early_in_rev"].append(
             (blob.id, revision.id, bytes(normalize(prefix / blob.name)))
         )
@@ -122,8 +116,10 @@ class ProvenancePostgreSQL(ProvenanceInterface):
         logging.info(f"Retrieving first occurrence of content {hash_to_hex(blobid)}")
         self.cursor.execute(
             """SELECT blob, rev, date, path
-                          FROM content_early_in_rev JOIN revision ON revision.id=content_early_in_rev.rev
-                          WHERE content_early_in_rev.blob=%s ORDER BY date, rev, path ASC LIMIT 1""",
+                   FROM content_early_in_rev
+                   JOIN revision ON revision.id=content_early_in_rev.rev
+                   WHERE content_early_in_rev.blob=%s
+                   ORDER BY date, rev, path ASC LIMIT 1""",
             (blobid,),
         )
         return self.cursor.fetchone()
@@ -132,20 +128,26 @@ class ProvenancePostgreSQL(ProvenanceInterface):
         logging.info(f"Retrieving all occurrences of content {hash_to_hex(blobid)}")
         self.cursor.execute(
             """(SELECT blob, rev, date, path
-                          FROM content_early_in_rev JOIN revision ON revision.id=content_early_in_rev.rev
-                          WHERE content_early_in_rev.blob=%s)
-                          UNION
-                          (SELECT content_in_rev.blob, content_in_rev.rev, revision.date, content_in_rev.path
-                          FROM (SELECT content_in_dir.blob, directory_in_rev.rev,
-                                    CASE directory_in_rev.path
-                                        WHEN '.' THEN content_in_dir.path
-                                        ELSE (directory_in_rev.path || '/' || content_in_dir.path)::unix_path
-                                    END AS path
-                                FROM content_in_dir
-                                JOIN directory_in_rev ON content_in_dir.dir=directory_in_rev.dir
-                                WHERE content_in_dir.blob=%s) AS content_in_rev
-                          JOIN revision ON revision.id=content_in_rev.rev)
-                          ORDER BY date, rev, path""",
+                   FROM content_early_in_rev
+                   JOIN revision ON revision.id=content_early_in_rev.rev
+                   WHERE content_early_in_rev.blob=%s)
+               UNION
+               (SELECT content_in_rev.blob, content_in_rev.rev, revision.date,
+                       content_in_rev.path
+                   FROM (SELECT content_in_dir.blob, directory_in_rev.rev,
+                                CASE directory_in_rev.path
+                                    WHEN '.' THEN content_in_dir.path
+                                    ELSE (directory_in_rev.path || '/' ||
+                                             content_in_dir.path)::unix_path
+                                END AS path
+                            FROM content_in_dir
+                            JOIN directory_in_rev
+                                ON content_in_dir.dir=directory_in_rev.dir
+                            WHERE content_in_dir.blob=%s
+                        ) AS content_in_rev
+                   JOIN revision ON revision.id=content_in_rev.rev
+                )
+                ORDER BY date, rev, path""",
             (blobid, blobid),
         )
         # POSTGRESQL EXPLAIN
@@ -196,18 +198,11 @@ class ProvenancePostgreSQL(ProvenanceInterface):
         return dates
 
     def content_set_early_date(self, blob: FileEntry, date: datetime):
-        # logging.debug(f'EARLY occurrence of blob {hash_to_hex(blob.id)} (timestamp: {date})')
-        # self.cursor.execute('''INSERT INTO content VALUES (%s,%s)
-        #                        ON CONFLICT (id) DO UPDATE SET date=%s''',
-        #                        (blob.id, date, date))
         self.insert_cache["content"][blob.id] = date
 
     def directory_add_to_revision(
         self, revision: RevisionEntry, directory: DirectoryEntry, path: PosixPath
     ):
-        # logging.debug(f'NEW occurrence of directory {hash_to_hex(directory.id)} on the ISOCHRONE FRONTIER of revision {hash_to_hex(revision.id)} (path: {path})')
-        # self.cursor.execute('''INSERT INTO directory_in_rev VALUES (%s,%s,%s)''',
-        #                        (directory.id, revision.id, bytes(normalize(path))))
         self.insert_cache["directory_in_rev"].append(
             (directory.id, revision.id, bytes(normalize(path)))
         )
@@ -215,7 +210,6 @@ class ProvenancePostgreSQL(ProvenanceInterface):
     def directory_get_date_in_isochrone_frontier(
         self, directory: DirectoryEntry
     ) -> datetime:
-        # logging.debug(f'Getting directory {hash_to_hex(directory.id)} early date')
         # First check if the date is being modified by current transection.
         date = self.insert_cache["directory"].get(directory.id, None)
         if date is None:
@@ -263,10 +257,6 @@ class ProvenancePostgreSQL(ProvenanceInterface):
     def directory_set_date_in_isochrone_frontier(
         self, directory: DirectoryEntry, date: datetime
     ):
-        # logging.debug(f'EARLY occurrence of directory {hash_to_hex(directory.id)} on the ISOCHRONE FRONTIER (timestamp: {date})')
-        # self.cursor.execute('''INSERT INTO directory VALUES (%s,%s)
-        #                        ON CONFLICT (id) DO UPDATE SET date=%s''',
-        #                        (directory.id, date, date))
         self.insert_cache["directory"][directory.id] = date
 
     def insert_all(self):
@@ -364,20 +354,12 @@ class ProvenancePostgreSQL(ProvenanceInterface):
     def revision_add_before_revision(
         self, relative: RevisionEntry, revision: RevisionEntry
     ):
-        # self.cursor.execute('''INSERT INTO revision_before_rev VALUES (%s,%s)
-        #                        ON CONFLICT DO NOTHING''',
-        #                        (revision.id, relative.id))
         self.insert_cache["revision_before_rev"].append((revision.id, relative.id))
 
     def revision_add_to_origin(self, origin: OriginEntry, revision: RevisionEntry):
-        # self.cursor.execute('''INSERT INTO revision_in_org VALUES (%s,%s)
-        #                        ON CONFLICT DO NOTHING''',
-        #                        (revision.id, origin.id))
         self.insert_cache["revision_in_org"].append((revision.id, origin.id))
 
     def revision_get_early_date(self, revision: RevisionEntry) -> datetime:
-        # logging.debug(f'Getting revision {hash_to_hex(revision.id)} early date')
-        # First check if the date is being modified by current transection.
         date = self.insert_cache["revision"].get(revision.id, None)
         if date is None:
             # If not, check whether it's been query before

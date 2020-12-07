@@ -121,7 +121,7 @@ def create(ctx, name):
 @click.option("-l", "--limit", type=int)
 @click.pass_context
 def iter_revisions(ctx, filename, limit):
-    """Iterate over provided list of revisions and add them to the provenance database."""
+    """Process a provided list of revisions."""
     from . import get_archive, get_provenance
     from .revision import FileRevisionIterator
     from .provenance import revision_add
@@ -142,7 +142,7 @@ def iter_revisions(ctx, filename, limit):
 @click.option("-l", "--limit", type=int)
 @click.pass_context
 def iter_origins(ctx, filename, limit):
-    """Iterate over provided list of revisions and add them to the provenance database."""
+    """Process a provided list of origins."""
     from . import get_archive, get_provenance
     from .origin import FileOriginIterator
     from .provenance import origin_add
@@ -166,7 +166,12 @@ def find_first(ctx, swhid):
     row = provenance.content_find_first(hash_to_bytes(swhid))
     if row is not None:
         print(
-            f"{hash_to_hex(row[0])}, {hash_to_hex(row[1])}, {row[2]}, {os.fsdecode(row[3])}"
+            "{blob}, {rev}, {date}, {path}".format(
+                blob=hash_to_hex(row[0]),
+                rev=hash_to_hex(row[1]),
+                date=row[2],
+                path=os.fsdecode(row[3]),
+            )
         )
     else:
         print(f"Cannot find a content with the id {swhid}")
@@ -183,5 +188,10 @@ def find_all(ctx, swhid):
     # TODO: return a dictionary with proper keys for each field
     for row in provenance.content_find_all(hash_to_bytes(swhid)):
         print(
-            f"{hash_to_hex(row[0])}, {hash_to_hex(row[1])}, {row[2]}, {os.fsdecode(row[3])}"
+            "{blob}, {rev}, {date}, {path}".format(
+                blob=hash_to_hex(row[0]),
+                rev=hash_to_hex(row[1]),
+                date=row[2],
+                path=os.fsdecode(row[3]),
+            )
         )

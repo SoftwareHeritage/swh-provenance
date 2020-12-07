@@ -14,7 +14,8 @@ class ArchivePostgreSQL(ArchiveInterface):
 
     @lru_cache(maxsize=1000000)
     def directory_ls(self, id: bytes):
-        self.cursor.execute('''WITH
+        self.cursor.execute(
+            """WITH
             dir  AS (SELECT id AS dir_id, dir_entries, file_entries, rev_entries
                         FROM directory WHERE id=%s),
             ls_d AS (SELECT dir_id, unnest(dir_entries) AS entry_id from dir),
@@ -37,29 +38,28 @@ class ArchivePostgreSQL(ArchiveInterface):
                 LEFT JOIN skipped_content c ON e.target=c.sha1_git
                 WHERE NOT EXISTS (SELECT 1 FROM known_contents WHERE known_contents.sha1_git=e.target)))
             ORDER BY name
-        ''', (id,))
-        return [{'type': row[0], 'target': row[1], 'name': row[2]} for row in self.cursor.fetchall()]
-
+        """,
+            (id,),
+        )
+        return [
+            {"type": row[0], "target": row[1], "name": row[2]}
+            for row in self.cursor.fetchall()
+        ]
 
     def iter_origins(self):
         raise NotImplementedError
 
-
     def iter_origin_visits(self, origin: str):
         raise NotImplementedError
-
 
     def iter_origin_visit_statuses(self, origin: str, visit: int):
         raise NotImplementedError
 
-
     def release_get(self, ids: List[bytes]):
         raise NotImplementedError
 
-
     def revision_get(self, ids: List[bytes]):
         raise NotImplementedError
-
 
     def snapshot_get_all_branches(self, snapshot: bytes):
         raise NotImplementedError

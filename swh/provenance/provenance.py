@@ -16,86 +16,81 @@ class ProvenanceInterface:
     def __init__(self, **kwargs):
         raise NotImplementedError
 
-
     def commit(self):
         raise NotImplementedError
 
-
-    def content_add_to_directory(self, directory: DirectoryEntry, blob: FileEntry, prefix: PosixPath):
+    def content_add_to_directory(
+        self, directory: DirectoryEntry, blob: FileEntry, prefix: PosixPath
+    ):
         raise NotImplementedError
 
-
-    def content_add_to_revision(self, revision: RevisionEntry, blob: FileEntry, prefix: PosixPath):
+    def content_add_to_revision(
+        self, revision: RevisionEntry, blob: FileEntry, prefix: PosixPath
+    ):
         raise NotImplementedError
-
 
     def content_find_first(self, blobid: str):
         raise NotImplementedError
 
-
     def content_find_all(self, blobid: str):
         raise NotImplementedError
-
 
     def content_get_early_date(self, blob: FileEntry) -> datetime:
         raise NotImplementedError
 
-
     def content_get_early_dates(self, blobs: List[FileEntry]) -> Dict[bytes, datetime]:
         raise NotImplementedError
-
 
     def content_set_early_date(self, blob: FileEntry, date: datetime):
         raise NotImplementedError
 
-
-    def directory_add_to_revision(self, revision: RevisionEntry, directory: DirectoryEntry, path: PosixPath):
+    def directory_add_to_revision(
+        self, revision: RevisionEntry, directory: DirectoryEntry, path: PosixPath
+    ):
         raise NotImplementedError
 
-
-    def directory_get_date_in_isochrone_frontier(self, directory: DirectoryEntry) -> datetime:
+    def directory_get_date_in_isochrone_frontier(
+        self, directory: DirectoryEntry
+    ) -> datetime:
         raise NotImplementedError
 
-
-    def directory_get_early_dates(self, dirs: List[DirectoryEntry]) -> Dict[bytes, datetime]:
+    def directory_get_early_dates(
+        self, dirs: List[DirectoryEntry]
+    ) -> Dict[bytes, datetime]:
         raise NotImplementedError
 
-
-    def directory_set_date_in_isochrone_frontier(self, directory: DirectoryEntry, date: datetime):
+    def directory_set_date_in_isochrone_frontier(
+        self, directory: DirectoryEntry, date: datetime
+    ):
         raise NotImplementedError
-
 
     def origin_get_id(self, origin: OriginEntry) -> int:
         raise NotImplementedError
 
-
     def revision_add(self, revision: RevisionEntry):
         raise NotImplementedError
 
-
-    def revision_add_before_revision(self, relative: RevisionEntry, revision: RevisionEntry):
+    def revision_add_before_revision(
+        self, relative: RevisionEntry, revision: RevisionEntry
+    ):
         raise NotImplementedError
-
 
     def revision_add_to_origin(self, origin: OriginEntry, revision: RevisionEntry):
         raise NotImplementedError
 
-
     def revision_get_early_date(self, revision: RevisionEntry) -> datetime:
         raise NotImplementedError
-
 
     def revision_get_prefered_origin(self, revision: RevisionEntry) -> int:
         raise NotImplementedError
 
-
     def revision_in_history(self, revision: RevisionEntry) -> bool:
         raise NotImplementedError
 
-
-    def revision_set_prefered_origin(self, origin: OriginEntry, revision: RevisionEntry):
+    def revision_set_prefered_origin(
+        self, origin: OriginEntry, revision: RevisionEntry
+    ):
         raise NotImplementedError
-
 
     def revision_visited(self, revision: RevisionEntry) -> bool:
         raise NotImplementedError
@@ -105,7 +100,7 @@ def directory_process_content(
     provenance: ProvenanceInterface,
     directory: DirectoryEntry,
     relative: DirectoryEntry,
-    prefix: PosixPath
+    prefix: PosixPath,
 ):
     stack = [(directory, prefix)]
 
@@ -127,15 +122,17 @@ def directory_update_content(
     revision: RevisionEntry,
     directory: DirectoryEntry,
     path: PosixPath,
-    subdirs: Optional[List[DirectoryEntry]]=None,
-    blobs: Optional[List[FileEntry]]=None,
-    blobdates: Optional[Dict[bytes, datetime]]=None
+    subdirs: Optional[List[DirectoryEntry]] = None,
+    blobs: Optional[List[FileEntry]] = None,
+    blobdates: Optional[Dict[bytes, datetime]] = None,
 ):
     assert revision.date is not None
 
     # Init optional parameters if not provided.
     if subdirs is None:
-        subdirs = [child for child in iter(directory) if isinstance(child, DirectoryEntry)]
+        subdirs = [
+            child for child in iter(directory) if isinstance(child, DirectoryEntry)
+        ]
 
     if blobs is None:
         blobs = [child for child in iter(directory) if isinstance(child, FileEntry)]
@@ -156,10 +153,7 @@ def directory_update_content(
         stack.append((subdir, path / subdir.name))
 
 
-def origin_add(
-    provenance: ProvenanceInterface,
-    origin: OriginEntry
-):
+def origin_add(provenance: ProvenanceInterface, origin: OriginEntry):
     # TODO: refactor to iterate over origin visit statuses and commit only once
     # per status.
     origin.id = provenance.origin_get_id(origin)
@@ -169,13 +163,11 @@ def origin_add(
         origin_add_revision(provenance, origin, revision)
 
         # Commit after each revision
-        provenance.commit()      # TODO: verify this!
+        provenance.commit()  # TODO: verify this!
 
 
 def origin_add_revision(
-    provenance: ProvenanceInterface,
-    origin: OriginEntry,
-    revision: RevisionEntry
+    provenance: ProvenanceInterface, origin: OriginEntry, revision: RevisionEntry
 ):
     stack: List[Tuple[Optional[RevisionEntry], RevisionEntry]] = [(None, revision)]
 
@@ -193,9 +185,13 @@ def origin_add_revision(
         if relative is None:
             # This revision is pointed directly by the origin.
             visited = provenance.revision_visited(current)
-            logging.debug(f'Revision {hash_to_hex(current.id)} in origin {origin.id}: {visited}')
+            logging.debug(
+                f"Revision {hash_to_hex(current.id)} in origin {origin.id}: {visited}"
+            )
 
-            logging.debug(f'Adding revision {hash_to_hex(current.id)} to origin {origin.id}')
+            logging.debug(
+                f"Adding revision {hash_to_hex(current.id)} to origin {origin.id}"
+            )
             provenance.revision_add_to_origin(origin, current)
 
             if not visited:
@@ -206,39 +202,47 @@ def origin_add_revision(
             # relative revision.
             for parent in iter(current):
                 visited = provenance.revision_visited(parent)
-                logging.debug(f'Parent {hash_to_hex(parent.id)} in some origin: {visited}')
+                logging.debug(
+                    f"Parent {hash_to_hex(parent.id)} in some origin: {visited}"
+                )
 
                 if not visited:
                     # The parent revision has never been seen before pointing
                     # directly to an origin.
                     known = provenance.revision_in_history(parent)
-                    logging.debug(f'Revision {hash_to_hex(parent.id)} before revision: {known}')
+                    logging.debug(
+                        f"Revision {hash_to_hex(parent.id)} before revision: {known}"
+                    )
 
                     if known:
                         # The parent revision is already known in some other
                         # revision's history. We should point it directly to
                         # the origin and (eventually) walk its history.
-                        logging.debug(f'Adding revision {hash_to_hex(parent.id)} directly to origin {origin.id}')
+                        logging.debug(
+                            f"Adding revision {hash_to_hex(parent.id)} directly to origin {origin.id}"
+                        )
                         stack.append((None, parent))
                     else:
                         # The parent revision was never seen before. We should
                         # walk its history and associate it with the same
                         # relative revision.
-                        logging.debug(f'Adding parent revision {hash_to_hex(parent.id)} to revision {hash_to_hex(relative.id)}')
+                        logging.debug(
+                            f"Adding parent revision {hash_to_hex(parent.id)} to revision {hash_to_hex(relative.id)}"
+                        )
                         provenance.revision_add_before_revision(relative, parent)
                         stack.append((relative, parent))
                 else:
                     # The parent revision already points to an origin, so its
                     # history was properly processed before. We just need to
                     # make sure it points to the current origin as well.
-                    logging.debug(f'Adding parent revision {hash_to_hex(parent.id)} to origin {origin.id}')
+                    logging.debug(
+                        f"Adding parent revision {hash_to_hex(parent.id)} to origin {origin.id}"
+                    )
                     provenance.revision_add_to_origin(origin, parent)
 
 
 def revision_add(
-    provenance: ProvenanceInterface,
-    archive: ArchiveInterface,
-    revision: RevisionEntry
+    provenance: ProvenanceInterface, archive: ArchiveInterface, revision: RevisionEntry
 ):
     assert revision.date is not None
     assert revision.root is not None
@@ -248,18 +252,14 @@ def revision_add(
     if date is None or revision.date < date:
         provenance.revision_add(revision)
         revision_process_content(
-            provenance,
-            revision,
-            DirectoryEntry(archive, revision.root, PosixPath('.'))
+            provenance, revision, DirectoryEntry(archive, revision.root, PosixPath("."))
         )
 
     return provenance.commit()
 
 
 def revision_process_content(
-    provenance: ProvenanceInterface,
-    revision: RevisionEntry,
-    directory: DirectoryEntry
+    provenance: ProvenanceInterface, revision: RevisionEntry, directory: DirectoryEntry
 ):
     assert revision.date is not None
 
@@ -275,7 +275,9 @@ def revision_process_content(
             # The directory has never been seen on the isochrone graph of a
             # revision. Its children should be checked.
             blobs = [child for child in iter(current) if isinstance(child, FileEntry)]
-            dirs = [child for child in iter(current) if isinstance(child, DirectoryEntry)]
+            dirs = [
+                child for child in iter(current) if isinstance(child, DirectoryEntry)
+            ]
 
             blobdates = provenance.content_get_early_dates(blobs)
             dirdates = provenance.directory_get_early_dates(dirs)
@@ -298,13 +300,15 @@ def revision_process_content(
                         # it appears as such.
                         # TODO: maybe the parent directory is the one that has
                         # to be added to the frontier instead!
-                        provenance.directory_set_date_in_isochrone_frontier(current, maxdate)
+                        provenance.directory_set_date_in_isochrone_frontier(
+                            current, maxdate
+                        )
                         provenance.directory_add_to_revision(revision, current, path)
                         directory_process_content(
                             provenance,
                             directory=current,
                             relative=current,
-                            prefix=PosixPath('.')
+                            prefix=PosixPath("."),
                         )
 
                     else:
@@ -313,8 +317,15 @@ def revision_process_content(
                         # should be analyzed (and timestamps eventually
                         # updated) yet current.
                         directory_update_content(
-                            stack, provenance, revision, current, path,
-                            subdirs=dirs, blobs=blobs, blobdates=blobdates)
+                            stack,
+                            provenance,
+                            revision,
+                            current,
+                            path,
+                            subdirs=dirs,
+                            blobs=blobs,
+                            blobdates=blobdates,
+                        )
 
                 else:
                     # Al least one child node is known, ie. the directory is
@@ -329,8 +340,15 @@ def revision_process_content(
                     # postpone the adding of dictories to the isochrone
                     # frontier from the branch above (maxdate < revision.date).
                     directory_update_content(
-                        stack, provenance, revision, current, path,
-                        subdirs=dirs, blobs=blobs, blobdates=blobdates)
+                        stack,
+                        provenance,
+                        revision,
+                        current,
+                        path,
+                        subdirs=dirs,
+                        blobs=blobs,
+                        blobdates=blobdates,
+                    )
 
         elif revision.date < date:
             # The directory has already been seen on the isochrone frontier of

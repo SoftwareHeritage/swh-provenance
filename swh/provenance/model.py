@@ -26,18 +26,21 @@ class DirectoryEntry(TreeEntry):
         if self.children is None:
             self.children = []
             for child in self.archive.directory_ls(self.id):
-                if child['type'] == 'dir':
-                    self.children.append(DirectoryEntry(
-                        self.archive,
-                        child['target'],
-                        PosixPath(os.fsdecode(child['name']))
-                    ))
+                if child["type"] == "dir":
+                    self.children.append(
+                        DirectoryEntry(
+                            self.archive,
+                            child["target"],
+                            PosixPath(os.fsdecode(child["name"])),
+                        )
+                    )
 
-                elif child['type'] == 'file':
-                    self.children.append(FileEntry(
-                        child['target'],
-                        PosixPath(os.fsdecode(child['name']))
-                    ))
+                elif child["type"] == "file":
+                    self.children.append(
+                        FileEntry(
+                            child["target"], PosixPath(os.fsdecode(child["name"]))
+                        )
+                    )
 
         return iter(self.children)
 

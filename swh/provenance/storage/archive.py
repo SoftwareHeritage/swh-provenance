@@ -1,5 +1,3 @@
-import psycopg2
-
 from ..archive import ArchiveInterface
 
 # from functools import lru_cache
@@ -19,15 +17,18 @@ class ArchiveStorage(ArchiveInterface):
 
     def iter_origins(self):
         from swh.storage.algos.origin import iter_origins
+
         yield from iter_origins(self.storage)
 
     def iter_origin_visits(self, origin: str):
         from swh.storage.algos.origin import iter_origin_visits
+
         # TODO: filter unused fields
         yield from iter_origin_visits(self.storage, origin)
 
     def iter_origin_visit_statuses(self, origin: str, visit: int):
         from swh.storage.algos.origin import iter_origin_visit_statuses
+
         # TODO: filter unused fields
         yield from iter_origin_visit_statuses(self.storage, origin, visit)
 
@@ -41,5 +42,6 @@ class ArchiveStorage(ArchiveInterface):
 
     def snapshot_get_all_branches(self, snapshot: bytes):
         from swh.storage.algos.snapshot import snapshot_get_all_branches
+
         # TODO: filter unused fields
         return snapshot_get_all_branches(self.storage, snapshot)

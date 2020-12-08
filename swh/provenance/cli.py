@@ -14,7 +14,7 @@ import yaml
 from swh.core import config
 from swh.core.cli import CONTEXT_SETTINGS
 from swh.core.cli import swh as swh_cli_group
-from swh.model.hashutil import (hash_to_bytes, hash_to_hex)
+from swh.model.hashutil import hash_to_bytes, hash_to_hex
 
 # All generic config code should reside in swh.core.config
 CONFIG_ENVVAR = "SWH_CONFIG_FILE"
@@ -26,7 +26,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "cls": "api",
         "storage": {
             "cls": "remote",
-            "url": "http://uffizi.internal.softwareheritage.org:5002"
+            "url": "http://uffizi.internal.softwareheritage.org:5002",
         }
         # "cls": "ps",
         # "db": {
@@ -35,13 +35,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         #     "user": "guest"
         # }
     },
-    "provenance": {
-        "cls": "ps",
-        "db": {
-            "host": "localhost",
-            "dbname": "provenance"
-        }
-    }
+    "provenance": {"cls": "ps", "db": {"host": "localhost", "dbname": "provenance"}},
 }
 
 
@@ -63,7 +57,9 @@ PROVENANCE_HELP = f"""Software Heritage Scanner tools.
 
 
 @swh_cli_group.group(
-    name="provenance", context_settings=CONTEXT_SETTINGS, help=PROVENANCE_HELP,
+    name="provenance",
+    context_settings=CONTEXT_SETTINGS,
+    help=PROVENANCE_HELP,
 )
 @click.option(
     "-C",
@@ -122,10 +118,10 @@ def create(ctx, name):
 
 @cli.command(name="iter-revisions")
 @click.argument("filename")
-@click.option('-l', '--limit', type=int)
+@click.option("-l", "--limit", type=int)
 @click.pass_context
 def iter_revisions(ctx, filename, limit):
-    """Iterate over provided list of revisions and add them to the provenance database."""
+    """Process a provided list of revisions."""
     from . import get_archive, get_provenance
     from .revision import FileRevisionIterator
     from .provenance import revision_add
@@ -136,16 +132,17 @@ def iter_revisions(ctx, filename, limit):
 
     while True:
         revision = revisions.next()
-        if revision is None: break
+        if revision is None:
+            break
         revision_add(provenance, archive, revision)
 
 
 @cli.command(name="iter-origins")
 @click.argument("filename")
-@click.option('-l', '--limit', type=int)
+@click.option("-l", "--limit", type=int)
 @click.pass_context
 def iter_origins(ctx, filename, limit):
-    """Iterate over provided list of revisions and add them to the provenance database."""
+    """Process a provided list of origins."""
     from . import get_archive, get_provenance
     from .origin import FileOriginIterator
     from .provenance import origin_add
@@ -168,9 +165,16 @@ def find_first(ctx, swhid):
     # TODO: return a dictionary with proper keys for each field
     row = provenance.content_find_first(hash_to_bytes(swhid))
     if row is not None:
-        print(f'{hash_to_hex(row[0])}, {hash_to_hex(row[1])}, {row[2]}, {os.fsdecode(row[3])}')
+        print(
+            "{blob}, {rev}, {date}, {path}".format(
+                blob=hash_to_hex(row[0]),
+                rev=hash_to_hex(row[1]),
+                date=row[2],
+                path=os.fsdecode(row[3]),
+            )
+        )
     else:
-        print(f'Cannot find a content with the id {swhid}')
+        print(f"Cannot find a content with the id {swhid}")
 
 
 @cli.command(name="find-all")
@@ -183,4 +187,11 @@ def find_all(ctx, swhid):
     provenance = get_provenance(**ctx.obj["config"]["provenance"])
     # TODO: return a dictionary with proper keys for each field
     for row in provenance.content_find_all(hash_to_bytes(swhid)):
-        print(f'{hash_to_hex(row[0])}, {hash_to_hex(row[1])}, {row[2]}, {os.fsdecode(row[3])}')
+        print(
+            "{blob}, {rev}, {date}, {path}".format(
+                blob=hash_to_hex(row[0]),
+                rev=hash_to_hex(row[1]),
+                date=row[2],
+                path=os.fsdecode(row[3]),
+            )
+        )

@@ -1,11 +1,11 @@
-import logging
 import threading
 
 from .archive import ArchiveInterface
 
 from datetime import datetime
+from typing import Optional
 
-from swh.model.hashutil import hash_to_bytes, hash_to_hex
+from swh.model.hashutil import hash_to_bytes
 
 
 class RevisionEntry:
@@ -13,9 +13,9 @@ class RevisionEntry:
         self,
         archive: ArchiveInterface,
         id: bytes,
-        date: datetime=None,
-        root: bytes=None,
-        parents: list=None
+        date: Optional[datetime] = None,
+        root: Optional[bytes] = None,
+        parents: Optional[list] = None,
     ):
         self.archive = archive
         self.id = id
@@ -32,15 +32,18 @@ class RevisionEntry:
                         RevisionEntry(
                             self.archive,
                             parent.id,
-                            parents=[RevisionEntry(self.archive, id) for id in parent.parents]
+                            parents=[
+                                RevisionEntry(self.archive, id) for id in parent.parents
+                            ],
                         )
                     )
 
         return iter(self.parents)
 
 
-################################################################################
-################################################################################
+########################################################################################
+########################################################################################
+
 
 class RevisionIterator:
     """Iterator interface."""
@@ -55,7 +58,9 @@ class RevisionIterator:
 class FileRevisionIterator(RevisionIterator):
     """Iterator over revisions present in the given CSV file."""
 
-    def __init__(self, filename: str, archive: ArchiveInterface, limit: int=None):
+    def __init__(
+        self, filename: str, archive: ArchiveInterface, limit: Optional[int] = None
+    ):
         self.file = open(filename)
         self.idx = 0
         self.limit = limit
@@ -67,14 +72,14 @@ class FileRevisionIterator(RevisionIterator):
         line = self.file.readline().strip()
         if line and (self.limit is None or self.idx < self.limit):
             self.idx = self.idx + 1
-            id, date, root = line.strip().split(',')
+            id, date, root = line.strip().split(",")
             self.mutex.release()
 
             return RevisionEntry(
                 self.archive,
                 hash_to_bytes(id),
                 date=datetime.fromisoformat(date),
-                root=hash_to_bytes(root)
+                root=hash_to_bytes(root),
             )
         else:
             self.mutex.release()
@@ -131,8 +136,8 @@ class FileRevisionIterator(RevisionIterator):
 #             return RevisionEntry(row[0], row[2], row[3])
 
 
-################################################################################
-################################################################################
+########################################################################################
+########################################################################################
 
 # class RevisionWorker(threading.Thread):
 #     def __init__(
@@ -161,7 +166,19 @@ class FileRevisionIterator(RevisionIterator):
 #
 #             processed = False
 #             while not processed:
-#                 logging.info(f'Thread {self.id} - Processing revision {hash_to_hex(revision.id)} (timestamp: {revision.date})')
+#                 logging.info(
+#                     f'Thread {(
+#                         self.id
+#                     )} - Processing revision {(
+#                         hash_to_hex(revision.id)
+#                     )} (timestamp: {revision.date})'
+#                 )
 #                 processed = revision_add(self.provenance, self.archive, revision)
 #                 if not processed:
-#                     logging.warning(f'Thread {self.id} - Failed to process revision {hash_to_hex(revision.id)} (timestamp: {revision.date})')
+#                     logging.warning(
+#                         f'Thread {(
+#                              self.id
+#                         )} - Failed to process revision {(
+#                             hash_to_hex(revision.id)
+#                         )} (timestamp: {revision.date})'
+#                     )

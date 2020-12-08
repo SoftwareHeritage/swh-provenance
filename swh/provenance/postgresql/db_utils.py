@@ -18,7 +18,7 @@ def config(filename: PosixPath, section: str):
         for param in params:
             db[param[0]] = param[1]
     else:
-        raise Exception(f'Section {section} not found in the {filename} file')
+        raise Exception(f"Section {section} not found in the {filename} file")
 
     return db
 

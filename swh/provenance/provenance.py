@@ -272,6 +272,15 @@ def revision_process_content(
                         # it appears as such.
                         # TODO: maybe the parent directory is the one that has
                         # to be added to the frontier instead!
+                        # FIXME GR : GR do not agree.
+                        #          : it means that this directory is outside the
+                        #          : isochrone frontier but may be not at the
+                        #          : frontier if its parent directory is such
+                        #          : that maxdate<revision.date
+                        #          : That's why directory of the outer isochrone
+                        #          : frontier must be filled when their parent
+                        #          : directory in the inner isochrone frontier
+                        #          : are processed.
                         provenance.directory_set_date_in_isochrone_frontier(
                             current, maxdate
                         )
@@ -288,6 +297,9 @@ def revision_process_content(
                         # of order. All the children from the current directory
                         # should be analyzed (and timestamps eventually
                         # updated) yet current.
+                        # FIXME GR 2 : I think that in this case it is more than
+                        #            : updating content timestamp. It can lead to
+                        #            : new directory node.
                         directory_update_content(
                             stack,
                             provenance,
@@ -300,7 +312,7 @@ def revision_process_content(
                         )
 
                 else:
-                    # Al least one child node is known, ie. the directory is
+                    # Al least one child node is unknown, ie. the directory is
                     # not on the outer isochrone frontier of the current
                     # revision. Its child nodes should be analyzed and current
                     # directory updated before them.
@@ -311,6 +323,10 @@ def revision_process_content(
                     # TODO: to uncomment the above line is it necessary to
                     # postpone the adding of dictories to the isochrone
                     # frontier from the branch above (maxdate < revision.date).
+                    # FIXME GR 4 : if content child nodes are unkown it does matter,
+                    #            : you can process them since they will be added to
+                    #            : the content-revision table, but if a directory
+                    #            : is unkown you have to process them.
                     directory_update_content(
                         stack,
                         provenance,

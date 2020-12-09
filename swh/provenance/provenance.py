@@ -294,6 +294,12 @@ def revision_process_content(
                     if maxdate < revision.date:
                         # The directory is outside the isochrone frontier of the current
                         # revision. Is is a candidate to be added to the outer frontier.
+                        for path, (outerdir, outerdate) in outerdirs.items():
+                            if path.parent == prefix:
+                                # Its children should be removed since they are far from
+                                # the frontier.
+                                del outerdirs[path]
+
                         outerdirs[prefix] = (current, maxdate)
 
                     elif maxdate == revision.date:
@@ -313,8 +319,9 @@ def revision_process_content(
                                         provenance,
                                         directory=outerdir,
                                         relative=outerdir,
-                                        prefix=PosixPath("."),
+                                        prefix=PosixPath(".")
                                     )
+                                    del outerdirs[path]
 
                     else:
                         # Either the current directory is inside the isochrone frontier
@@ -329,7 +336,7 @@ def revision_process_content(
                             prefix,
                             subdirs=subdirs,
                             blobs=blobs,
-                            blobdates=blobdates,
+                            blobdates=blobdates
                         )
 
                 else:
@@ -345,7 +352,7 @@ def revision_process_content(
                         prefix,
                         subdirs=subdirs,
                         blobs=blobs,
-                        blobdates=blobdates,
+                        blobdates=blobdates
                     )
 
         elif revision.date < date:
@@ -360,3 +367,23 @@ def revision_process_content(
             # frontier of an earlier revision. Just add it to the current
             # revision.
             provenance.directory_add_to_revision(revision, current, prefix)
+
+    if outerdirs:
+        # This should only happen if the root directory is in the outer
+        # frontier.
+        assert len(outerdirs) == 1
+
+        for path, (outerdir, outerdate) in outerdirs.items():
+            if path.parent == prefix:
+                provenance.directory_set_date_in_isochrone_frontier(
+                    outerdir, outerdate
+                )
+                provenance.directory_add_to_revision(
+                    revision, outerdir, path
+                )
+                directory_process_content(
+                    provenance,
+                    directory=outerdir,
+                    relative=outerdir,
+                    prefix=PosixPath(".")
+                )

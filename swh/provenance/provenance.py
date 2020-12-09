@@ -235,105 +235,115 @@ def revision_process_content(
 ):
     assert revision.date is not None
 
-    stack = [(directory, directory.name)]
+    # Stack of directories (and their paths) to be processed.
+    stack: List[Tuple[DirectoryEntry, PosixPath]] = [(directory, directory.name)]
+
+    # This dictionary will hold the computed dates for visited elements outside the
+    # isochrone frontier which are candidates to be added to the outer frontier (if
+    # their parent is in the inner frontier).
+    outerdirs: Dict[PosixPath, Tuple[DirectoryEntry, datetime]] = {}
 
     while stack:
-        # Get next directory to process and query its date right before
-        # processing to be sure we get the most recently updated value.
-        current, path = stack.pop()
+        # Get next directory to process and query its date right before processing to be
+        # sure we get the most recently updated value.
+        current, prefix = stack.pop()
         date = provenance.directory_get_date_in_isochrone_frontier(current)
 
         if date is None:
-            # The directory has never been seen on the isochrone graph of a
-            # revision. Its children should be checked.
+            # The directory has never been seen on the isochrone graph of a revision.
+            # Its children should be checked.
             blobs = [child for child in iter(current) if isinstance(child, FileEntry)]
-            dirs = [
+            subdirs = [
                 child for child in iter(current) if isinstance(child, DirectoryEntry)
             ]
 
-            blobdates = provenance.content_get_early_dates(blobs)
-            dirdates = provenance.directory_get_early_dates(dirs)
-
-            # Get the list of ids with no duplicates to ensure we have
-            # available dates for all the elements. This prevents takign a
-            # wrong decision when a blob occurres more than once in the same
-            # directory.
-            ids = list(dict.fromkeys([child.id for child in blobs + dirs]))
+            # Get the list of ids with no duplicates to ensure we have available dates
+            # for all the elements. This prevents taking a wrong decision when a blob
+            # occurs more than once in the same directory.
+            ids = list(dict.fromkeys([child.id for child in blobs + subdirs]))
             if ids:
-                dates = list(blobdates.values()) + list(dirdates.values())
+                # Known dates for the blobs in the current directory.
+                blobdates = provenance.content_get_early_dates(blobs)
+
+                # Known dates for the subdirectories in the current directory that
+                # belong to the outer isochrone revision of some previous processed
+                # revision.
+                subdirdates = provenance.directory_get_early_dates(subdirs)
+
+                # Known dates for the subdirectories in the current directory that are
+                # outside the isochrone frontier of the current revision.
+                outerdates = dict(
+                    [
+                        (outerdir.id, outerdate)
+                        for path, (outerdir, outerdate) in outerdirs.items()
+                        if path.parent == prefix
+                    ]
+                )
+
+                # All known dates for child nodes of the current directory.
+                dates = (
+                    list(blobdates.values())
+                    + list(subdirdates.values())
+                    + list(outerdates.values())
+                )
 
                 if len(dates) == len(ids):
                     # All child nodes of current directory are already known.
-                    maxdate = max(dates) < revision.date
+                    maxdate = max(dates)
 
                     if maxdate < revision.date:
-                        # The directory belongs to the outer isochrone frontier
-                        # of the current revision, and this is the first time
-                        # it appears as such.
-                        # TODO: maybe the parent directory is the one that has
-                        # to be added to the frontier instead!
-                        # FIXME GR : GR do not agree.
-                        #          : it means that this directory is outside the
-                        #          : isochrone frontier but may be not at the
-                        #          : frontier if its parent directory is such
-                        #          : that maxdate<revision.date
-                        #          : That's why directory of the outer isochrone
-                        #          : frontier must be filled when their parent
-                        #          : directory in the inner isochrone frontier
-                        #          : are processed.
-                        provenance.directory_set_date_in_isochrone_frontier(
-                            current, maxdate
-                        )
-                        provenance.directory_add_to_revision(revision, current, path)
-                        directory_process_content(
-                            provenance,
-                            directory=current,
-                            relative=current,
-                            prefix=PosixPath("."),
-                        )
+                        # The directory is outside the isochrone frontier of the current
+                        # revision. Is is a candidate to be added to the outer frontier.
+                        outerdirs[prefix] = (current, maxdate)
+
+                    elif maxdate == revision.date:
+                        # The current directory is inside the isochrone frontier. If any
+                        # of its children was found outside the frontier it should be
+                        # added to the outer frontier now.
+                        if outerdates:
+                            for path, (outerdir, outerdate) in outerdirs.items():
+                                if path.parent == prefix:
+                                    provenance.directory_set_date_in_isochrone_frontier(
+                                        outerdir, outerdate
+                                    )
+                                    provenance.directory_add_to_revision(
+                                        revision, outerdir, path
+                                    )
+                                    directory_process_content(
+                                        provenance,
+                                        directory=outerdir,
+                                        relative=outerdir,
+                                        prefix=PosixPath("."),
+                                    )
 
                     else:
-                        # This revision is either in the inner frontiern or out
-                        # of order. All the children from the current directory
-                        # should be analyzed (and timestamps eventually
-                        # updated) yet current.
-                        # FIXME GR 2 : I think that in this case it is more than
-                        #            : updating content timestamp. It can lead to
-                        #            : new directory node.
+                        # Either the current directory is inside the isochrone frontier
+                        # or the revision is out of order. All the children from the
+                        # current directory should be analyzed (and timestamps
+                        # eventually updated).
                         directory_update_content(
                             stack,
                             provenance,
                             revision,
                             current,
-                            path,
-                            subdirs=dirs,
+                            prefix,
+                            subdirs=subdirs,
                             blobs=blobs,
                             blobdates=blobdates,
                         )
 
                 else:
-                    # Al least one child node is unknown, ie. the directory is
-                    # not on the outer isochrone frontier of the current
-                    # revision. Its child nodes should be analyzed and current
-                    # directory updated before them.
-                    # FIXME: I believe the only different between this branche
-                    # and the two 'else' cases above is this push to the stack.
-                    # If so, we might refactor this to avoid so many branches.
-                    # stack.append((current, path))
-                    # TODO: to uncomment the above line is it necessary to
-                    # postpone the adding of dictories to the isochrone
-                    # frontier from the branch above (maxdate < revision.date).
-                    # FIXME GR 4 : if content child nodes are unkown it does matter,
-                    #            : you can process them since they will be added to
-                    #            : the content-revision table, but if a directory
-                    #            : is unkown you have to process them.
+                    # Al least one child node is unknown, ie. the directory is inside
+                    # the isochrone frontier of the current revision. Its child nodes
+                    # should be analyzed and current directory updated before them.
+                    stack.append((current, prefix))
                     directory_update_content(
                         stack,
                         provenance,
                         revision,
                         current,
-                        path,
-                        subdirs=dirs,
+                        prefix,
+                        subdirs=subdirs,
                         blobs=blobs,
                         blobdates=blobdates,
                     )
@@ -342,11 +352,11 @@ def revision_process_content(
             # The directory has already been seen on the isochrone frontier of
             # a revision, but current revision is earlier. Its children should
             # be updated.
-            directory_update_content(stack, provenance, revision, current, path)
+            directory_update_content(stack, provenance, revision, current, prefix)
             provenance.directory_set_date_in_isochrone_frontier(current, revision.date)
 
         else:
             # The directory has already been seen on the outer isochrone
             # frontier of an earlier revision. Just add it to the current
             # revision.
-            provenance.directory_add_to_revision(revision, current, path)
+            provenance.directory_add_to_revision(revision, current, prefix)

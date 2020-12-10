@@ -237,7 +237,9 @@ def revision_process_content(
 
     # Stack of directories (and their paths) to be processed.
     stack: List[Tuple[DirectoryEntry, PosixPath]] = [(directory, directory.name)]
-
+    # This dictionary will hold the computed dates for visited elements inside the
+    # isochrone frontier.
+    innerdirs: Dict[PosixPath, Tuple[DirectoryEntry, datetime]] = {}
     # This dictionary will hold the computed dates for visited elements outside the
     # isochrone frontier which are candidates to be added to the outer frontier (if
     # their parent is in the inner frontier).
@@ -264,27 +266,29 @@ def revision_process_content(
             if ids:
                 # Known dates for the blobs in the current directory.
                 blobdates = provenance.content_get_early_dates(blobs)
-
                 # Known dates for the subdirectories in the current directory that
-                # belong to the outer isochrone revision of some previous processed
+                # belong to the outer isochrone frontier of some previous processed
                 # revision.
-                subdirdates = provenance.directory_get_early_dates(subdirs)
-
+                knowndates = provenance.directory_get_early_dates(subdirs)
+                # Known dates for the subdirectories in the current directory that are
+                # inside the isochrone frontier of the current revision.
+                innerdates = {
+                    innerdir.id: innerdate
+                    for path, (innerdir, innerdate) in innerdirs.items()
+                    if path.parent == prefix
+                }
                 # Known dates for the subdirectories in the current directory that are
                 # outside the isochrone frontier of the current revision.
-                outerdates = dict(
-                    [
-                        (outerdir.id, outerdate)
-                        for path, (outerdir, outerdate) in outerdirs.items()
-                        if path.parent == prefix
-                    ]
-                )
+                outerdates = {
+                    outerdir.id: outerdate
+                    for path, (outerdir, outerdate) in outerdirs.items()
+                    if path.parent == prefix
+                }
 
                 # All known dates for child nodes of the current directory.
-                dates = (
-                    list(blobdates.values())
-                    + list(subdirdates.values())
-                    + list(outerdates.values())
+                assert not (innerdates.keys() & outerdates.keys())
+                dates = list(
+                    {**blobdates, **knowndates, **innerdates, **outerdates}.values()
                 )
 
                 if len(dates) == len(ids):
@@ -293,19 +297,20 @@ def revision_process_content(
 
                     if maxdate < revision.date:
                         # The directory is outside the isochrone frontier of the current
-                        # revision. Is is a candidate to be added to the outer frontier.
-                        for path, (outerdir, outerdate) in outerdirs.items():
-                            if path.parent == prefix:
-                                # Its children should be removed since they are far from
-                                # the frontier.
-                                del outerdirs[path]
-
+                        # revision. It is a candidate to be added to the outer frontier.
                         outerdirs[prefix] = (current, maxdate)
+                        # Its children are removed since they are no longer candidates.
+                        outerdirs = {
+                            path: outerdir
+                            for path, outerdir in outerdirs.items()
+                            if path.parent != prefix
+                        }
 
                     elif maxdate == revision.date:
                         # The current directory is inside the isochrone frontier. If any
                         # of its children was found outside the frontier it should be
                         # added to the outer frontier now.
+                        innerdirs[prefix] = (current, revision.date)
                         if outerdates:
                             for path, (outerdir, outerdate) in outerdirs.items():
                                 if path.parent == prefix:
@@ -319,15 +324,21 @@ def revision_process_content(
                                         provenance,
                                         directory=outerdir,
                                         relative=outerdir,
-                                        prefix=PosixPath(".")
+                                        prefix=PosixPath("."),
                                     )
-                                    del outerdirs[path]
+                            # Removed processed elements to avoid duplicating work.
+                            outerdirs = {
+                                path: outerdir
+                                for path, outerdir in outerdirs.items()
+                                if path.parent != prefix
+                            }
 
                     else:
                         # Either the current directory is inside the isochrone frontier
                         # or the revision is out of order. All the children from the
                         # current directory should be analyzed (and timestamps
-                        # eventually updated).
+                        # eventually updated) and current directory updated before them.
+                        stack.append((current, prefix))
                         directory_update_content(
                             stack,
                             provenance,
@@ -336,7 +347,7 @@ def revision_process_content(
                             prefix,
                             subdirs=subdirs,
                             blobs=blobs,
-                            blobdates=blobdates
+                            blobdates=blobdates,
                         )
 
                 else:
@@ -352,38 +363,38 @@ def revision_process_content(
                         prefix,
                         subdirs=subdirs,
                         blobs=blobs,
-                        blobdates=blobdates
+                        blobdates=blobdates,
                     )
 
+            else:
+                # Empty directory being seen for the first time. Just consider it to be
+                # in the outer frontier of current revision (ie. all its children are
+                # already "known").
+                outerdirs[prefix] = (current, revision.date)
+
         elif revision.date < date:
-            # The directory has already been seen on the isochrone frontier of
-            # a revision, but current revision is earlier. Its children should
-            # be updated.
+            # The directory has already been seen on the isochrone frontier of a
+            # revision, but current revision is earlier. Its children should be
+            # updated.
             directory_update_content(stack, provenance, revision, current, prefix)
             provenance.directory_set_date_in_isochrone_frontier(current, revision.date)
 
         else:
-            # The directory has already been seen on the outer isochrone
-            # frontier of an earlier revision. Just add it to the current
-            # revision.
+            # The directory has already been seen on the outer isochrone frontier of an
+            # earlier revision. Just add it to the current revision.
             provenance.directory_add_to_revision(revision, current, prefix)
 
     if outerdirs:
-        # This should only happen if the root directory is in the outer
-        # frontier.
+        # This should only happen if the root directory is in the outer frontier.
         assert len(outerdirs) == 1
 
         for path, (outerdir, outerdate) in outerdirs.items():
             if path.parent == prefix:
-                provenance.directory_set_date_in_isochrone_frontier(
-                    outerdir, outerdate
-                )
-                provenance.directory_add_to_revision(
-                    revision, outerdir, path
-                )
+                provenance.directory_set_date_in_isochrone_frontier(outerdir, outerdate)
+                provenance.directory_add_to_revision(revision, outerdir, path)
                 directory_process_content(
                     provenance,
                     directory=outerdir,
                     relative=outerdir,
-                    prefix=PosixPath(".")
+                    prefix=PosixPath("."),
                 )

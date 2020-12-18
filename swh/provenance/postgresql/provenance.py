@@ -14,8 +14,6 @@ from datetime import datetime
 from pathlib import PosixPath
 from typing import Any, Dict, List
 
-from swh.model.hashutil import hash_to_hex
-
 
 def normalize(path: PosixPath) -> PosixPath:
     spath = str(path)
@@ -90,7 +88,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
 
         except Exception as error:
             # Unexpected error occurred, rollback all changes and log message
-            logging.warning(f"Unexpected error: {error}")
+            logging.error(f"Unexpected error: {error}")
             # self.conn.rollback()
 
         finally:
@@ -113,7 +111,6 @@ class ProvenancePostgreSQL(ProvenanceInterface):
         )
 
     def content_find_first(self, blobid: str):
-        logging.info(f"Retrieving first occurrence of content {hash_to_hex(blobid)}")
         self.cursor.execute(
             """SELECT blob, rev, date, path
                    FROM content_early_in_rev
@@ -125,7 +122,6 @@ class ProvenancePostgreSQL(ProvenanceInterface):
         return self.cursor.fetchone()
 
     def content_find_all(self, blobid: str):
-        logging.info(f"Retrieving all occurrences of content {hash_to_hex(blobid)}")
         self.cursor.execute(
             """(SELECT blob, rev, date, path
                    FROM content_early_in_rev
@@ -154,7 +150,6 @@ class ProvenancePostgreSQL(ProvenanceInterface):
         yield from self.cursor.fetchall()
 
     def content_get_early_date(self, blob: FileEntry) -> datetime:
-        logging.debug(f"Getting content {hash_to_hex(blob.id)} early date")
         # First check if the date is being modified by current transection.
         date = self.insert_cache["content"].get(blob.id, None)
         if date is None:

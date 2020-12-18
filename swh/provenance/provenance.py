@@ -232,7 +232,7 @@ def revision_add(
     assert revision.date is not None
     assert revision.root is not None
 
-    logging.warning(f'Processing revision {hash_to_hex(revision.id)}')
+    logging.warning(f"Processing revision {hash_to_hex(revision.id)}")
     # Processed content starting from the revision's root directory
     date = provenance.revision_get_early_date(revision)
     if date is None or revision.date < date:
@@ -245,12 +245,12 @@ def revision_add(
 
 
 def revision_process_content(
-    provenance: ProvenanceInterface, revision: RevisionEntry, directory: DirectoryEntry
+    provenance: ProvenanceInterface, revision: RevisionEntry, root: DirectoryEntry
 ):
     assert revision.date is not None
 
     # Stack of directories (and their paths) to be processed.
-    stack: List[Tuple[DirectoryEntry, PosixPath]] = [(directory, directory.name)]
+    stack: List[Tuple[DirectoryEntry, PosixPath]] = [(root, root.name)]
     # This dictionary will hold the computed dates for visited subdirectories inside the
     # isochrone frontier.
     innerdirs: Dict[PosixPath, Tuple[DirectoryEntry, datetime]] = {}
@@ -317,7 +317,7 @@ def revision_process_content(
                             for path, outerdir in outerdirs.items()
                             if not is_child(path, prefix)
                         }
-                            
+
                     elif maxdate == revision.date:
                         # The current directory is inside the isochrone frontier.
                         innerdirs[prefix] = (current, revision.date)
@@ -348,9 +348,25 @@ def revision_process_content(
                                 for path, outerdir in outerdirs.items()
                                 if not is_child(path, prefix)
                             }
+                        # There can still be subdirectories that are known to be in the
+                        # outter isochrone frontier of previous processed revisions.
+                        # Thus, they are not in the list of candidates but have to be
+                        # added to current revisions as well.
+                        for subdir in subdirs:
+                            knowndate = blobdates.get(blob.id, None)
+                            if knowndate is not None and knowndate <= revision.date:
+                                # Less or equal since the directory could have been
+                                # added to the outer isochrone frontier when processing
+                                # a different directory's subtree of this very same
+                                # revision.
+                                provenance.directory_add_to_revision(
+                                    revision, subdir, prefix / subdir.name
+                                )
 
                     else:
-                        logging.warning(f'Should not happen 1: {hash_to_hex(revision.id)}')
+                        logging.warning(
+                            f"Should not happen 1: {hash_to_hex(revision.id)}"
+                        )
                         assert False
                         # The revision is out of order. The current directory does not
                         # belong to the outer isochrone frontier of any previously
@@ -397,14 +413,14 @@ def revision_process_content(
             # timestamps eventually updated) and current directory updated after them.
             # Current directory's date in the outer isochrone frontier should be updated
             # as well.
-            logging.warning(f'Should not happen 2: {hash_to_hex(revision.id)}')
+            logging.warning(f"Should not happen 2: {hash_to_hex(revision.id)}")
             assert False
             stack.append((current, prefix))
             directory_update_content(stack, provenance, revision, current, prefix)
             provenance.directory_set_date_in_isochrone_frontier(current, revision.date)
             # FIXME: although this might not lose any occurrence, when recursively
             # re-analyzing the current directory it will *always* enter the next brach
-            # of the if-then-else and be added to the revision since it is already 
+            # of the if-then-else and be added to the revision since it is already
             # tagged as and outer frontier directory. This may lead to inconsistencies
             # if this directory hold the very first occurrence of a blob in history,
             # since this occurrence won't end up in the content_early_in_rev table as
@@ -417,11 +433,11 @@ def revision_process_content(
 
     if outerdirs:
         # This should only happen if the root directory is in the outer frontier.
-        assert len(outerdirs) == 1 and directory.name in outerdirs
-        outerdir, outerdate = outerdirs[directory.name]
+        assert len(outerdirs) == 1 and root.name in outerdirs
+        outerdir, outerdate = outerdirs[root.name]
 
         provenance.directory_set_date_in_isochrone_frontier(outerdir, outerdate)
-        provenance.directory_add_to_revision(revision, outerdir, directory.name)
+        provenance.directory_add_to_revision(revision, outerdir, root.name)
         directory_process_content(
             provenance, directory=outerdir, relative=outerdir, prefix=PosixPath(".")
         )

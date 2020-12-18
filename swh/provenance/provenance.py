@@ -232,7 +232,7 @@ def revision_add(
     assert revision.date is not None
     assert revision.root is not None
 
-    logging.warning(f"Processing revision {hash_to_hex(revision.id)}")
+    # logging.warning(f"Processing revision {hash_to_hex(revision.id)}")
     # Processed content starting from the revision's root directory
     date = provenance.revision_get_early_date(revision)
     if date is None or revision.date < date:

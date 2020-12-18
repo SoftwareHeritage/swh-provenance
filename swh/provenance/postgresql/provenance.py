@@ -230,18 +230,18 @@ class ProvenancePostgreSQL(ProvenanceInterface):
     ) -> Dict[bytes, datetime]:
         dates = {}
         pending = []
-        for dir in dirs:
+        for directory in dirs:
             # First check if the date is being modified by current transection.
-            date = self.insert_cache["directory"].get(dir.id, None)
+            date = self.insert_cache["directory"].get(directory.id, None)
             if date is not None:
-                dates[dir.id] = date
+                dates[directory.id] = date
             else:
                 # If not, check whether it's been query before
-                date = self.select_cache["directory"].get(dir.id, None)
+                date = self.select_cache["directory"].get(directory.id, None)
                 if date is not None:
-                    dates[dir.id] = date
+                    dates[directory.id] = date
                 else:
-                    pending.append(dir.id)
+                    pending.append(directory.id)
         if pending:
             # Otherwise, query the database and cache the values
             values = ", ".join(itertools.repeat("%s", len(pending)))

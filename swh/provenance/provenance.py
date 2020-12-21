@@ -353,7 +353,7 @@ def revision_process_content(
                         # Thus, they are not in the list of candidates but have to be
                         # added to current revisions as well.
                         for subdir in subdirs:
-                            knowndate = blobdates.get(blob.id, None)
+                            knowndate = knowndates.get(subdir.id, None)
                             if knowndate is not None and knowndate <= revision.date:
                                 # Less or equal since the directory could have been
                                 # added to the outer isochrone frontier when processing

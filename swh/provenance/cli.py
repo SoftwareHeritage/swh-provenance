@@ -66,9 +66,15 @@ PROVENANCE_HELP = f"""Software Heritage Scanner tools.
     "--config-file",
     default=None,
     type=click.Path(exists=False, dir_okay=False, path_type=str),
-    help="""YAML configuration file""",
+    help="""YAML configuration file.""",
 )
-@click.option("--profile", default=None)
+@click.option(
+    "-P",
+    "--profile",
+    default=None,
+    type=click.Path(exists=False, dir_okay=False, path_type=str),
+    help="""Enable profiling to specified file.""",
+)
 @click.pass_context
 def cli(ctx, config_file: Optional[str], profile: str):
     if config_file is None and config.config_exists(DEFAULT_PATH):

@@ -12,7 +12,7 @@ from ..revision import RevisionEntry
 
 from datetime import datetime
 from pathlib import PosixPath
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
 def normalize(path: PosixPath) -> PosixPath:
@@ -54,6 +54,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
         self.conn = conn
         self.cursor = self.conn.cursor()
         self.insert_cache: Dict[str, Any] = {}
+        self.remove_cache: Dict[str, Any] = {}
         self.select_cache: Dict[str, Any] = {}
         self.clear_caches()
 
@@ -68,6 +69,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
             "revision_before_rev": list(),
             "revision_in_org": list(),
         }
+        self.remove_cache = {"directory": dict()}
         self.select_cache = {"content": dict(), "directory": dict(), "revision": dict()}
 
     def commit(self):
@@ -149,7 +151,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
         # POSTGRESQL EXPLAIN
         yield from self.cursor.fetchall()
 
-    def content_get_early_date(self, blob: FileEntry) -> datetime:
+    def content_get_early_date(self, blob: FileEntry) -> Optional[datetime]:
         # First check if the date is being modified by current transection.
         date = self.insert_cache["content"].get(blob.id, None)
         if date is None:
@@ -204,10 +206,10 @@ class ProvenancePostgreSQL(ProvenanceInterface):
 
     def directory_get_date_in_isochrone_frontier(
         self, directory: DirectoryEntry
-    ) -> datetime:
+    ) -> Optional[datetime]:
         # First check if the date is being modified by current transection.
         date = self.insert_cache["directory"].get(directory.id, None)
-        if date is None:
+        if date is None and directory.id not in self.remove_cache["directory"]:
             # If not, check whether it's been query before
             date = self.select_cache["directory"].get(directory.id, None)
             if date is None:
@@ -220,7 +222,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
                 self.select_cache["directory"][directory.id] = date
         return date
 
-    def directory_get_early_dates(
+    def directory_get_dates_in_isochrone_frontier(
         self, dirs: List[DirectoryEntry]
     ) -> Dict[bytes, datetime]:
         dates = {}
@@ -230,7 +232,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
             date = self.insert_cache["directory"].get(directory.id, None)
             if date is not None:
                 dates[directory.id] = date
-            else:
+            elif directory.id not in self.remove_cache["directory"]:
                 # If not, check whether it's been query before
                 date = self.select_cache["directory"].get(directory.id, None)
                 if date is not None:
@@ -249,10 +251,15 @@ class ProvenancePostgreSQL(ProvenanceInterface):
                 self.select_cache["directory"][row[0]] = row[1]
         return dates
 
+    def directory_invalidate_in_isochrone_frontier(self, directory: DirectoryEntry):
+        self.remove_cache["directory"][directory.id] = None
+        self.insert_cache["directory"].pop(directory.id, None)
+
     def directory_set_date_in_isochrone_frontier(
         self, directory: DirectoryEntry, date: datetime
     ):
         self.insert_cache["directory"][directory.id] = date
+        self.remove_cache["directory"].pop(directory.id, None)
 
     def insert_all(self):
         # Performe insertions with cached information
@@ -354,7 +361,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
     def revision_add_to_origin(self, origin: OriginEntry, revision: RevisionEntry):
         self.insert_cache["revision_in_org"].append((revision.id, origin.id))
 
-    def revision_get_early_date(self, revision: RevisionEntry) -> datetime:
+    def revision_get_early_date(self, revision: RevisionEntry) -> Optional[datetime]:
         date = self.insert_cache["revision"].get(revision.id, None)
         if date is None:
             # If not, check whether it's been query before

@@ -7,9 +7,6 @@ from datetime import datetime
 from pathlib import PosixPath
 from typing import Dict, List, Optional, Tuple
 
-import logging
-from swh.model.hashutil import hash_to_hex
-
 
 # TODO: consider moving to path utils file together with normalize.
 def is_child(path: PosixPath, prefix: PosixPath) -> bool:
@@ -41,7 +38,7 @@ class ProvenanceInterface:
     def content_find_all(self, blobid: str):
         raise NotImplementedError
 
-    def content_get_early_date(self, blob: FileEntry) -> datetime:
+    def content_get_early_date(self, blob: FileEntry) -> Optional[datetime]:
         raise NotImplementedError
 
     def content_get_early_dates(self, blobs: List[FileEntry]) -> Dict[bytes, datetime]:
@@ -57,18 +54,16 @@ class ProvenanceInterface:
 
     def directory_get_date_in_isochrone_frontier(
         self, directory: DirectoryEntry
-    ) -> datetime:
+    ) -> Optional[datetime]:
         raise NotImplementedError
 
-    def directory_get_early_dates(
+    def directory_get_dates_in_isochrone_frontier(
         self, dirs: List[DirectoryEntry]
     ) -> Dict[bytes, datetime]:
         raise NotImplementedError
 
-    # def directory_remove_from_isochrone_frontier(
-    #     self, directory: DirectoryEntry
-    # ):
-    #     raise NotImplementedError
+    def directory_invalidate_in_isochrone_frontier(self, directory: DirectoryEntry):
+        raise NotImplementedError
 
     def directory_set_date_in_isochrone_frontier(
         self, directory: DirectoryEntry, date: datetime
@@ -89,7 +84,7 @@ class ProvenanceInterface:
     def revision_add_to_origin(self, origin: OriginEntry, revision: RevisionEntry):
         raise NotImplementedError
 
-    def revision_get_early_date(self, revision: RevisionEntry) -> datetime:
+    def revision_get_early_date(self, revision: RevisionEntry) -> Optional[datetime]:
         raise NotImplementedError
 
     def revision_get_prefered_origin(self, revision: RevisionEntry) -> int:
@@ -232,7 +227,6 @@ def revision_add(
     assert revision.date is not None
     assert revision.root is not None
 
-    # logging.warning(f"Processing revision {hash_to_hex(revision.id)}")
     # Processed content starting from the revision's root directory
     date = provenance.revision_get_early_date(revision)
     if date is None or revision.date < date:
@@ -281,7 +275,9 @@ def revision_process_content(
                 # Known dates for the subdirectories in the current directory that
                 # belong to the outer isochrone frontier of some previously processed
                 # revision.
-                knowndates = provenance.directory_get_early_dates(subdirs)
+                knowndates = provenance.directory_get_dates_in_isochrone_frontier(
+                    subdirs
+                )
                 # Known dates for the subdirectories in the current directory that are
                 # inside the isochrone frontier of the revision.
                 innerdates = {
@@ -364,10 +360,6 @@ def revision_process_content(
                                 )
 
                     else:
-                        logging.warning(
-                            f"Should not happen 1: {hash_to_hex(revision.id)}"
-                        )
-                        assert False
                         # The revision is out of order. The current directory does not
                         # belong to the outer isochrone frontier of any previously
                         # processed revision yet all its children nodes are known. They
@@ -407,24 +399,14 @@ def revision_process_content(
                 innerdirs[prefix] = (current, revision.date)
 
         elif revision.date < date:
-            # The revision is out of order. The current directory belongs to the
-            # outer isochrone frontier of some previously processed revison but current
-            # revision is earlier. The children nodes should be re-analyzed (and
-            # timestamps eventually updated) and current directory updated after them.
-            # Current directory's date in the outer isochrone frontier should be updated
-            # as well.
-            logging.warning(f"Should not happen 2: {hash_to_hex(revision.id)}")
-            assert False
+            # The revision is out of order. The current directory belongs to the outer
+            # isochrone frontier of some previously processed revison but current
+            # revision is earlier. The frontier record should be invalidated, children
+            # nodes re-analyzed (and timestamps eventually updated) and current
+            # directory updated after them.
             stack.append((current, prefix))
+            provenance.directory_invalidate_in_isochrone_frontier(current)
             directory_update_content(stack, provenance, revision, current, prefix)
-            provenance.directory_set_date_in_isochrone_frontier(current, revision.date)
-            # FIXME: although this might not lose any occurrence, when recursively
-            # re-analyzing the current directory it will *always* enter the next brach
-            # of the if-then-else and be added to the revision since it is already
-            # tagged as and outer frontier directory. This may lead to inconsistencies
-            # if this directory hold the very first occurrence of a blob in history,
-            # since this occurrence won't end up in the content_early_in_rev table as
-            # expected but split between content_in_dir and directory_in_rev instead.
 
         else:
             # The directory has already been seen on the outer isochrone frontier of an

@@ -1,4 +1,5 @@
 import psycopg2
+import threading
 
 from ..archive import ArchiveInterface
 
@@ -11,9 +12,11 @@ class ArchivePostgreSQL(ArchiveInterface):
     def __init__(self, conn: psycopg2.extensions.connection):
         self.conn = conn
         self.cursor = conn.cursor()
+        self.mutex = threading.Lock()
 
     @lru_cache(maxsize=1000000)
     def directory_ls(self, id: bytes):
+        self.mutex.acquire()
         self.cursor.execute(
             """WITH
             dir  AS (SELECT id AS dir_id, dir_entries, file_entries, rev_entries
@@ -49,10 +52,12 @@ class ArchivePostgreSQL(ArchiveInterface):
             """,
             (id,),
         )
-        return [
+        entries = [
             {"type": row[0], "target": row[1], "name": row[2]}
             for row in self.cursor.fetchall()
         ]
+        self.mutex.release()
+        return entries
 
     def iter_origins(self):
         raise NotImplementedError

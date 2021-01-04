@@ -1,23 +1,14 @@
-import os
-
 from .archive import ArchiveInterface
-
-from pathlib import PosixPath
-
-
-# class Tree:
-#     def __init__(self, archive: ArchiveInterface, id: bytes):
-#         self.root = DirectoryEntry(archive, id, PosixPath('.'))
 
 
 class TreeEntry:
-    def __init__(self, id: bytes, name: PosixPath):
+    def __init__(self, id: bytes, name: bytes):
         self.id = id
         self.name = name
 
 
 class DirectoryEntry(TreeEntry):
-    def __init__(self, archive: ArchiveInterface, id: bytes, name: PosixPath):
+    def __init__(self, archive: ArchiveInterface, id: bytes, name: bytes):
         super().__init__(id, name)
         self.archive = archive
         self.children = None
@@ -31,16 +22,12 @@ class DirectoryEntry(TreeEntry):
                         DirectoryEntry(
                             self.archive,
                             child["target"],
-                            PosixPath(os.fsdecode(child["name"])),
+                            child["name"],
                         )
                     )
 
                 elif child["type"] == "file":
-                    self.children.append(
-                        FileEntry(
-                            child["target"], PosixPath(os.fsdecode(child["name"]))
-                        )
-                    )
+                    self.children.append(FileEntry(child["target"], child["name"]))
 
         return iter(self.children)
 

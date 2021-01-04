@@ -11,15 +11,11 @@ from ..provenance import ProvenanceInterface
 from ..revision import RevisionEntry
 
 from datetime import datetime
-from pathlib import PosixPath
 from typing import Any, Dict, List, Optional
 
 
-def normalize(path: PosixPath) -> PosixPath:
-    spath = str(path)
-    if spath.startswith("./"):
-        return PosixPath(spath[2:])
-    return path
+def normalize(path: bytes) -> bytes:
+    return path[2:] if path.startswith(bytes("." + os.path.sep, "utf-8")) else path
 
 
 def create_database(conn: psycopg2.extensions.connection, conninfo: dict, name: str):
@@ -39,12 +35,12 @@ def create_database(conn: psycopg2.extensions.connection, conninfo: dict, name: 
     conn = connect(conninfo)
 
     sqldir = os.path.dirname(os.path.realpath(__file__))
-    execute_sql(conn, PosixPath(os.path.join(sqldir, "provenance.sql")))
+    execute_sql(conn, os.path.join(sqldir, "provenance.sql"))
 
 
-################################################################################
-################################################################################
-################################################################################
+########################################################################################
+########################################################################################
+########################################################################################
 
 
 class ProvenancePostgreSQL(ProvenanceInterface):
@@ -99,20 +95,20 @@ class ProvenancePostgreSQL(ProvenanceInterface):
         return result
 
     def content_add_to_directory(
-        self, directory: DirectoryEntry, blob: FileEntry, prefix: PosixPath
+        self, directory: DirectoryEntry, blob: FileEntry, prefix: bytes
     ):
         self.insert_cache["content_in_dir"].append(
-            (blob.id, directory.id, bytes(normalize(prefix / blob.name)))
+            (blob.id, directory.id, normalize(os.path.join(prefix, blob.name)))
         )
 
     def content_add_to_revision(
-        self, revision: RevisionEntry, blob: FileEntry, prefix: PosixPath
+        self, revision: RevisionEntry, blob: FileEntry, prefix: bytes
     ):
         self.insert_cache["content_early_in_rev"].append(
-            (blob.id, revision.id, bytes(normalize(prefix / blob.name)))
+            (blob.id, revision.id, normalize(os.path.join(prefix, blob.name)))
         )
 
-    def content_find_first(self, blobid: str):
+    def content_find_first(self, blobid: bytes):
         self.cursor.execute(
             """SELECT blob, rev, date, path
                    FROM content_early_in_rev
@@ -123,7 +119,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
         )
         return self.cursor.fetchone()
 
-    def content_find_all(self, blobid: str):
+    def content_find_all(self, blobid: bytes):
         self.cursor.execute(
             """(SELECT blob, rev, date, path
                    FROM content_early_in_rev
@@ -134,6 +130,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
                        content_in_rev.path
                    FROM (SELECT content_in_dir.blob, directory_in_rev.rev,
                                 CASE directory_in_rev.path
+                                    WHEN '' THEN content_in_dir.path
                                     WHEN '.' THEN content_in_dir.path
                                     ELSE (directory_in_rev.path || '/' ||
                                              content_in_dir.path)::unix_path
@@ -198,10 +195,10 @@ class ProvenancePostgreSQL(ProvenanceInterface):
         self.insert_cache["content"][blob.id] = date
 
     def directory_add_to_revision(
-        self, revision: RevisionEntry, directory: DirectoryEntry, path: PosixPath
+        self, revision: RevisionEntry, directory: DirectoryEntry, path: bytes
     ):
         self.insert_cache["directory_in_rev"].append(
-            (directory.id, revision.id, bytes(normalize(path)))
+            (directory.id, revision.id, normalize(path))
         )
 
     def directory_get_date_in_isochrone_frontier(

@@ -2,10 +2,9 @@ import io
 import psycopg2
 
 from configparser import ConfigParser
-from pathlib import PosixPath
 
 
-def config(filename: PosixPath, section: str):
+def config(filename: str, section: str):
     # create a parser
     parser = ConfigParser()
     # read config file
@@ -54,7 +53,7 @@ def connect(params: dict):
     return conn
 
 
-def execute_sql(conn: psycopg2.extensions.connection, filename: PosixPath):
+def execute_sql(conn: psycopg2.extensions.connection, filename: str):
     with io.open(filename) as file:
         cur = conn.cursor()
         cur.execute(file.read())

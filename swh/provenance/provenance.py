@@ -1,18 +1,21 @@
+import os
+
 from .archive import ArchiveInterface
 from .model import DirectoryEntry, FileEntry
 from .origin import OriginEntry
 from .revision import RevisionEntry
 
 from datetime import datetime
-from pathlib import PosixPath
 from typing import Dict, List, Optional, Tuple
 
 
 # TODO: consider moving to path utils file together with normalize.
-def is_child(path: PosixPath, prefix: PosixPath) -> bool:
-    # PosixPath returns '.' as parent when there is not upper directory. First check
-    # avoids considering current directory its own parent.
-    return path.parent != path and path.parent == prefix
+def is_child(path: bytes, prefix: bytes) -> bool:
+    return path != prefix and os.path.dirname(path) == prefix
+
+
+# def is_not_prefix(prefix: bytes, path: bytes) -> bool:
+#     return not path.startswith(prefix)
 
 
 class ProvenanceInterface:
@@ -23,19 +26,19 @@ class ProvenanceInterface:
         raise NotImplementedError
 
     def content_add_to_directory(
-        self, directory: DirectoryEntry, blob: FileEntry, prefix: PosixPath
+        self, directory: DirectoryEntry, blob: FileEntry, prefix: bytes
     ):
         raise NotImplementedError
 
     def content_add_to_revision(
-        self, revision: RevisionEntry, blob: FileEntry, prefix: PosixPath
+        self, revision: RevisionEntry, blob: FileEntry, prefix: bytes
     ):
         raise NotImplementedError
 
-    def content_find_first(self, blobid: str):
+    def content_find_first(self, blobid: bytes):
         raise NotImplementedError
 
-    def content_find_all(self, blobid: str):
+    def content_find_all(self, blobid: bytes):
         raise NotImplementedError
 
     def content_get_early_date(self, blob: FileEntry) -> Optional[datetime]:
@@ -48,7 +51,7 @@ class ProvenanceInterface:
         raise NotImplementedError
 
     def directory_add_to_revision(
-        self, revision: RevisionEntry, directory: DirectoryEntry, path: PosixPath
+        self, revision: RevisionEntry, directory: DirectoryEntry, path: bytes
     ):
         raise NotImplementedError
 
@@ -105,29 +108,28 @@ class ProvenanceInterface:
 def directory_process_content(
     provenance: ProvenanceInterface,
     directory: DirectoryEntry,
-    relative: DirectoryEntry,
-    prefix: PosixPath,
+    relative: DirectoryEntry
 ):
-    stack = [(directory, prefix)]
+    stack = [(directory, b"")]
 
     while stack:
-        current, path = stack.pop()
+        current, prefix = stack.pop()
 
         for child in iter(current):
             if isinstance(child, FileEntry):
-                # Add content to the relative directory with the computed path.
-                provenance.content_add_to_directory(relative, child, path)
+                # Add content to the relative directory with the computed prefix.
+                provenance.content_add_to_directory(relative, child, prefix)
             else:
                 # Recursively walk the child directory.
-                stack.append((child, path / child.name))
+                stack.append((child, os.path.join(prefix, child.name)))
 
 
 def directory_update_content(
-    stack: List[Tuple[DirectoryEntry, PosixPath]],
+    stack: List[Tuple[DirectoryEntry, bytes]],
     provenance: ProvenanceInterface,
     revision: RevisionEntry,
     directory: DirectoryEntry,
-    path: PosixPath,
+    prefix: bytes,
     subdirs: Optional[List[DirectoryEntry]] = None,
     blobs: Optional[List[FileEntry]] = None,
     blobdates: Optional[Dict[bytes, datetime]] = None,
@@ -149,12 +151,11 @@ def directory_update_content(
         date = blobdates.get(blob.id, None)
         if date is None or revision.date < date:
             provenance.content_set_early_date(blob, revision.date)
-        # provenance.content_add_to_revision(revision, blob, path)
 
     # Push all subdirectories with its corresponding path to analyze them
     # recursively.
     for subdir in subdirs:
-        stack.append((subdir, path / subdir.name))
+        stack.append((subdir, os.path.join(prefix, subdir.name)))
 
 
 def origin_add(provenance: ProvenanceInterface, origin: OriginEntry):
@@ -232,7 +233,7 @@ def revision_add(
     if date is None or revision.date < date:
         provenance.revision_add(revision)
         revision_process_content(
-            provenance, revision, DirectoryEntry(archive, revision.root, PosixPath("."))
+            provenance, revision, DirectoryEntry(archive, revision.root, b"")
         )
 
     return provenance.commit()
@@ -244,14 +245,14 @@ def revision_process_content(
     assert revision.date is not None
 
     # Stack of directories (and their paths) to be processed.
-    stack: List[Tuple[DirectoryEntry, PosixPath]] = [(root, root.name)]
+    stack: List[Tuple[DirectoryEntry, bytes]] = [(root, root.name)]
     # This dictionary will hold the computed dates for visited subdirectories inside the
     # isochrone frontier.
-    innerdirs: Dict[PosixPath, Tuple[DirectoryEntry, datetime]] = {}
+    innerdirs: Dict[bytes, Tuple[DirectoryEntry, datetime]] = {}
     # This dictionary will hold the computed dates for visited subdirectories outside
     # the isochrone frontier which are candidates to be added to the outer frontier (if
     # their parent is in the inner frontier).
-    outerdirs: Dict[PosixPath, Tuple[DirectoryEntry, datetime]] = {}
+    outerdirs: Dict[bytes, Tuple[DirectoryEntry, datetime]] = {}
 
     while stack:
         # Get next directory to process and query its date right before processing to be
@@ -335,8 +336,7 @@ def revision_process_content(
                                     directory_process_content(
                                         provenance,
                                         directory=outerdir,
-                                        relative=outerdir,
-                                        prefix=PosixPath("."),
+                                        relative=outerdir
                                     )
                             # Removed processed elements to avoid duplicating work.
                             outerdirs = {
@@ -356,7 +356,7 @@ def revision_process_content(
                                 # a different directory's subtree of this very same
                                 # revision.
                                 provenance.directory_add_to_revision(
-                                    revision, subdir, prefix / subdir.name
+                                    revision, subdir, os.path.join(prefix, subdir.name)
                                 )
 
                     else:
@@ -415,11 +415,11 @@ def revision_process_content(
 
     if outerdirs:
         # This should only happen if the root directory is in the outer frontier.
+        if not (len(outerdirs) == 1 and root.name in outerdirs):
+            print(outerdirs)
         assert len(outerdirs) == 1 and root.name in outerdirs
         outerdir, outerdate = outerdirs[root.name]
 
         provenance.directory_set_date_in_isochrone_frontier(outerdir, outerdate)
         provenance.directory_add_to_revision(revision, outerdir, root.name)
-        directory_process_content(
-            provenance, directory=outerdir, relative=outerdir, prefix=PosixPath(".")
-        )
+        directory_process_content(provenance, directory=outerdir, relative=outerdir)

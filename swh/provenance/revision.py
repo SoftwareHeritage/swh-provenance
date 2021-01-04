@@ -15,7 +15,7 @@ class RevisionEntry:
         id: bytes,
         date: Optional[datetime] = None,
         root: Optional[bytes] = None,
-        parents: Optional[list] = None,
+        parents: Optional[list] = None
     ):
         self.archive = archive
         self.id = id
@@ -34,7 +34,7 @@ class RevisionEntry:
                             parent.id,
                             parents=[
                                 RevisionEntry(self.archive, id) for id in parent.parents
-                            ],
+                            ]
                         )
                     )
 
@@ -79,7 +79,7 @@ class FileRevisionIterator(RevisionIterator):
                 self.archive,
                 hash_to_bytes(id),
                 date=datetime.fromisoformat(date),
-                root=hash_to_bytes(root),
+                root=hash_to_bytes(root)
             )
         else:
             self.mutex.release()

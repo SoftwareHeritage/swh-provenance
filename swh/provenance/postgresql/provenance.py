@@ -115,7 +115,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
                    JOIN revision ON revision.id=content_early_in_rev.rev
                    WHERE content_early_in_rev.blob=%s
                    ORDER BY date, rev, path ASC LIMIT 1""",
-            (blobid,),
+            (blobid,)
         )
         return self.cursor.fetchone()
 
@@ -143,7 +143,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
                    JOIN revision ON revision.id=content_in_rev.rev
                 )
                 ORDER BY date, rev, path""",
-            (blobid, blobid),
+            (blobid, blobid)
         )
         # POSTGRESQL EXPLAIN
         yield from self.cursor.fetchall()
@@ -184,7 +184,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
             values = ", ".join(itertools.repeat("%s", len(pending)))
             self.cursor.execute(
                 f"""SELECT id, date FROM content WHERE id IN ({values})""",
-                tuple(pending),
+                tuple(pending)
             )
             for row in self.cursor.fetchall():
                 dates[row[0]] = row[1]
@@ -241,7 +241,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
             values = ", ".join(itertools.repeat("%s", len(pending)))
             self.cursor.execute(
                 f"""SELECT id, date FROM directory WHERE id IN ({values})""",
-                tuple(pending),
+                tuple(pending)
             )
             for row in self.cursor.fetchall():
                 dates[row[0]] = row[1]
@@ -266,7 +266,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
                 """INSERT INTO content(id, date) VALUES %s
                    ON CONFLICT (id) DO
                        UPDATE SET date=LEAST(EXCLUDED.date,content.date)""",
-                self.insert_cache["content"].items(),
+                self.insert_cache["content"].items()
             )
 
         if self.insert_cache["content_early_in_rev"]:
@@ -274,7 +274,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
                 self.cursor,
                 """INSERT INTO content_early_in_rev VALUES %s
                    ON CONFLICT DO NOTHING""",
-                self.insert_cache["content_early_in_rev"],
+                self.insert_cache["content_early_in_rev"]
             )
 
         if self.insert_cache["content_in_dir"]:
@@ -282,7 +282,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
                 self.cursor,
                 """INSERT INTO content_in_dir VALUES %s
                    ON CONFLICT DO NOTHING""",
-                self.insert_cache["content_in_dir"],
+                self.insert_cache["content_in_dir"]
             )
 
         if self.insert_cache["directory"]:
@@ -291,7 +291,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
                 """INSERT INTO directory(id, date) VALUES %s
                    ON CONFLICT (id) DO
                        UPDATE SET date=LEAST(EXCLUDED.date,directory.date)""",
-                self.insert_cache["directory"].items(),
+                self.insert_cache["directory"].items()
             )
 
         if self.insert_cache["directory_in_rev"]:
@@ -299,7 +299,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
                 self.cursor,
                 """INSERT INTO directory_in_rev VALUES %s
                    ON CONFLICT DO NOTHING""",
-                self.insert_cache["directory_in_rev"],
+                self.insert_cache["directory_in_rev"]
             )
 
         if self.insert_cache["revision"]:
@@ -308,7 +308,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
                 """INSERT INTO revision(id, date) VALUES %s
                    ON CONFLICT (id) DO
                        UPDATE SET date=LEAST(EXCLUDED.date,revision.date)""",
-                self.insert_cache["revision"].items(),
+                self.insert_cache["revision"].items()
             )
 
         if self.insert_cache["revision_before_rev"]:
@@ -316,7 +316,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
                 self.cursor,
                 """INSERT INTO revision_before_rev VALUES %s
                    ON CONFLICT DO NOTHING""",
-                self.insert_cache["revision_before_rev"],
+                self.insert_cache["revision_before_rev"]
             )
 
         if self.insert_cache["revision_in_org"]:
@@ -324,7 +324,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
                 self.cursor,
                 """INSERT INTO revision_in_org VALUES %s
                    ON CONFLICT DO NOTHING""",
-                self.insert_cache["revision_in_org"],
+                self.insert_cache["revision_in_org"]
             )
 
     def origin_get_id(self, origin: OriginEntry) -> int:
@@ -338,7 +338,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
                 # the prefered one.
                 self.cursor.execute(
                     """INSERT INTO origin (url) VALUES (%s) RETURNING id""",
-                    (origin.url,),
+                    (origin.url,)
                 )
                 return self.cursor.fetchone()[0]
             else:

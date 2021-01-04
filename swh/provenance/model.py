@@ -22,7 +22,7 @@ class DirectoryEntry(TreeEntry):
                         DirectoryEntry(
                             self.archive,
                             child["target"],
-                            child["name"],
+                            child["name"]
                         )
                     )
 

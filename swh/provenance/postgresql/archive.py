@@ -50,7 +50,7 @@ class ArchivePostgreSQL(ArchiveInterface):
             )
             ORDER BY name
             """,
-            (id,),
+            (id,)
         )
         entries = [
             {"type": row[0], "target": row[1], "name": row[2]}

@@ -16,10 +16,6 @@ def is_child(path: bytes, prefix: bytes) -> bool:
     return path != prefix and os.path.dirname(path) == prefix
 
 
-# def is_not_prefix(prefix: bytes, path: bytes) -> bool:
-#     return not path.startswith(prefix)
-
-
 class ProvenanceInterface:
     def __init__(self, **kwargs):
         raise NotImplementedError
@@ -412,35 +408,11 @@ def revision_process_content(
             # The directory has already been seen on the outer isochrone frontier of an
             # earlier revision. Just add it to the current revision.
             provenance.directory_add_to_revision(revision, current, prefix)
-            # TODO: if processing revisions in parallel, some child nodes to current
-            # directory might have been considered as candidates to the outer frontier
-            # and have to be discarded now.
 
-    # if outerdirs:
-    #     # This should only happen if the root directory is in the outer frontier.
-    #     assert len(outerdirs) == 1 and root.name in outerdirs
-    #     outerdir, outerdate = outerdirs[root.name]
-    # 
-    #     provenance.directory_set_date_in_isochrone_frontier(outerdir, outerdate)
-    #     provenance.directory_add_to_revision(revision, outerdir, root.name)
-    #     directory_process_content(provenance, directory=outerdir, relative=outerdir)
+    if root.name in outerdirs:
+        # Only the root directory should be considered at this point.
+        outerdir, outerdate = outerdirs[root.name]
 
-    # Any candidate left at this point should be added to the outer frontier. For
-    # instance, the root directory will appear here if all its content is already known.
-    for path, (outerdir, outerdate) in outerdirs.items():
-        if path != root.name:
-            # WARNING: This might lead to duplicated results! Only the root directory
-            # should be a candidate at this point of the algorithm.
-            logging.warning(f"Adding directory {hash_to_hex(outerdir.id)} with path {path} to the frontier")
-
-        provenance.directory_set_date_in_isochrone_frontier(
-            outerdir, outerdate
-        )
-        provenance.directory_add_to_revision(
-            revision, outerdir, path
-        )
-        directory_process_content(
-            provenance,
-            directory=outerdir,
-            relative=outerdir,
-        )
+        provenance.directory_set_date_in_isochrone_frontier(outerdir, outerdate)
+        provenance.directory_add_to_revision(revision, outerdir, root.name)
+        directory_process_content(provenance, directory=outerdir, relative=outerdir)

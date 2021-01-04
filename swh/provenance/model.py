@@ -19,11 +19,7 @@ class DirectoryEntry(TreeEntry):
             for child in self.archive.directory_ls(self.id):
                 if child["type"] == "dir":
                     self.children.append(
-                        DirectoryEntry(
-                            self.archive,
-                            child["target"],
-                            child["name"]
-                        )
+                        DirectoryEntry(self.archive, child["target"], child["name"])
                     )
 
                 elif child["type"] == "file":

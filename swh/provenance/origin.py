@@ -97,7 +97,7 @@ def iterate_statuses(origins, archive: ArchiveInterface, limit: Optional[int] = 
                             parents = list(
                                 map(
                                     lambda id: RevisionEntry(archive, id),
-                                    revision.parents
+                                    revision.parents,
                                 )
                             )
                             revisions.append(

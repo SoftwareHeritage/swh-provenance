@@ -106,9 +106,7 @@ class ProvenanceInterface:
 
 
 def directory_process_content(
-    provenance: ProvenanceInterface,
-    directory: DirectoryEntry,
-    relative: DirectoryEntry
+    provenance: ProvenanceInterface, directory: DirectoryEntry, relative: DirectoryEntry
 ):
     stack = [(directory, b"")]
 
@@ -132,7 +130,7 @@ def directory_update_content(
     prefix: bytes,
     subdirs: Optional[List[DirectoryEntry]] = None,
     blobs: Optional[List[FileEntry]] = None,
-    blobdates: Optional[Dict[bytes, datetime]] = None
+    blobdates: Optional[Dict[bytes, datetime]] = None,
 ):
     assert revision.date is not None
 
@@ -336,7 +334,7 @@ def revision_process_content(
                                     directory_process_content(
                                         provenance,
                                         directory=outerdir,
-                                        relative=outerdir
+                                        relative=outerdir,
                                     )
                             # Removed processed elements to avoid duplicating work.
                             outerdirs = {
@@ -374,7 +372,7 @@ def revision_process_content(
                             prefix,
                             subdirs=subdirs,
                             blobs=blobs,
-                            blobdates=blobdates
+                            blobdates=blobdates,
                         )
 
                 else:
@@ -390,7 +388,7 @@ def revision_process_content(
                         prefix,
                         subdirs=subdirs,
                         blobs=blobs,
-                        blobdates=blobdates
+                        blobdates=blobdates,
                     )
 
             else:

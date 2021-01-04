@@ -57,23 +57,21 @@ PROVENANCE_HELP = f"""Software Heritage Scanner tools.
 
 
 @swh_cli_group.group(
-    name="provenance",
-    context_settings=CONTEXT_SETTINGS,
-    help=PROVENANCE_HELP
+    name="provenance", context_settings=CONTEXT_SETTINGS, help=PROVENANCE_HELP
 )
 @click.option(
     "-C",
     "--config-file",
     default=None,
     type=click.Path(exists=False, dir_okay=False, path_type=str),
-    help="""YAML configuration file."""
+    help="""YAML configuration file.""",
 )
 @click.option(
     "-P",
     "--profile",
     default=None,
     type=click.Path(exists=False, dir_okay=False, path_type=str),
-    help="""Enable profiling to specified file."""
+    help="""Enable profiling to specified file.""",
 )
 @click.pass_context
 def cli(ctx, config_file: Optional[str], profile: str):
@@ -176,7 +174,7 @@ def find_first(ctx, swhid):
                 blob=hash_to_hex(row[0]),
                 rev=hash_to_hex(row[1]),
                 date=row[2],
-                path=os.fsdecode(row[3])
+                path=os.fsdecode(row[3]),
             )
         )
     else:
@@ -198,6 +196,6 @@ def find_all(ctx, swhid):
                 blob=hash_to_hex(row[0]),
                 rev=hash_to_hex(row[1]),
                 date=row[2],
-                path=os.fsdecode(row[3])
+                path=os.fsdecode(row[3]),
             )
         )

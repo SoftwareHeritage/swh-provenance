@@ -1,23 +1,31 @@
 import psycopg2
-import threading
+
+# import threading
 
 from ..archive import ArchiveInterface
 
 # from functools import lru_cache
 from methodtools import lru_cache
-from typing import List
+from typing import Any, Dict, List
 
 
 class ArchivePostgreSQL(ArchiveInterface):
     def __init__(self, conn: psycopg2.extensions.connection):
         self.conn = conn
-        self.cursor = conn.cursor()
-        self.mutex = threading.Lock()
+        # self.mutex = threading.Lock()
+
+    def directory_ls(self, id: bytes) -> List[Dict[str, Any]]:
+        # TODO: only call directory_ls_internal is the id is not being queries by
+        # someone else. Otherwise wait until results get properly cached.
+        # self.mutex.acquire()
+        entries = self.directory_ls_internal(id)
+        # self.mutex.release()
+        return entries
 
     @lru_cache(maxsize=1000000)
-    def directory_ls(self, id: bytes):
-        self.mutex.acquire()
-        self.cursor.execute(
+    def directory_ls_internal(self, id: bytes) -> List[Dict[str, Any]]:
+        cursor = self.conn.cursor()
+        cursor.execute(
             """WITH
             dir  AS (SELECT id AS dir_id, dir_entries, file_entries, rev_entries
                         FROM directory WHERE id=%s),
@@ -52,12 +60,10 @@ class ArchivePostgreSQL(ArchiveInterface):
             """,
             (id,),
         )
-        entries = [
+        return [
             {"type": row[0], "target": row[1], "name": row[2]}
-            for row in self.cursor.fetchall()
+            for row in cursor.fetchall()
         ]
-        self.mutex.release()
-        return entries
 
     def iter_origins(self):
         raise NotImplementedError

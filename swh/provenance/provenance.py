@@ -1,4 +1,3 @@
-import logging
 import os
 
 from .archive import ArchiveInterface
@@ -7,8 +6,7 @@ from .origin import OriginEntry
 from .revision import RevisionEntry
 
 from datetime import datetime
-from swh.model.hashutil import hash_to_hex
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Generator, List, Optional, Tuple
 
 
 # TODO: consider moving to path utils file together with normalize.
@@ -33,10 +31,12 @@ class ProvenanceInterface:
     ):
         raise NotImplementedError
 
-    def content_find_first(self, blobid: bytes):
+    def content_find_first(self, blobid: bytes) -> Tuple[bytes, bytes, datetime, bytes]:
         raise NotImplementedError
 
-    def content_find_all(self, blobid: bytes):
+    def content_find_all(
+        self, blobid: bytes
+    ) -> Generator[Tuple[bytes, bytes, datetime, bytes], None, None]:
         raise NotImplementedError
 
     def content_get_early_date(self, blob: FileEntry) -> Optional[datetime]:

@@ -1,11 +1,11 @@
-from typing import List
+from typing import Any, Dict, List
 
 
 class ArchiveInterface:
     def __init__(self, **kwargs):
         raise NotImplementedError
 
-    def directory_ls(self, id: bytes):
+    def directory_ls(self, id: bytes) -> List[Dict[str, Any]]:
         raise NotImplementedError
 
     def iter_origins(self):

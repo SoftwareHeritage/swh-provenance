@@ -11,7 +11,7 @@ from ..provenance import ProvenanceInterface
 from ..revision import RevisionEntry
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Generator, List, Optional, Tuple
 
 
 def normalize(path: bytes) -> bytes:
@@ -72,22 +72,11 @@ class ProvenancePostgreSQL(ProvenanceInterface):
         result = False
         try:
             self.insert_all()
-            # self.conn.commit()
             result = True
-
-        # except psycopg2.DatabaseError:
-        #     # Database error occurred, rollback all changes
-        #     self.conn.rollback()
-        #     # TODO: maybe serialize and auto-merge transations.
-        #     # The only conflicts are on:
-        #     #   - content: we keep the earliest date
-        #     #   - directory: we keep the earliest date
-        #     #   - content_in_dir: there should be just duplicated entries.
 
         except Exception as error:
             # Unexpected error occurred, rollback all changes and log message
             logging.error(f"Unexpected error: {error}")
-            # self.conn.rollback()
 
         finally:
             self.clear_caches()
@@ -108,7 +97,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
             (blob.id, revision.id, normalize(os.path.join(prefix, blob.name)))
         )
 
-    def content_find_first(self, blobid: bytes):
+    def content_find_first(self, blobid: bytes) -> Tuple[bytes, bytes, datetime, bytes]:
         self.cursor.execute(
             """SELECT blob, rev, date, path
                    FROM content_early_in_rev
@@ -119,7 +108,9 @@ class ProvenancePostgreSQL(ProvenanceInterface):
         )
         return self.cursor.fetchone()
 
-    def content_find_all(self, blobid: bytes):
+    def content_find_all(
+        self, blobid: bytes
+    ) -> Generator[Tuple[bytes, bytes, datetime, bytes], None, None]:
         self.cursor.execute(
             """(SELECT blob, rev, date, path
                    FROM content_early_in_rev
@@ -145,7 +136,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
                 ORDER BY date, rev, path""",
             (blobid, blobid),
         )
-        # POSTGRESQL EXPLAIN
+        # TODO: use POSTGRESQL EXPLAIN looking for query optimizations.
         yield from self.cursor.fetchall()
 
     def content_get_early_date(self, blob: FileEntry) -> Optional[datetime]:

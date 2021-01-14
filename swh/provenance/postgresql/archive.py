@@ -15,7 +15,7 @@ class ArchivePostgreSQL(ArchiveInterface):
         # self.mutex = threading.Lock()
 
     def directory_ls(self, id: bytes) -> List[Dict[str, Any]]:
-        # TODO: only call directory_ls_internal is the id is not being queries by
+        # TODO: only call directory_ls_internal if the id is not being queried by
         # someone else. Otherwise wait until results get properly cached.
         # self.mutex.acquire()
         entries = self.directory_ls_internal(id)

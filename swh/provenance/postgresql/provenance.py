@@ -72,14 +72,12 @@ class ProvenancePostgreSQL(ProvenanceInterface):
         result = False
         try:
             self.insert_all()
+            self.clear_caches()
             result = True
 
         except Exception as error:
             # Unexpected error occurred, rollback all changes and log message
             logging.error(f"Unexpected error: {error}")
-
-        finally:
-            self.clear_caches()
 
         return result
 
@@ -254,11 +252,13 @@ class ProvenancePostgreSQL(ProvenanceInterface):
         if self.insert_cache["content"]:
             psycopg2.extras.execute_values(
                 self.cursor,
-                """INSERT INTO content(id, date) VALUES %s
+                """LOCK TABLE ONLY content;
+                   INSERT INTO content(id, date) VALUES %s
                    ON CONFLICT (id) DO
                        UPDATE SET date=LEAST(EXCLUDED.date,content.date)""",
                 self.insert_cache["content"].items(),
             )
+            self.insert_cache["content"].clear()
 
         if self.insert_cache["content_early_in_rev"]:
             psycopg2.extras.execute_values(
@@ -267,6 +267,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
                    ON CONFLICT DO NOTHING""",
                 self.insert_cache["content_early_in_rev"],
             )
+            self.insert_cache["content_early_in_rev"].clear()
 
         if self.insert_cache["content_in_dir"]:
             psycopg2.extras.execute_values(
@@ -275,6 +276,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
                    ON CONFLICT DO NOTHING""",
                 self.insert_cache["content_in_dir"],
             )
+            self.insert_cache["content_in_dir"].clear()
 
         if self.insert_cache["directory"]:
             psycopg2.extras.execute_values(
@@ -284,6 +286,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
                        UPDATE SET date=LEAST(EXCLUDED.date,directory.date)""",
                 self.insert_cache["directory"].items(),
             )
+            self.insert_cache["directory"].clear()
 
         if self.insert_cache["directory_in_rev"]:
             psycopg2.extras.execute_values(
@@ -292,6 +295,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
                    ON CONFLICT DO NOTHING""",
                 self.insert_cache["directory_in_rev"],
             )
+            self.insert_cache["directory_in_rev"].clear()
 
         if self.insert_cache["revision"]:
             psycopg2.extras.execute_values(
@@ -301,6 +305,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
                        UPDATE SET date=LEAST(EXCLUDED.date,revision.date)""",
                 self.insert_cache["revision"].items(),
             )
+            self.insert_cache["revision"].clear()
 
         if self.insert_cache["revision_before_rev"]:
             psycopg2.extras.execute_values(
@@ -309,6 +314,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
                    ON CONFLICT DO NOTHING""",
                 self.insert_cache["revision_before_rev"],
             )
+            self.insert_cache["revision_before_rev"].clear()
 
         if self.insert_cache["revision_in_org"]:
             psycopg2.extras.execute_values(
@@ -317,6 +323,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
                    ON CONFLICT DO NOTHING""",
                 self.insert_cache["revision_in_org"],
             )
+            self.insert_cache["revision_in_org"].clear()
 
     def origin_get_id(self, origin: OriginEntry) -> int:
         if origin.id is None:

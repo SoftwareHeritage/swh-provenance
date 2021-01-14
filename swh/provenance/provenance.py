@@ -224,7 +224,7 @@ def revision_add(
     assert revision.date is not None
     assert revision.root is not None
 
-    # Processed content starting from the revision's root directory
+    # Processed content starting from the revision's root directory.
     date = provenance.revision_get_early_date(revision)
     if date is None or revision.date < date:
         provenance.revision_add(revision)
@@ -232,7 +232,10 @@ def revision_add(
             provenance, revision, DirectoryEntry(archive, revision.root, b"")
         )
 
-    return provenance.commit()
+    # TODO: improve this! Maybe using a max attempt counter?
+    # Idealy Provenance class should guarante that a commit never fails.
+    while not provenance.commit():
+        continue
 
 
 def revision_process_content(

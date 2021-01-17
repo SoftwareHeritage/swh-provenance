@@ -1,5 +1,6 @@
 import itertools
 import logging
+import operator
 import os
 import psycopg2
 import psycopg2.extras
@@ -97,11 +98,27 @@ class ProvenancePostgreSQL(ProvenanceInterface):
 
     def content_find_first(self, blobid: bytes) -> Tuple[bytes, bytes, datetime, bytes]:
         self.cursor.execute(
-            """SELECT blob, rev, date, path
-                   FROM content_early_in_rev
-                   JOIN revision ON revision.id=content_early_in_rev.rev
-                   WHERE content_early_in_rev.blob=%s
-                   ORDER BY date, rev, path ASC LIMIT 1""",
+            """SELECT content_location.sha1 AS blob,
+                      revision.sha1 AS rev,
+                      revision.date AS date,
+                      content_location.path AS path
+                 FROM (SELECT content_hex.sha1,
+                              content_hex.rev,
+                              location.path
+                        FROM (SELECT content.sha1,
+                                     content_early_in_rev.rev,
+                                     content_early_in_rev.loc
+                               FROM content_early_in_rev
+                               JOIN content
+                                 ON content.id=content_early_in_rev.blob
+                               WHERE content.sha1=%s
+                             ) AS content_hex
+                        JOIN location
+                            ON location.id=content_hex.loc
+                      ) AS content_location
+                 JOIN revision
+                   ON revision.id=content_location.rev
+                 ORDER BY date, rev, path ASC LIMIT 1""",
             (blobid,),
         )
         return self.cursor.fetchone()
@@ -110,28 +127,68 @@ class ProvenancePostgreSQL(ProvenanceInterface):
         self, blobid: bytes
     ) -> Generator[Tuple[bytes, bytes, datetime, bytes], None, None]:
         self.cursor.execute(
-            """(SELECT blob, rev, date, path
-                   FROM content_early_in_rev
-                   JOIN revision ON revision.id=content_early_in_rev.rev
-                   WHERE content_early_in_rev.blob=%s)
+            """(SELECT content_location.sha1 AS blob,
+                       revision.sha1 AS rev,
+                       revision.date AS date,
+                       content_location.path AS path
+                 FROM (SELECT content_hex.sha1,
+                              content_hex.rev,
+                              location.path
+                        FROM (SELECT content.sha1,
+                                     content_early_in_rev.rev,
+                                     content_early_in_rev.loc
+                               FROM content_early_in_rev
+                               JOIN content
+                                 ON content.id=content_early_in_rev.blob
+                               WHERE content.sha1=%s
+                             ) AS content_hex
+                        JOIN location
+                          ON location.id=content_hex.loc
+                      ) AS content_location
+                 JOIN revision
+                   ON revision.id=content_location.rev
+                 )
                UNION
-               (SELECT content_in_rev.blob, content_in_rev.rev, revision.date,
-                       content_in_rev.path
-                   FROM (SELECT content_in_dir.blob, directory_in_rev.rev,
-                                CASE directory_in_rev.path
-                                    WHEN '' THEN content_in_dir.path
-                                    WHEN '.' THEN content_in_dir.path
-                                    ELSE (directory_in_rev.path || '/' ||
-                                             content_in_dir.path)::unix_path
-                                END AS path
-                            FROM content_in_dir
-                            JOIN directory_in_rev
-                                ON content_in_dir.dir=directory_in_rev.dir
-                            WHERE content_in_dir.blob=%s
-                        ) AS content_in_rev
-                   JOIN revision ON revision.id=content_in_rev.rev
-                )
-                ORDER BY date, rev, path""",
+               (SELECT content_prefix.sha1 AS blob,
+                       revision.sha1 AS rev,
+                       revision.date AS date,
+                       content_prefix.path AS path
+                 FROM (SELECT content_in_rev.sha1,
+                              content_in_rev.rev,
+                              CASE location.path
+                                WHEN '' THEN content_in_rev.suffix
+                                WHEN '.' THEN content_in_rev.suffix
+                                ELSE (location.path || '/' ||
+                                         content_in_rev.suffix)::unix_path
+                              END AS path
+                        FROM (SELECT content_suffix.sha1,
+                                     directory_in_rev.rev,
+                                     directory_in_rev.loc,
+                                     content_suffix.path AS suffix
+                               FROM (SELECT content_hex.sha1,
+                                            content_hex.dir,
+                                            location.path
+                                      FROM (SELECT content.sha1,
+                                                   content_in_dir.dir,
+                                                   content_in_dir.loc
+                                             FROM content_in_dir
+                                             JOIN content
+                                               ON content_in_dir.blob=content.id
+                                             WHERE content.sha1=%s
+                                           ) AS content_hex
+                                      JOIN location
+                                        ON location.id=content_hex.loc
+                                    ) AS content_suffix
+                               JOIN directory_in_rev
+                                 ON directory_in_rev.dir=content_suffix.dir
+                             ) AS content_in_rev
+                        JOIN location
+                          ON location.id=content_in_rev.loc
+                      ) AS content_prefix
+                 JOIN revision
+                   ON revision.id=content_prefix.rev
+               )
+               ORDER BY date, rev, path""",
             (blobid, blobid),
         )
         # TODO: use POSTGRESQL EXPLAIN looking for query optimizations.
@@ -146,7 +203,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
             if date is None:
                 # Otherwise, query the database and cache the value
                 self.cursor.execute(
-                    """SELECT date FROM content WHERE id=%s""", (blob.id,)
+                    """SELECT date FROM content WHERE sha1=%s""", (blob.id,)
                 )
                 row = self.cursor.fetchone()
                 date = row[0] if row is not None else None
@@ -172,7 +229,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
             # Otherwise, query the database and cache the values
             values = ", ".join(itertools.repeat("%s", len(pending)))
             self.cursor.execute(
-                f"""SELECT id, date FROM content WHERE id IN ({values})""",
+                f"""SELECT sha1, date FROM content WHERE sha1 IN ({values})""",
                 tuple(pending),
             )
             for row in self.cursor.fetchall():
@@ -201,7 +258,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
             if date is None:
                 # Otherwise, query the database and cache the value
                 self.cursor.execute(
-                    """SELECT date FROM directory WHERE id=%s""", (directory.id,)
+                    """SELECT date FROM directory WHERE sha1=%s""", (directory.id,)
                 )
                 row = self.cursor.fetchone()
                 date = row[0] if row is not None else None
@@ -229,7 +286,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
             # Otherwise, query the database and cache the values
             values = ", ".join(itertools.repeat("%s", len(pending)))
             self.cursor.execute(
-                f"""SELECT id, date FROM directory WHERE id IN ({values})""",
+                f"""SELECT sha1, date FROM directory WHERE sha1 IN ({values})""",
                 tuple(pending),
             )
             for row in self.cursor.fetchall():
@@ -253,94 +310,126 @@ class ProvenancePostgreSQL(ProvenanceInterface):
             psycopg2.extras.execute_values(
                 self.cursor,
                 """LOCK TABLE ONLY content;
-                   INSERT INTO content(id, date) VALUES %s
-                   ON CONFLICT (id) DO
+                   INSERT INTO content(sha1, date) VALUES %s
+                     ON CONFLICT (sha1) DO
                        UPDATE SET date=LEAST(EXCLUDED.date,content.date)""",
                 self.insert_cache["content"].items(),
             )
             self.insert_cache["content"].clear()
 
-        if self.insert_cache["content_early_in_rev"]:
-            psycopg2.extras.execute_values(
-                self.cursor,
-                """INSERT INTO content_early_in_rev VALUES %s
-                   ON CONFLICT DO NOTHING""",
-                self.insert_cache["content_early_in_rev"],
-            )
-            self.insert_cache["content_early_in_rev"].clear()
-
-        if self.insert_cache["content_in_dir"]:
-            psycopg2.extras.execute_values(
-                self.cursor,
-                """INSERT INTO content_in_dir VALUES %s
-                   ON CONFLICT DO NOTHING""",
-                self.insert_cache["content_in_dir"],
-            )
-            self.insert_cache["content_in_dir"].clear()
-
         if self.insert_cache["directory"]:
             psycopg2.extras.execute_values(
                 self.cursor,
-                """INSERT INTO directory(id, date) VALUES %s
-                   ON CONFLICT (id) DO
+                """LOCK TABLE ONLY directory;
+                   INSERT INTO directory(sha1, date) VALUES %s
+                     ON CONFLICT (sha1) DO
                        UPDATE SET date=LEAST(EXCLUDED.date,directory.date)""",
                 self.insert_cache["directory"].items(),
             )
             self.insert_cache["directory"].clear()
 
-        if self.insert_cache["directory_in_rev"]:
-            psycopg2.extras.execute_values(
-                self.cursor,
-                """INSERT INTO directory_in_rev VALUES %s
-                   ON CONFLICT DO NOTHING""",
-                self.insert_cache["directory_in_rev"],
-            )
-            self.insert_cache["directory_in_rev"].clear()
-
         if self.insert_cache["revision"]:
             psycopg2.extras.execute_values(
                 self.cursor,
-                """INSERT INTO revision(id, date) VALUES %s
-                   ON CONFLICT (id) DO
+                """LOCK TABLE ONLY revision;
+                   INSERT INTO revision(sha1, date) VALUES %s
+                     ON CONFLICT (sha1) DO
                        UPDATE SET date=LEAST(EXCLUDED.date,revision.date)""",
                 self.insert_cache["revision"].items(),
             )
             self.insert_cache["revision"].clear()
 
-        if self.insert_cache["revision_before_rev"]:
-            psycopg2.extras.execute_values(
-                self.cursor,
-                """INSERT INTO revision_before_rev VALUES %s
-                   ON CONFLICT DO NOTHING""",
-                self.insert_cache["revision_before_rev"],
-            )
-            self.insert_cache["revision_before_rev"].clear()
+        # Relations should come after ids for elements were resolved
+        if self.insert_cache["content_early_in_rev"]:
+            self.insert_location("content", "revision", "content_early_in_rev")
 
-        if self.insert_cache["revision_in_org"]:
+        if self.insert_cache["content_in_dir"]:
+            self.insert_location("content", "directory", "content_in_dir")
+
+        if self.insert_cache["directory_in_rev"]:
+            self.insert_location("directory", "revision", "directory_in_rev")
+
+        # if self.insert_cache["revision_before_rev"]:
+        #     psycopg2.extras.execute_values(
+        #         self.cursor,
+        #         """INSERT INTO revision_before_rev VALUES %s
+        #            ON CONFLICT DO NOTHING""",
+        #         self.insert_cache["revision_before_rev"],
+        #     )
+        #     self.insert_cache["revision_before_rev"].clear()
+
+        # if self.insert_cache["revision_in_org"]:
+        #     psycopg2.extras.execute_values(
+        #         self.cursor,
+        #         """INSERT INTO revision_in_org VALUES %s
+        #            ON CONFLICT DO NOTHING""",
+        #         self.insert_cache["revision_in_org"],
+        #     )
+        #     self.insert_cache["revision_in_org"].clear()
+
+    def insert_location(self, src0_table, src1_table, dst_table):
+        # Resolve src0 ids
+        src0_values = dict().fromkeys(
+            map(operator.itemgetter(0), self.insert_cache[dst_table])
+        )
+        values = ", ".join(itertools.repeat("%s", len(src0_values)))
+        self.cursor.execute(
+            f"""SELECT sha1, id FROM {src0_table} WHERE sha1 IN ({values})""",
+            tuple(src0_values),
+        )
+        src0_values = dict(self.cursor.fetchall())
+
+        # Resolve src1 ids
+        src1_values = dict().fromkeys(
+            map(operator.itemgetter(1), self.insert_cache[dst_table])
+        )
+        values = ", ".join(itertools.repeat("%s", len(src1_values)))
+        self.cursor.execute(
+            f"""SELECT sha1, id FROM {src1_table} WHERE sha1 IN ({values})""",
+            tuple(src1_values),
+        )
+        src1_values = dict(self.cursor.fetchall())
+
+        # Resolve location ids
+        location = dict().fromkeys(
+            map(operator.itemgetter(2), self.insert_cache[dst_table])
+        )
+        location = dict(
             psycopg2.extras.execute_values(
                 self.cursor,
-                """INSERT INTO revision_in_org VALUES %s
-                   ON CONFLICT DO NOTHING""",
-                self.insert_cache["revision_in_org"],
+                """LOCK TABLE ONLY location;
+                   INSERT INTO location(path) VALUES %s
+                     ON CONFLICT (path) DO
+                       UPDATE SET path=EXCLUDED.path
+                     RETURNING path, id""",
+                map(lambda path: (path,), location.keys()),
+                fetch=True,
             )
-            self.insert_cache["revision_in_org"].clear()
+        )
+
+        # Insert values in dst_table
+        rows = map(
+            lambda row: (src0_values[row[0]], src1_values[row[1]], location[row[2]]),
+            self.insert_cache[dst_table],
+        )
+        psycopg2.extras.execute_values(
+            self.cursor,
+            f"""INSERT INTO {dst_table} VALUES %s
+                  ON CONFLICT DO NOTHING""",
+            rows,
+        )
+        self.insert_cache[dst_table].clear()
 
     def origin_get_id(self, origin: OriginEntry) -> int:
         if origin.id is None:
-            # Check if current origin is already known and retrieve its internal id.
-            self.cursor.execute("""SELECT id FROM origin WHERE url=%s""", (origin.url,))
-            row = self.cursor.fetchone()
-
-            if row is None:
-                # If the origin is seen for the first time, current revision is
-                # the prefered one.
-                self.cursor.execute(
-                    """INSERT INTO origin (url) VALUES (%s) RETURNING id""",
-                    (origin.url,),
-                )
-                return self.cursor.fetchone()[0]
-            else:
-                return row[0]
+            # Insert origin in the DB and return the assigned id
+            self.cursor.execute(
+                """INSERT INTO origin (url) VALUES (%s)
+                     ON CONFLICT DO NOTHING
+                     RETURNING id""",
+                (origin.url,),
+            )
+            return self.cursor.fetchone()[0]
         else:
             return origin.id
 
@@ -364,7 +453,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
             if date is None:
                 # Otherwise, query the database and cache the value
                 self.cursor.execute(
-                    """SELECT date FROM revision WHERE id=%s""", (revision.id,)
+                    """SELECT date FROM revision WHERE sha1=%s""", (revision.id,)
                 )
                 row = self.cursor.fetchone()
                 date = row[0] if row is not None else None
@@ -374,17 +463,22 @@ class ProvenancePostgreSQL(ProvenanceInterface):
     def revision_get_prefered_origin(self, revision: RevisionEntry) -> int:
         # TODO: adapt this method to consider cached values
         self.cursor.execute(
-            """SELECT COALESCE(org,0) FROM revision WHERE id=%s""", (revision.id,)
+            """SELECT COALESCE(org,0) FROM revision WHERE sha1=%s""", (revision.id,)
         )
         row = self.cursor.fetchone()
-        # None means revision is not in database
+        # None means revision is not in database;
         # 0 means revision has no prefered origin
         return row[0] if row is not None and row[0] != 0 else None
 
     def revision_in_history(self, revision: RevisionEntry) -> bool:
         # TODO: adapt this method to consider cached values
         self.cursor.execute(
-            """SELECT 1 FROM revision_before_rev WHERE prev=%s""", (revision.id,)
+            """SELECT 1
+                 FROM revision_before_rev
+                 JOIN revision
+                   ON revision.id=revision_before_rev.prev
+                 WHERE revision.sha1=%s""",
+            (revision.id,),
         )
         return self.cursor.fetchone() is not None
 
@@ -393,12 +487,17 @@ class ProvenancePostgreSQL(ProvenanceInterface):
     ):
         # TODO: adapt this method to consider cached values
         self.cursor.execute(
-            """UPDATE revision SET org=%s WHERE id=%s""", (origin.id, revision.id)
+            """UPDATE revision SET org=%s WHERE sha1=%s""", (origin.id, revision.id)
         )
 
     def revision_visited(self, revision: RevisionEntry) -> bool:
         # TODO: adapt this method to consider cached values
         self.cursor.execute(
-            """SELECT 1 FROM revision_in_org WHERE rev=%s""", (revision.id,)
+            """SELECT 1
+                 FROM revision_in_org
+                 JOIN revision
+                   ON revision.id=revision_in_org.rev
+                 WHERE revision.sha1=%s""",
+            (revision.id,),
         )
         return self.cursor.fetchone() is not None

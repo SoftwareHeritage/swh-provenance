@@ -10,77 +10,96 @@ create domain unix_path as bytea;
 drop table if exists content;
 create table content
 (
-    id      sha1_git primary key,   -- id of the content blob
-    date    timestamptz not null    -- timestamp of the revision where the blob appears early
+    id      bigserial primary key,      -- internal identifier of the content blob
+    sha1    sha1_git unique not null,   -- intrinsic identifier of the content blob
+    date    timestamptz not null        -- timestamp of the revision where the blob appears early
 );
 
-comment on column content.id is 'Content identifier';
+comment on column content.id is 'Content internal identifier';
+comment on column content.sha1 is 'Content intrinsic identifier';
 comment on column content.date is 'Earliest timestamp for the content (first seen time)';
 
 
 drop table if exists content_early_in_rev;
 create table content_early_in_rev
 (
-    blob    sha1_git not null,  -- id of the content blob
-    rev     sha1_git not null,  -- id of the revision where the blob appears for the first time
-    path    unix_path not null, -- path to the content relative to the revision root directory
-    primary key (blob, rev, path)
+    blob    bigint not null,            -- internal identifier of the content blob
+    rev     bigint not null,            -- internal identifier of the revision where the blob appears for the first time
+    loc     bigint not null,            -- location of the content relative to the revision root directory
+    primary key (blob, rev, loc)
     -- foreign key (blob) references content (id),
-    -- foreign key (rev) references revision (id)
+    -- foreign key (rev) references revision (id),
+    -- foreign key (loc) references location (id)
 );
 
-comment on column content_early_in_rev.blob is 'Content identifier';
-comment on column content_early_in_rev.rev is 'Revision identifier';
-comment on column content_early_in_rev.path is 'Path to content in revision';
+comment on column content_early_in_rev.blob is 'Content internal identifier';
+comment on column content_early_in_rev.rev is 'Revision internal identifier';
+comment on column content_early_in_rev.loc is 'Location of content in revision';
 
 
 drop table if exists content_in_dir;
 create table content_in_dir
 (
-    blob    sha1_git not null,  -- id of the content blob
-    dir     sha1_git not null,  -- id of the directory contaning the blob
-    path    unix_path not null, -- path name relative to its parent on the isochrone frontier
-    primary key (blob, dir, path)
+    blob    bigint not null,            -- internal identifier of the content blob
+    dir     bigint not null,            -- internal identifier of the directory contaning the blob
+    loc     bigint not null,            -- location of the content relative to its parent directory in the isochrone frontier
+    primary key (blob, dir, loc)
     -- foreign key (blob) references content (id),
-    -- foreign key (dir) references directory (id)
+    -- foreign key (dir) references directory (id),
+    -- foreign key (loc) references location (id)
 );
 
-comment on column content_in_dir.blob is 'Content identifier';
-comment on column content_in_dir.dir is 'Directory identifier';
-comment on column content_in_dir.path is 'Path to content in directory';
+comment on column content_in_dir.blob is 'Content internal identifier';
+comment on column content_in_dir.dir is 'Directory internal identifier';
+comment on column content_in_dir.loc is 'Location of content in directory';
 
 
 drop table if exists directory;
 create table directory
 (
-    id      sha1_git primary key,   -- id of the directory appearing in an isochrone inner frontier
-    date    timestamptz not null    -- max timestamp among those of the directory children's
+    id      bigserial primary key,      -- internal identifier of the directory appearing in an isochrone inner frontier
+    sha1    sha1_git unique not null,   -- intrinsic identifier of the directory
+    date    timestamptz not null        -- max timestamp among those of the directory children's
 );
 
-comment on column directory.id is 'Directory identifier';
+comment on column directory.id is 'Directory internal identifier';
+comment on column directory.sha1 is 'Directory intrinsic identifier';
 comment on column directory.date is 'Latest timestamp for the content in the directory';
 
 
 drop table if exists directory_in_rev;
 create table directory_in_rev
 (
-    dir     sha1_git not null,  -- id of the directory appearing in the revision
-    rev     sha1_git not null,  -- id of the revision containing the directory
-    path    unix_path not null, -- path to the directory relative to the revision root directory
-    primary key (dir, rev, path)
+    dir     bigint not null,            -- internal identifier of the directory appearing in the revision
+    rev     bigint not null,            -- internal identifier of the revision containing the directory
+    loc     bigint not null,            -- location of the directory relative to the revision root directory
+    primary key (dir, rev, loc)
     -- foreign key (dir) references directory (id),
-    -- foreign key (rev) references revision (id)
+    -- foreign key (rev) references revision (id),
+    -- foreign key (loc) references location (id)
 );
 
-comment on column directory_in_rev.dir is 'Directory identifier';
-comment on column directory_in_rev.rev is 'Revision identifier';
-comment on column directory_in_rev.path is 'Path to directory in revision';
+comment on column directory_in_rev.dir is 'Directory internal identifier';
+comment on column directory_in_rev.rev is 'Revision internal identifier';
+comment on column directory_in_rev.loc is 'Location of directory in revision';
+
+
+drop table if exists location;
+create table location
+(
+    id      bigserial primary key,      -- internal identifier of the location
+    path    unix_path unique not null   -- path to the location
+);
+
+comment on column location.id is 'Location internal identifier';
+comment on column location.path is 'Path to the location';
+
 
 drop table if exists origin;
 create table origin
 (
-    id      bigserial primary key,  -- id of the origin
-    url     unix_path unique        -- url of the origin
+    id      bigserial primary key,      -- internal identifier of the origin
+    url     unix_path unique not null   -- url of the origin
 );
 
 comment on column origin.id is 'Origin internal identifier';
@@ -90,12 +109,15 @@ comment on column origin.url is 'URL of the origin';
 drop table if exists revision;
 create table revision
 (
-    id      sha1_git primary key,   -- id of the revision
-    date    timestamptz not null,   -- timestamp of the revision
-    org     bigint                  -- id of the prefered origin
+    id      bigserial primary key,      -- internal identifier of the revision
+    sha1    sha1_git unique not null,   -- intrinsic identifier of the revision
+    date    timestamptz not null,       -- timestamp of the revision
+    org     bigint                      -- id of the prefered origin
+    -- foreign key (org) references origin (id)
 );
 
-comment on column revision.id is 'Revision identifier';
+comment on column revision.id is 'Revision internal identifier';
+comment on column revision.sha1 is 'Revision intrinsic identifier';
 comment on column revision.date is 'Revision timestamp';
 comment on column revision.org is 'Prefered origin for the revision';
 
@@ -103,22 +125,26 @@ comment on column revision.org is 'Prefered origin for the revision';
 drop table if exists revision_before_rev;
 create table revision_before_rev
 (
-    prev    sha1_git not null,      -- id of the source revision
-    next    sha1_git not null,      -- id of the destination revision
+    prev    bigserial not null,         -- internal identifier of the source revision
+    next    bigserial not null,         -- internal identifier of the destination revision
     primary key (prev, next)
+    -- foreign key (prev) references revision (id),
+    -- foreign key (next) references revision (id)
 );
 
-comment on column revision_before_rev.prev is 'Source revision identifier';
-comment on column revision_before_rev.next is 'Destination revision identifier';
+comment on column revision_before_rev.prev is 'Source revision internal identifier';
+comment on column revision_before_rev.next is 'Destination revision internal identifier';
 
 
 drop table if exists revision_in_org;
 create table revision_in_org
 (
-    rev     sha1_git not null,      -- id of the revision poined by the origin
-    org     bigint not null,        -- id of the origin that points to the revision
+    rev     bigint not null,            -- internal identifier of the revision poined by the origin
+    org     bigint not null,            -- internal identifier of the origin that points to the revision
     primary key (rev, org)
+    -- foreign key (rev) references revision (id),
+    -- foreign key (org) references origin (id)
 );
 
-comment on column revision_in_org.rev is 'Revision identifier';
-comment on column revision_in_org.org is 'Origin identifier';
+comment on column revision_in_org.rev is 'Revision internal identifier';
+comment on column revision_in_org.org is 'Origin internal identifier';

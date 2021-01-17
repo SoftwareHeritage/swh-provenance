@@ -268,7 +268,11 @@ def revision_process_content(
             # Get the list of ids with no duplicates to ensure we have available dates
             # for all the elements. This prevents taking a wrong decision when a blob
             # occurs more than once in the same directory.
-            ids = list(dict.fromkeys([child.id for child in blobs + subdirs]))
+            ids = list(
+                dict.fromkeys(
+                    [child.id for child in blobs] + [child.id for child in subdirs]
+                )
+            )
             if ids:
                 # Known dates for the blobs in the current directory.
                 blobdates = provenance.content_get_early_dates(blobs)

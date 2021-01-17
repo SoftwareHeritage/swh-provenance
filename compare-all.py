@@ -17,11 +17,11 @@ conninfo1 = {
 }
 conninfo2 = {
     "cls": "ps",
-    "db": {"host": "/var/run/postgresql", "port": "5436", "dbname": "revisited"},
+    "db": {"host": "/var/run/postgresql", "port": "5436", "dbname": "withids"},
 }
 
 
-# Write log file.
+# Write log file with occurrence detail.
 def logdiff(filename, occurrences):
     with io.open(filename, "a") as outfile:
         for row in occurrences:
@@ -37,6 +37,17 @@ def logdiff(filename, occurrences):
                     rev=hash_to_hex(row[1]),
                     date=row[2],
                     path=path,
+                )
+            )
+
+
+# Write log file with list of occurrences.
+def loglist(filename, occurrences):
+    with io.open(filename, "a") as outfile:
+        for blobid in occurrences:
+            outfile.write(
+                "{blob}\n".format(
+                    blob=hash_to_hex(blobid)
                 )
             )
 
@@ -104,7 +115,7 @@ if __name__ == "__main__":
     provenance1.cursor.execute("""SELECT id FROM content ORDER BY id""")
     content1 = set(map(lambda row: row[0], provenance1.cursor.fetchall()))
 
-    provenance2.cursor.execute("""SELECT id FROM content ORDER BY id""")
+    provenance2.cursor.execute("""SELECT sha1 FROM content ORDER BY sha1""")
     content2 = set(map(lambda row: row[0], provenance2.cursor.fetchall()))
 
     if content1 == content2:
@@ -115,7 +126,41 @@ if __name__ == "__main__":
         mismatch = False
         # Iterate over all content querying all its occurrences on both databases.
         for i, blobid in enumerate(content1):
-            occurrences1 = list(provenance1.content_find_all(blobid))
+            provenance1.cursor.execute(
+	            """(SELECT content_early_in_rev.blob,
+                           content_early_in_rev.rev, 
+                           revision.date,
+                           content_early_in_rev.path
+                     FROM content_early_in_rev
+                     JOIN revision
+                       ON revision.id=content_early_in_rev.rev
+                     WHERE content_early_in_rev.blob=%s
+                   )
+                   UNION
+                   (SELECT content_in_rev.blob,
+                           content_in_rev.rev,
+                           revision.date,
+                           content_in_rev.path
+                     FROM (SELECT content_in_dir.blob,
+                                  directory_in_rev.rev,
+                                  CASE directory_in_rev.path
+                                    WHEN '' THEN content_in_dir.path
+                                    WHEN '.' THEN content_in_dir.path
+                                    ELSE (directory_in_rev.path || '/' ||
+                                             content_in_dir.path)::unix_path
+                                  END AS path
+                            FROM content_in_dir
+                            JOIN directory_in_rev
+                              ON content_in_dir.dir=directory_in_rev.dir
+                            WHERE content_in_dir.blob=%s
+                          ) AS content_in_rev
+                     JOIN revision
+                       ON revision.id=content_in_rev.rev
+                   )
+                   ORDER BY date, rev, path""",
+                (blobid, blobid),
+            )
+            occurrences1 = list(provenance1.cursor.fetchall())
             occurrences2 = list(provenance2.content_find_all(blobid))
 
             # If there is a mismatch log it to file.
@@ -135,5 +180,6 @@ if __name__ == "__main__":
 
     else:
         # If lists of content don't match, we are done.
-        # TODO: maybe log difference?
+        loglist(outfilename(conninfo1["db"]["dbname"]), content1)
+        loglist(outfilename(conninfo2["db"]["dbname"]), content2)
         logging.warning("Content lists are different")

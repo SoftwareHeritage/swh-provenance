@@ -29,9 +29,9 @@ class ArchivePostgreSQL(ArchiveInterface):
             """WITH
             dir  AS (SELECT id AS dir_id, dir_entries, file_entries, rev_entries
                         FROM directory WHERE id=%s),
-            ls_d AS (SELECT dir_id, unnest(dir_entries) AS entry_id from dir),
-            ls_f AS (SELECT dir_id, unnest(file_entries) AS entry_id from dir),
-            ls_r AS (SELECT dir_id, unnest(rev_entries) AS entry_id from dir)
+            ls_d AS (SELECT dir_id, UNNEST(dir_entries)  AS entry_id FROM dir),
+            ls_f AS (SELECT dir_id, UNNEST(file_entries) AS entry_id FROM dir),
+            ls_r AS (SELECT dir_id, UNNEST(rev_entries)  AS entry_id FROM dir)
             (SELECT 'dir'::directory_entry_type AS type, e.target, e.name,
                     NULL::sha1_git
                 FROM ls_d

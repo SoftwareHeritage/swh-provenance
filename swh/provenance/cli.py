@@ -111,13 +111,21 @@ def cli(ctx, config_file: Optional[str], profile: str):
 def create(ctx, name):
     """Create new provenance database."""
     from .postgresql.db_utils import connect
-    from .postgresql.provenance import create_database
 
     # Connect to server without selecting a database
     conninfo = ctx.obj["config"]["provenance"]["db"]
     conn = connect(conninfo)
 
-    create_database(conn, conninfo, name)
+    if ctx.obj["config"]["provenance"]["cls"] == "ps":
+        from .postgresql.provenance import create_database
+
+        create_database(conn, conninfo, name)
+    elif ctx.obj["config"]["provenance"]["cls"] == "ps_np":
+        from .postgresql_nopath.provenance import create_database
+
+        create_database(conn, conninfo, name)
+    else:
+        raise NotImplementedError
 
 
 @cli.command(name="iter-revisions")

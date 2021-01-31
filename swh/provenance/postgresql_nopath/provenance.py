@@ -7,16 +7,12 @@ import psycopg2.extras
 
 from ..model import DirectoryEntry, FileEntry
 from ..origin import OriginEntry
-from .db_utils import connect, execute_sql
+from ..postgresql.db_utils import connect, execute_sql
 from ..provenance import ProvenanceInterface
 from ..revision import RevisionEntry
 
 from datetime import datetime
 from typing import Any, Dict, Generator, List, Optional, Tuple
-
-
-def normalize(path: bytes) -> bytes:
-    return path[2:] if path.startswith(bytes("." + os.path.sep, "utf-8")) else path
 
 
 def create_database(conn: psycopg2.extensions.connection, conninfo: dict, name: str):
@@ -44,7 +40,7 @@ def create_database(conn: psycopg2.extensions.connection, conninfo: dict, name: 
 ########################################################################################
 
 
-class ProvenancePostgreSQL(ProvenanceInterface):
+class ProvenancePostgreSQLNoPath(ProvenanceInterface):
     def __init__(self, conn: psycopg2.extensions.connection):
         # TODO: consider adding a mutex for thread safety
         conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
@@ -58,10 +54,10 @@ class ProvenancePostgreSQL(ProvenanceInterface):
     def clear_caches(self):
         self.insert_cache = {
             "content": dict(),
-            "content_early_in_rev": list(),
-            "content_in_dir": list(),
+            "content_early_in_rev": set(),
+            "content_in_dir": set(),
             "directory": dict(),
-            "directory_in_rev": list(),
+            "directory_in_rev": set(),
             "revision": dict(),
             "revision_before_rev": list(),
             "revision_in_org": list(),
@@ -85,116 +81,76 @@ class ProvenancePostgreSQL(ProvenanceInterface):
     def content_add_to_directory(
         self, directory: DirectoryEntry, blob: FileEntry, prefix: bytes
     ):
-        self.insert_cache["content_in_dir"].append(
-            (blob.id, directory.id, normalize(os.path.join(prefix, blob.name)))
-        )
+        self.insert_cache["content_in_dir"].add((blob.id, directory.id))
 
     def content_add_to_revision(
         self, revision: RevisionEntry, blob: FileEntry, prefix: bytes
     ):
-        self.insert_cache["content_early_in_rev"].append(
-            (blob.id, revision.id, normalize(os.path.join(prefix, blob.name)))
-        )
+        self.insert_cache["content_early_in_rev"].add((blob.id, revision.id))
 
     def content_find_first(
         self, blobid: bytes
     ) -> Optional[Tuple[bytes, bytes, datetime, bytes]]:
         self.cursor.execute(
-            """SELECT content_location.sha1 AS blob,
-                      revision.sha1 AS rev,
-                      revision.date AS date,
-                      content_location.path AS path
-                 FROM (SELECT content_hex.sha1,
-                              content_hex.rev,
-                              location.path
-                        FROM (SELECT content.sha1,
-                                     content_early_in_rev.rev,
-                                     content_early_in_rev.loc
-                               FROM content_early_in_rev
-                               JOIN content
-                                 ON content.id=content_early_in_rev.blob
-                               WHERE content.sha1=%s
-                             ) AS content_hex
-                        JOIN location
-                            ON location.id=content_hex.loc
-                      ) AS content_location
+            """SELECT revision.sha1 AS rev,
+                      revision.date AS date
+                 FROM (SELECT content_early_in_rev.rev
+                          FROM content_early_in_rev
+                          JOIN content
+                            ON content.id=content_early_in_rev.blob
+                          WHERE content.sha1=%s
+                      ) AS content_in_rev
                  JOIN revision
-                   ON revision.id=content_location.rev
-                 ORDER BY date, rev, path ASC LIMIT 1""",
+                   ON revision.id=content_in_rev.rev
+                 ORDER BY date, rev ASC LIMIT 1""",
             (blobid,),
         )
-        return self.cursor.fetchone()
+        row = self.cursor.fetchone()
+        if row is not None:
+            # TODO: query revision from the archive and look for blobid into a
+            # recursive directory_ls of the revision's root.
+            return blobid, row[0], row[1], b""
+        return None
 
     def content_find_all(
         self, blobid: bytes
     ) -> Generator[Tuple[bytes, bytes, datetime, bytes], None, None]:
         self.cursor.execute(
-            """(SELECT content_location.sha1 AS blob,
-                       revision.sha1 AS rev,
-                       revision.date AS date,
-                       content_location.path AS path
-                 FROM (SELECT content_hex.sha1,
-                              content_hex.rev,
-                              location.path
-                        FROM (SELECT content.sha1,
-                                     content_early_in_rev.rev,
-                                     content_early_in_rev.loc
-                               FROM content_early_in_rev
-                               JOIN content
-                                 ON content.id=content_early_in_rev.blob
-                               WHERE content.sha1=%s
-                             ) AS content_hex
-                        JOIN location
-                          ON location.id=content_hex.loc
-                      ) AS content_location
+            """(SELECT revision.sha1 AS rev,
+                       revision.date AS date
+                 FROM (SELECT content_early_in_rev.rev
+                          FROM content_early_in_rev
+                          JOIN content
+                            ON content.id=content_early_in_rev.blob
+                          WHERE content.sha1=%s
+                      ) AS content_in_rev
                  JOIN revision
-                   ON revision.id=content_location.rev
+                   ON revision.id=content_in_rev.rev
                  )
                UNION
-               (SELECT content_prefix.sha1 AS blob,
-                       revision.sha1 AS rev,
-                       revision.date AS date,
-                       content_prefix.path AS path
-                 FROM (SELECT content_in_rev.sha1,
-                              content_in_rev.rev,
-                              CASE location.path
-                                WHEN '' THEN content_in_rev.suffix
-                                WHEN '.' THEN content_in_rev.suffix
-                                ELSE (location.path || '/' ||
-                                         content_in_rev.suffix)::unix_path
-                              END AS path
-                        FROM (SELECT content_suffix.sha1,
-                                     directory_in_rev.rev,
-                                     directory_in_rev.loc,
-                                     content_suffix.path AS suffix
-                               FROM (SELECT content_hex.sha1,
-                                            content_hex.dir,
-                                            location.path
-                                      FROM (SELECT content.sha1,
-                                                   content_in_dir.dir,
-                                                   content_in_dir.loc
-                                             FROM content_in_dir
-                                             JOIN content
-                                               ON content_in_dir.blob=content.id
-                                             WHERE content.sha1=%s
-                                           ) AS content_hex
-                                      JOIN location
-                                        ON location.id=content_hex.loc
-                                    ) AS content_suffix
-                               JOIN directory_in_rev
-                                 ON directory_in_rev.dir=content_suffix.dir
-                             ) AS content_in_rev
-                        JOIN location
-                          ON location.id=content_in_rev.loc
-                      ) AS content_prefix
+               (SELECT revision.sha1 AS rev,
+                       revision.date AS date
+                 FROM (SELECT directory_in_rev.rev
+                          FROM (SELECT content_in_dir.dir
+                                   FROM content_in_dir
+                                   JOIN content
+                                     ON content_in_dir.blob=content.id
+                                   WHERE content.sha1=%s
+                               ) AS content_dir
+                          JOIN directory_in_rev
+                            ON directory_in_rev.dir=content_dir.dir
+                      ) AS content_in_rev
                  JOIN revision
-                   ON revision.id=content_prefix.rev
+                   ON revision.id=content_in_rev.rev
                )
-               ORDER BY date, rev, path""",
+               ORDER BY date, rev""",
             (blobid, blobid),
         )
         # TODO: use POSTGRESQL EXPLAIN looking for query optimizations.
-        yield from self.cursor.fetchall()
+        for row in self.cursor.fetchall():
+            # TODO: query revision from the archive and look for blobid into a
+            # recursive directory_ls of the revision's root.
+            yield blobid, row[0], row[1], b""
 
     def content_get_early_date(self, blob: FileEntry) -> Optional[datetime]:
         # First check if the date is being modified by current transection.
@@ -245,9 +201,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
     def directory_add_to_revision(
         self, revision: RevisionEntry, directory: DirectoryEntry, path: bytes
     ):
-        self.insert_cache["directory_in_rev"].append(
-            (directory.id, revision.id, normalize(path))
-        )
+        self.insert_cache["directory_in_rev"].add((directory.id, revision.id))
 
     def directory_get_date_in_isochrone_frontier(
         self, directory: DirectoryEntry
@@ -392,26 +346,9 @@ class ProvenancePostgreSQL(ProvenanceInterface):
         )
         src1_values = dict(self.cursor.fetchall())
 
-        # Resolve location ids
-        location = dict().fromkeys(
-            map(operator.itemgetter(2), self.insert_cache[dst_table])
-        )
-        location = dict(
-            psycopg2.extras.execute_values(
-                self.cursor,
-                """LOCK TABLE ONLY location;
-                   INSERT INTO location(path) VALUES %s
-                     ON CONFLICT (path) DO
-                       UPDATE SET path=EXCLUDED.path
-                     RETURNING path, id""",
-                map(lambda path: (path,), location.keys()),
-                fetch=True,
-            )
-        )
-
         # Insert values in dst_table
         rows = map(
-            lambda row: (src0_values[row[0]], src1_values[row[1]], location[row[2]]),
+            lambda row: (src0_values[row[0]], src1_values[row[1]]),
             self.insert_cache[dst_table],
         )
         psycopg2.extras.execute_values(

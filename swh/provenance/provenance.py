@@ -31,7 +31,9 @@ class ProvenanceInterface:
     ):
         raise NotImplementedError
 
-    def content_find_first(self, blobid: bytes) -> Tuple[bytes, bytes, datetime, bytes]:
+    def content_find_first(
+        self, blobid: bytes
+    ) -> Optional[Tuple[bytes, bytes, datetime, bytes]]:
         raise NotImplementedError
 
     def content_find_all(
@@ -413,8 +415,8 @@ def revision_process_content(
 
         else:
             # The directory has already been seen on the outer isochrone frontier of an
-            # earlier revision. Just add it to the current revision.
-            provenance.directory_add_to_revision(revision, current, prefix)
+            # earlier revision. Just stop the recursion here.
+            pass
 
     if root.name in outerdirs:
         # Only the root directory should be considered at this point.

@@ -133,6 +133,7 @@ def create(ctx, name):
 @click.option("-l", "--limit", type=int)
 @click.pass_context
 def iter_revisions(ctx, filename, limit):
+    # TODO: add file size filtering
     """Process a provided list of revisions."""
     from . import get_archive, get_provenance
     from .revision import FileRevisionIterator

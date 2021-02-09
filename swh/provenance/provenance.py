@@ -202,24 +202,17 @@ def revision_add(
 
 
 class IsochroneNode:
-    def __init__(self, entry: TreeEntry, provenance: ProvenanceInterface):
+    def __init__(self, entry: TreeEntry, dates: Dict[bytes, datetime] = {}):
         self.entry = entry
-        self.provenance = provenance
-        self.is_dir = isinstance(self.entry, DirectoryEntry)
-        if self.is_dir:
-            assert isinstance(self.entry, DirectoryEntry)
-            self.date = self.provenance.directory_get_date_in_isochrone_frontier(
-                self.entry
-            )
-            self.children: List[IsochroneNode] = []
-        else:
-            assert isinstance(self.entry, FileEntry)
-            self.date = self.provenance.content_get_early_date(self.entry)
+        self.date = dates.get(self.entry.id, None)
+        self.children: List[IsochroneNode] = []
         self.maxdate: Optional[datetime] = None
 
-    def add_child(self, child: TreeEntry) -> "IsochroneNode":
-        assert self.is_dir and self.date is None
-        node = IsochroneNode(child, self.provenance)
+    def add_child(
+        self, child: TreeEntry, dates: Dict[bytes, datetime] = {}
+    ) -> "IsochroneNode":
+        assert isinstance(self.entry, DirectoryEntry) and self.date is None
+        node = IsochroneNode(child, dates=dates)
         self.children.append(node)
         return node
 
@@ -229,7 +222,8 @@ def build_isochrone_graph(
 ):
     assert revision.date is not None
     # Build the nodes structure
-    root = IsochroneNode(directory, provenance)
+    root = IsochroneNode(directory)
+    root.date = provenance.directory_get_date_in_isochrone_frontier(directory)
     stack = [root]
     while stack:
         current = stack.pop()
@@ -244,17 +238,19 @@ def build_isochrone_graph(
             # Pre-query all known dates for content/directories in the current directory
             # for the provenance object to have them cached and (potentially) improve
             # performance.
-            provenance.content_get_early_dates(
-                [child for child in current.entry if isinstance(child, FileEntry)]
-            )
-            provenance.directory_get_dates_in_isochrone_frontier(
+            ddates = provenance.directory_get_dates_in_isochrone_frontier(
                 [child for child in current.entry if isinstance(child, DirectoryEntry)]
             )
+            fdates = provenance.content_get_early_dates(
+                [child for child in current.entry if isinstance(child, FileEntry)]
+            )
             for child in current.entry:
-                node = current.add_child(child)
-                if node.is_dir:
-                    # Recursively analyse directory nodes.
+                # Recursively analyse directory nodes.
+                if isinstance(child, DirectoryEntry):
+                    node = current.add_child(child, dates=ddates)
                     stack.append(node)
+                else:
+                    current.add_child(child, dates=fdates)
     # Precalculate max known date for each node in the graph.
     stack = [root]
     while stack:
@@ -337,7 +333,7 @@ def is_new_frontier(node: IsochroneNode, revision: RevisionEntry) -> bool:
     # Using the following condition should we should get an algorithm equivalent to old
     # version where frontiers are pushed up in the tree whenever possible.
     return node.maxdate < revision.date
-    # return has_blobs(node) and node.maxdate < revision.date
+    # return node.maxdate < revision.date and has_blobs(node)
 
 
 def has_blobs(node: IsochroneNode) -> bool:

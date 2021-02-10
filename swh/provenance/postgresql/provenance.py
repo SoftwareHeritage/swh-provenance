@@ -19,7 +19,9 @@ def normalize(path: bytes) -> bytes:
     return path[2:] if path.startswith(bytes("." + os.path.sep, "utf-8")) else path
 
 
-def create_database(conn: psycopg2.extensions.connection, conninfo: dict, name: str):
+def create_database(
+    conn: psycopg2.extensions.connection, name: str, drop_db: bool = True
+):
     conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
 
     # Normalize dbname to avoid issues when reconnecting below
@@ -27,11 +29,13 @@ def create_database(conn: psycopg2.extensions.connection, conninfo: dict, name: 
 
     # Create new database dropping previous one if exists
     cursor = conn.cursor()
-    cursor.execute(f"""DROP DATABASE IF EXISTS {name}""")
+    if drop_db:
+        cursor.execute(f"""DROP DATABASE IF EXISTS {name}""")
     cursor.execute(f"""CREATE DATABASE {name}""")
     conn.close()
 
     # Reconnect to server selecting newly created database to add tables
+    conninfo = psycopg2.extensions.parse_dsn(conn.dsn)
     conninfo["dbname"] = name
     conn = connect(conninfo)
 

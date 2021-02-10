@@ -10,7 +10,7 @@ from .storage.archive import ArchiveStorage
 def get_archive(cls: str, **kwargs) -> ArchiveInterface:
     if cls == "api":
         return ArchiveStorage(**kwargs["storage"])
-    elif cls == "ps":
+    elif cls == "direct":
         conn = connect(kwargs["db"])
         return ArchivePostgreSQL(conn)
     else:
@@ -18,11 +18,11 @@ def get_archive(cls: str, **kwargs) -> ArchiveInterface:
 
 
 def get_provenance(cls: str, **kwargs) -> ProvenanceInterface:
-    if cls == "ps":
+    if cls == "local":
         conn = connect(kwargs["db"])
-        return ProvenancePostgreSQL(conn)
-    elif cls == "ps_np":
-        conn = connect(kwargs["db"])
-        return ProvenancePostgreSQLNoPath(conn)
+        if kwargs.get("with_path", True):
+            return ProvenancePostgreSQL(conn)
+        else:
+            return ProvenancePostgreSQLNoPath(conn)
     else:
         raise NotImplementedError

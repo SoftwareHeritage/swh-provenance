@@ -28,14 +28,14 @@ DEFAULT_CONFIG: Dict[str, Any] = {
             "cls": "remote",
             "url": "http://uffizi.internal.softwareheritage.org:5002",
         }
-        # "cls": "ps",
+        # "cls": "local",
         # "db": {
         #     "host": "db.internal.softwareheritage.org",
         #     "dbname": "softwareheritage",
         #     "user": "guest"
         # }
     },
-    "provenance": {"cls": "ps", "db": {"host": "localhost", "dbname": "provenance"}},
+    "provenance": {"cls": "local", "db": {"host": "localhost", "dbname": "provenance"}},
 }
 
 

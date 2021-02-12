@@ -1,7 +1,7 @@
-import io
-import psycopg2
-
 from configparser import ConfigParser
+import io
+
+import psycopg2
 
 
 def config(filename: str, section: str):

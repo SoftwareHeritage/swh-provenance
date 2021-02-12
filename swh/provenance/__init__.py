@@ -1,10 +1,10 @@
 from .archive import ArchiveInterface
-from .provenance import ProvenanceInterface
-from .storage.archive import ArchiveStorage
 from .postgresql.archive import ArchivePostgreSQL
 from .postgresql.db_utils import connect
 from .postgresql.provenance import ProvenancePostgreSQL
 from .postgresql_nopath.provenance import ProvenancePostgreSQLNoPath
+from .provenance import ProvenanceInterface
+from .storage.archive import ArchiveStorage
 
 
 def get_archive(cls: str, **kwargs) -> ArchiveInterface:

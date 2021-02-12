@@ -2,17 +2,17 @@ import itertools
 import logging
 import operator
 import os
+from datetime import datetime
+from typing import Any, Dict, Generator, List, Optional, Tuple
+
 import psycopg2
 import psycopg2.extras
 
 from ..model import DirectoryEntry, FileEntry
 from ..origin import OriginEntry
-from .db_utils import connect, execute_sql
 from ..provenance import ProvenanceInterface
 from ..revision import RevisionEntry
-
-from datetime import datetime
-from typing import Any, Dict, Generator, List, Optional, Tuple
+from .db_utils import connect, execute_sql
 
 
 def normalize(path: bytes) -> bytes:

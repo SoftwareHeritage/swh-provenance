@@ -41,7 +41,7 @@ drop table if exists content_in_dir;
 create table content_in_dir
 (
     blob    bigint not null,            -- internal identifier of the content blob
-    dir     bigint not null,            -- internal identifier of the directory contaning the blob
+    dir     bigint not null,            -- internal identifier of the directory containing the blob
     loc     bigint not null,            -- location of the content relative to its parent directory in the isochrone frontier
     primary key (blob, dir, loc)
     -- foreign key (blob) references content (id),

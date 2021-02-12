@@ -1,12 +1,11 @@
 import os
+from datetime import datetime
+from typing import Dict, Generator, List, Optional, Tuple
 
 from .archive import ArchiveInterface
 from .model import DirectoryEntry, FileEntry, TreeEntry
 from .origin import OriginEntry
 from .revision import RevisionEntry
-
-from datetime import datetime
-from typing import Dict, Generator, List, Optional, Tuple
 
 
 # TODO: consider moving to path utils file together with normalize.
@@ -309,9 +308,7 @@ def revision_process_content(
                 )
                 provenance.directory_add_to_revision(revision, current.entry, path)
                 directory_process_content(
-                    provenance,
-                    directory=current.entry,
-                    relative=current.entry,
+                    provenance, directory=current.entry, relative=current.entry,
                 )
             else:
                 # No point moving the frontier here. Either there are no files or they

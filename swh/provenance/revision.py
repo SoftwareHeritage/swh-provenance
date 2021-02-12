@@ -1,11 +1,10 @@
-import threading
-
-from .archive import ArchiveInterface
-
 from datetime import datetime
+import threading
 from typing import Optional
 
 from swh.model.hashutil import hash_to_bytes
+
+from .archive import ArchiveInterface
 
 
 class RevisionEntry:

@@ -2,6 +2,9 @@ import itertools
 import logging
 import operator
 import os
+from datetime import datetime
+from typing import Any, Dict, Generator, List, Optional, Tuple
+
 import psycopg2
 import psycopg2.extras
 
@@ -10,9 +13,6 @@ from ..origin import OriginEntry
 from ..postgresql.db_utils import connect, execute_sql
 from ..provenance import ProvenanceInterface
 from ..revision import RevisionEntry
-
-from datetime import datetime
-from typing import Any, Dict, Generator, List, Optional, Tuple
 
 
 def create_database(conn: psycopg2.extensions.connection, conninfo: dict, name: str):

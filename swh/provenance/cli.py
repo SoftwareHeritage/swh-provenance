@@ -91,8 +91,8 @@ def cli(ctx, config_file: Optional[str], profile: str):
     ctx.obj["config"] = conf
 
     if profile:
-        import cProfile
         import atexit
+        import cProfile
 
         print("Profiling...")
         pr = cProfile.Profile()
@@ -136,8 +136,8 @@ def iter_revisions(ctx, filename, limit):
     # TODO: add file size filtering
     """Process a provided list of revisions."""
     from . import get_archive, get_provenance
-    from .revision import FileRevisionIterator
     from .provenance import revision_add
+    from .revision import FileRevisionIterator
 
     archive = get_archive(**ctx.obj["config"]["archive"])
     provenance = get_provenance(**ctx.obj["config"]["provenance"])

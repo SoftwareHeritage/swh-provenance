@@ -38,7 +38,7 @@ drop table if exists content_in_dir;
 create table content_in_dir
 (
     blob    bigint not null,            -- internal identifier of the content blob
-    dir     bigint not null,            -- internal identifier of the directory contaning the blob
+    dir     bigint not null,            -- internal identifier of the directory containing the blob
     primary key (blob, dir)
     -- foreign key (blob) references content (id),
     -- foreign key (dir) references directory (id)

@@ -1,25 +1,19 @@
+from typing import Any, Dict, List
+
+from methodtools import lru_cache
 import psycopg2
 
-# import threading
-
 from ..archive import ArchiveInterface
-
-# from functools import lru_cache
-from methodtools import lru_cache
-from typing import Any, Dict, List
 
 
 class ArchivePostgreSQL(ArchiveInterface):
     def __init__(self, conn: psycopg2.extensions.connection):
         self.conn = conn
-        # self.mutex = threading.Lock()
 
     def directory_ls(self, id: bytes) -> List[Dict[str, Any]]:
         # TODO: only call directory_ls_internal if the id is not being queried by
         # someone else. Otherwise wait until results get properly cached.
-        # self.mutex.acquire()
         entries = self.directory_ls_internal(id)
-        # self.mutex.release()
         return entries
 
     @lru_cache(maxsize=1000000)

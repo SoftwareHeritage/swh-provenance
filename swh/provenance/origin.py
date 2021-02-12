@@ -1,9 +1,9 @@
-from .archive import ArchiveInterface
-from .revision import RevisionEntry
-
 from typing import Optional
 
-from swh.model.model import Origin, ObjectType, TargetType
+from swh.model.model import ObjectType, Origin, TargetType
+
+from .archive import ArchiveInterface
+from .revision import RevisionEntry
 
 
 class OriginEntry:

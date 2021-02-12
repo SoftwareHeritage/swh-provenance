@@ -1,9 +1,11 @@
-from ..archive import ArchiveInterface
+from typing import List
 
 # from functools import lru_cache
 from methodtools import lru_cache
-from typing import List
+
 from swh.storage import get_storage
+
+from ..archive import ArchiveInterface
 
 
 class ArchiveStorage(ArchiveInterface):

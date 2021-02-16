@@ -1,19 +1,17 @@
-from typing import List
+from typing import Any, Dict, List
 
 # from functools import lru_cache
 from methodtools import lru_cache
 
 from swh.storage import get_storage
 
-from ..archive import ArchiveInterface
 
-
-class ArchiveStorage(ArchiveInterface):
+class ArchiveStorage:
     def __init__(self, cls: str, **kwargs):
         self.storage = get_storage(cls, **kwargs)
 
     @lru_cache(maxsize=1000000)
-    def directory_ls(self, id: bytes):
+    def directory_ls(self, id: bytes) -> List[Dict[str, Any]]:
         # TODO: filter unused fields
         return [entry for entry in self.storage.directory_ls(id)]
 

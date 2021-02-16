@@ -1,18 +1,17 @@
+from datetime import datetime
 import itertools
 import logging
+from typing import Any, Dict, List, Optional
+
 import psycopg2
 import psycopg2.extras
 
 from ..model import DirectoryEntry, FileEntry
 from ..origin import OriginEntry
-from ..provenance import ProvenanceInterface
 from ..revision import RevisionEntry
 
-from datetime import datetime
-from typing import Any, Dict, List, Optional
 
-
-class ProvenanceDBBase(ProvenanceInterface):
+class ProvenanceDBBase:
     def __init__(self, conn: psycopg2.extensions.connection):
         # TODO: consider adding a mutex for thread safety
         conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)

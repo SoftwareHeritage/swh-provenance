@@ -1,6 +1,8 @@
-import os
 from datetime import datetime
+import os
 from typing import Dict, Generator, List, Optional, Tuple
+
+from typing_extensions import Protocol, runtime_checkable
 
 from .archive import ArchiveInterface
 from .model import DirectoryEntry, FileEntry, TreeEntry
@@ -13,100 +15,103 @@ def is_child(path: bytes, prefix: bytes) -> bool:
     return path != prefix and os.path.dirname(path) == prefix
 
 
-class ProvenanceInterface:
-    def __init__(self, **kwargs):
-        raise NotImplementedError
-
+@runtime_checkable
+class ProvenanceInterface(Protocol):
     def commit(self):
-        raise NotImplementedError
+        """Commit currently ongoing transactions in the backend DB"""
+        ...
 
     def content_add_to_directory(
         self, directory: DirectoryEntry, blob: FileEntry, prefix: bytes
-    ):
-        raise NotImplementedError
+    ) -> None:
+        ...
 
     def content_add_to_revision(
         self, revision: RevisionEntry, blob: FileEntry, prefix: bytes
-    ):
-        raise NotImplementedError
+    ) -> None:
+        ...
 
     def content_find_first(
         self, blobid: bytes
     ) -> Optional[Tuple[bytes, bytes, datetime, bytes]]:
-        raise NotImplementedError
+        ...
 
     def content_find_all(
         self, blobid: bytes
     ) -> Generator[Tuple[bytes, bytes, datetime, bytes], None, None]:
-        raise NotImplementedError
+        ...
 
     def content_get_early_date(self, blob: FileEntry) -> Optional[datetime]:
-        raise NotImplementedError
+        ...
 
     def content_get_early_dates(self, blobs: List[FileEntry]) -> Dict[bytes, datetime]:
-        raise NotImplementedError
+        ...
 
-    def content_set_early_date(self, blob: FileEntry, date: datetime):
-        raise NotImplementedError
+    def content_set_early_date(self, blob: FileEntry, date: datetime) -> None:
+        ...
 
     def directory_add_to_revision(
         self, revision: RevisionEntry, directory: DirectoryEntry, path: bytes
-    ):
-        raise NotImplementedError
+    ) -> None:
+        ...
 
     def directory_get_date_in_isochrone_frontier(
         self, directory: DirectoryEntry
     ) -> Optional[datetime]:
-        raise NotImplementedError
+        ...
 
     def directory_get_dates_in_isochrone_frontier(
         self, dirs: List[DirectoryEntry]
     ) -> Dict[bytes, datetime]:
-        raise NotImplementedError
+        ...
 
-    def directory_invalidate_in_isochrone_frontier(self, directory: DirectoryEntry):
-        raise NotImplementedError
+    def directory_invalidate_in_isochrone_frontier(
+        self, directory: DirectoryEntry
+    ) -> None:
+        ...
 
     def directory_set_date_in_isochrone_frontier(
         self, directory: DirectoryEntry, date: datetime
-    ):
-        raise NotImplementedError
+    ) -> None:
+        ...
 
     def origin_get_id(self, origin: OriginEntry) -> int:
-        raise NotImplementedError
+        ...
 
-    def revision_add(self, revision: RevisionEntry):
-        raise NotImplementedError
+    def revision_add(self, revision: RevisionEntry) -> None:
+        ...
 
     def revision_add_before_revision(
         self, relative: RevisionEntry, revision: RevisionEntry
-    ):
-        raise NotImplementedError
+    ) -> None:
+        ...
 
-    def revision_add_to_origin(self, origin: OriginEntry, revision: RevisionEntry):
-        raise NotImplementedError
+    def revision_add_to_origin(
+        self, origin: OriginEntry, revision: RevisionEntry
+    ) -> None:
+        ...
 
     def revision_get_early_date(self, revision: RevisionEntry) -> Optional[datetime]:
-        raise NotImplementedError
+        ...
 
     def revision_get_preferred_origin(self, revision: RevisionEntry) -> int:
-        raise NotImplementedError
+        ...
 
     def revision_in_history(self, revision: RevisionEntry) -> bool:
-        raise NotImplementedError
+        ...
 
     def revision_set_preferred_origin(
         self, origin: OriginEntry, revision: RevisionEntry
-    ):
-        raise NotImplementedError
+    ) -> None:
+        ...
 
     def revision_visited(self, revision: RevisionEntry) -> bool:
-        raise NotImplementedError
+        ...
 
 
 def directory_process_content(
     provenance: ProvenanceInterface, directory: DirectoryEntry, relative: DirectoryEntry
-):
+) -> None:
     stack = [(directory, b"")]
     while stack:
         current, prefix = stack.pop()
@@ -119,7 +124,7 @@ def directory_process_content(
                 stack.append((child, os.path.join(prefix, child.name)))
 
 
-def origin_add(provenance: ProvenanceInterface, origin: OriginEntry):
+def origin_add(provenance: ProvenanceInterface, origin: OriginEntry) -> None:
     # TODO: refactor to iterate over origin visit statuses and commit only once
     # per status.
     origin.id = provenance.origin_get_id(origin)
@@ -131,7 +136,7 @@ def origin_add(provenance: ProvenanceInterface, origin: OriginEntry):
 
 def origin_add_revision(
     provenance: ProvenanceInterface, origin: OriginEntry, revision: RevisionEntry
-):
+) -> None:
     stack: List[Tuple[Optional[RevisionEntry], RevisionEntry]] = [(None, revision)]
 
     while stack:
@@ -183,7 +188,7 @@ def origin_add_revision(
 
 def revision_add(
     provenance: ProvenanceInterface, archive: ArchiveInterface, revision: RevisionEntry
-):
+) -> None:
     assert revision.date is not None
     assert revision.root is not None
     # Processed content starting from the revision's root directory.
@@ -218,7 +223,7 @@ class IsochroneNode:
 
 def build_isochrone_graph(
     provenance: ProvenanceInterface, revision: RevisionEntry, directory: DirectoryEntry
-):
+) -> IsochroneNode:
     assert revision.date is not None
     # Build the nodes structure
     root = IsochroneNode(directory)
@@ -290,6 +295,7 @@ def revision_process_content(
     stack = [(build_isochrone_graph(provenance, revision, root), root.name)]
     while stack:
         current, path = stack.pop()
+        assert isinstance(current.entry, DirectoryEntry)
         if current.date is not None:
             assert current.date < revision.date
             # Current directory is an outer isochrone frontier for a previously

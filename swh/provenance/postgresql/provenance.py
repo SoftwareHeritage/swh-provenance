@@ -18,31 +18,6 @@ from .db_utils import connect, execute_sql
 def normalize(path: bytes) -> bytes:
     return path[2:] if path.startswith(bytes("." + os.path.sep, "utf-8")) else path
 
-
-def create_database(
-    conn: psycopg2.extensions.connection, name: str, drop_db: bool = True
-):
-    conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
-
-    # Normalize dbname to avoid issues when reconnecting below
-    name = name.casefold()
-
-    # Create new database dropping previous one if exists
-    cursor = conn.cursor()
-    if drop_db:
-        cursor.execute(f"""DROP DATABASE IF EXISTS {name}""")
-    cursor.execute(f"""CREATE DATABASE {name}""")
-    conn.close()
-
-    # Reconnect to server selecting newly created database to add tables
-    conninfo = psycopg2.extensions.parse_dsn(conn.dsn)
-    conninfo["dbname"] = name
-    conn = connect(conninfo)
-
-    sqldir = os.path.dirname(os.path.realpath(__file__))
-    execute_sql(conn, os.path.join(sqldir, "provenance.sql"))
-
-
 ########################################################################################
 ########################################################################################
 ########################################################################################

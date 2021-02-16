@@ -10,7 +10,6 @@ from typing import Any, Dict, Optional
 
 import click
 import yaml
-from psycopg2.extensions import parse_dsn
 
 from swh.core import config
 from swh.core.cli import CONTEXT_SETTINGS
@@ -106,36 +105,17 @@ def cli(ctx, config_file: Optional[str], profile: str):
         atexit.register(exit)
 
 
-@cli.command(name="create")
+@cli.command(name="create", deprecated=True)
 @click.option("--maintenance-db", default=None)
 @click.option("--drop/--no-drop", "drop_db", default=False)
 @click.pass_context
 def create(ctx, maintenance_db, drop_db):
-    """Create new provenance database."""
-    from .postgresql.db_utils import connect
-
-    if ctx.obj["config"]["provenance"]["cls"] != "local":
-        raise ValueError(
-            "Unsupported provenance db cls: %s"
-            % (ctx.obj["config"]["provenance"]["cls"])
-        )
-
-    # Connect to server without selecting a database
-    dsn = ctx.obj["config"]["provenance"]["db"]
-    if isinstance(dsn, str):
-        dsn = parse_dsn(dsn)
-    dbname = dsn.pop("dbname")
-    if maintenance_db:
-        dsn["dbname"] = maintenance_db
-
-    conn = connect(dsn)
-
-    if ctx.obj["config"]["provenance"].get("with_path"):
-        from .postgresql.provenance import create_database
-    else:
-        from .postgresql_nopath.provenance import create_database
-
-    create_database(conn, dbname, drop_db)
+    """Deprecated, please use:
+      swh db create provenance
+    and
+      swh db init provenance
+    instead.
+    """
 
 
 @cli.command(name="iter-revisions")

@@ -5,5 +5,15 @@
 
 
 def test_provenance_fixture(provenance):
+    """Check the 'provenance' fixture produce a working ProvenanceDB object"""
     assert provenance
     provenance.insert_all()  # should be a noop
+
+
+def test_storage(swh_storage_with_objects):
+    """Check the 'swh_storage_with_objects' fixture produce a working Storage
+    object with at least some Content, Revision and Directory in it"""
+    assert swh_storage_with_objects
+    assert swh_storage_with_objects.content_get_random()
+    assert swh_storage_with_objects.directory_get_random()
+    assert swh_storage_with_objects.revision_get_random()

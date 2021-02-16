@@ -10,6 +10,7 @@ import pytest
 
 from swh.core.db.pytest_plugin import postgresql_fact
 from swh.core.utils import numfile_sortkey as sortkey
+from swh.model.tests.swh_model_data import TEST_OBJECTS
 import swh.provenance
 
 SQL_DIR = path.join(path.dirname(swh.provenance.__file__), "sql")
@@ -32,3 +33,25 @@ def provenance(provenance_db):
     )
 
     return ProvenanceDB(provenance_db)
+
+
+@pytest.fixture
+def swh_storage_with_objects(swh_storage):
+    """return a Storage object (postgresql-based by default) with a few of each
+    object type in it
+
+    The inserted content comes from swh.model.tests.swh_model_data.
+    """
+    for obj_type in (
+        "content",
+        "skipped_content",
+        "directory",
+        "revision",
+        "release",
+        "snapshot",
+        "origin",
+        "origin_visit",
+        "origin_visit_status",
+    ):
+        getattr(swh_storage, f"{obj_type}_add")(TEST_OBJECTS[obj_type])
+    return swh_storage

@@ -63,36 +63,38 @@ def iterate_statuses(origins, archive: ArchiveInterface, limit: Optional[int] = 
     for origin in origins:
         for visit in archive.iter_origin_visits(origin.url):
             for status in archive.iter_origin_visit_statuses(origin.url, visit.visit):
-                # TODO: may filter only those whose status is 'full'??
-                targets = []
-                releases = []
-
                 snapshot = archive.snapshot_get_all_branches(status.snapshot)
+                if snapshot is None:
+                    continue
+                # TODO: may filter only those whose status is 'full'??
+                targets_set = set()
+                releases_set = set()
                 if snapshot is not None:
                     for branch in snapshot.branches:
                         if snapshot.branches[branch].target_type == TargetType.REVISION:
-                            targets.append(snapshot.branches[branch].target)
-
+                            targets_set.add(snapshot.branches[branch].target)
                         elif (
                             snapshot.branches[branch].target_type == TargetType.RELEASE
                         ):
-                            releases.append(snapshot.branches[branch].target)
+                            releases_set.add(snapshot.branches[branch].target)
 
                 # This is done to keep the query in release_get small, hence avoiding
                 # a timeout.
-                limit = 100
-                for i in range(0, len(releases), limit):
-                    for release in archive.release_get(releases[i : i + limit]):
+                batchsize = 100
+                releases = list(releases_set)
+                while releases:
+                    for release in archive.release_get(releases[:batchsize]):
                         if release is not None:
                             if release.target_type == ObjectType.REVISION:
-                                targets.append(release.target)
+                                targets_set.add(release.target)
+                    releases[:batchsize] = []
 
                 # This is done to keep the query in revision_get small, hence avoiding
                 # a timeout.
-                revisions = []
-                limit = 100
-                for i in range(0, len(targets), limit):
-                    for revision in archive.revision_get(targets[i : i + limit]):
+                revisions = set()
+                targets = list(targets_set)
+                while targets:
+                    for revision in archive.revision_get(targets[:batchsize]):
                         if revision is not None:
                             parents = list(
                                 map(
@@ -100,12 +102,13 @@ def iterate_statuses(origins, archive: ArchiveInterface, limit: Optional[int] = 
                                     revision.parents,
                                 )
                             )
-                            revisions.append(
+                            revisions.add(
                                 RevisionEntry(archive, revision.id, parents=parents)
                             )
+                    targets[:batchsize] = []
 
-                yield OriginEntry(status.origin, revisions)
+                yield OriginEntry(status.origin, list(revisions))
 
-                idx = idx + 1
+                idx += 1
                 if idx == limit:
                     return

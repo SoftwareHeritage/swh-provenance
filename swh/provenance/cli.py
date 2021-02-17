@@ -127,16 +127,16 @@ def iter_revisions(ctx, filename, limit):
     """Process a provided list of revisions."""
     from . import get_archive, get_provenance
     from .provenance import revision_add
-    from .revision import FileRevisionIterator
+    from .revision import CSVRevisionIterator
 
     archive = get_archive(**ctx.obj["config"]["archive"])
     provenance = get_provenance(**ctx.obj["config"]["provenance"])
-    revisions = FileRevisionIterator(filename, archive, limit=limit)
+    revisions_provider = (
+        line.strip().split(",") for line in open(filename, "r") if line.strip()
+    )
+    revisions = CSVRevisionIterator(revisions_provider, archive, limit=limit)
 
-    while True:
-        revision = revisions.next()
-        if revision is None:
-            break
+    for revision in revisions:
         revision_add(provenance, archive, revision)
 
 

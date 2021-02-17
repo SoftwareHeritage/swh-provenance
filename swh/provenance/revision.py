@@ -1,6 +1,7 @@
 from datetime import datetime
+from itertools import islice
 import threading
-from typing import Optional
+from typing import Iterable, Iterator, Optional, Tuple
 
 from swh.model.hashutil import hash_to_bytes
 
@@ -44,45 +45,45 @@ class RevisionEntry:
 ########################################################################################
 
 
-class RevisionIterator:
-    """Iterator interface."""
+class CSVRevisionIterator:
+    """Iterator over revisions typically present in the given CSV file.
 
-    def __iter__(self):
-        pass
+    The input is an iterator that produces 3 elements per row:
 
-    def __next__(self):
-        pass
+      (id, date, root)
 
-
-class FileRevisionIterator(RevisionIterator):
-    """Iterator over revisions present in the given CSV file."""
+    where:
+    - id: is the id (sha1_git) of the revision
+    - date: is the author date
+    - root: sha1 of the directory
+    """
 
     def __init__(
-        self, filename: str, archive: ArchiveInterface, limit: Optional[int] = None
+        self,
+        revisions: Iterable[Tuple[bytes, datetime, bytes]],
+        archive: ArchiveInterface,
+        limit: Optional[int] = None,
     ):
-        self.file = open(filename)
-        self.idx = 0
-        self.limit = limit
+        self.revisions: Iterator[Tuple[bytes, datetime, bytes]]
+        if limit is not None:
+            self.revisions = islice(revisions, limit)
+        else:
+            self.revisions = iter(revisions)
         self.mutex = threading.Lock()
         self.archive = archive
 
-    def next(self):
-        self.mutex.acquire()
-        line = self.file.readline().strip()
-        if line and (self.limit is None or self.idx < self.limit):
-            self.idx = self.idx + 1
-            id, date, root = line.strip().split(",")
-            self.mutex.release()
+    def __iter__(self):
+        return self
 
+    def __next__(self):
+        with self.mutex:
+            id, date, root = next(self.revisions)
             return RevisionEntry(
                 self.archive,
                 hash_to_bytes(id),
                 date=datetime.fromisoformat(date),
                 root=hash_to_bytes(root),
             )
-        else:
-            self.mutex.release()
-            return None
 
 
 # class ArchiveRevisionIterator(RevisionIterator):

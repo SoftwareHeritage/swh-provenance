@@ -12,6 +12,8 @@ from swh.core.db.pytest_plugin import postgresql_fact
 from swh.core.utils import numfile_sortkey as sortkey
 from swh.model.tests.swh_model_data import TEST_OBJECTS
 import swh.provenance
+from swh.provenance.postgresql.archive import ArchivePostgreSQL
+from swh.provenance.storage.archive import ArchiveStorage
 
 SQL_DIR = path.join(path.dirname(swh.provenance.__file__), "sql")
 SQL_FILES = [
@@ -55,3 +57,13 @@ def swh_storage_with_objects(swh_storage):
     ):
         getattr(swh_storage, f"{obj_type}_add")(TEST_OBJECTS[obj_type])
     return swh_storage
+
+
+@pytest.fixture
+def archive_direct(swh_storage_with_objects):
+    return ArchivePostgreSQL(swh_storage_with_objects.get_db().conn)
+
+
+@pytest.fixture
+def archive_api(swh_storage_with_objects):
+    return ArchiveStorage(swh_storage_with_objects)

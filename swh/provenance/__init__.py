@@ -10,13 +10,13 @@ if TYPE_CHECKING:
 def get_archive(cls: str, **kwargs) -> "ArchiveInterface":
     if cls == "api":
         from swh.provenance.storage.archive import ArchiveStorage
+        from swh.storage import get_storage
 
-        return ArchiveStorage(**kwargs["storage"])
+        return ArchiveStorage(get_storage(**kwargs["storage"]))
     elif cls == "direct":
         from swh.provenance.postgresql.archive import ArchivePostgreSQL
 
-        conn = connect(kwargs["db"])
-        return ArchivePostgreSQL(conn)
+        return ArchivePostgreSQL(connect(kwargs["db"]))
     else:
         raise NotImplementedError
 

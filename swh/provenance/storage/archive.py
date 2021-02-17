@@ -3,12 +3,12 @@ from typing import Any, Dict, List
 # from functools import lru_cache
 from methodtools import lru_cache
 
-from swh.storage import get_storage
+from swh.storage.interface import StorageInterface
 
 
 class ArchiveStorage:
-    def __init__(self, cls: str, **kwargs):
-        self.storage = get_storage(cls, **kwargs)
+    def __init__(self, storage: StorageInterface):
+        self.storage = storage
 
     @lru_cache(maxsize=1000000)
     def directory_ls(self, id: bytes) -> List[Dict[str, Any]]:

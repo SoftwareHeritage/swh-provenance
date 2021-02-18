@@ -9,7 +9,7 @@ from swh.provenance import get_provenance
 # TODO: take conninfo as command line arguments.
 conninfo = {
     "cls": "ps",
-    "db": {"host": "/var/run/postgresql", "port": "5436", "dbname": "ordered"},
+    "db": {"host": "/var/run/postgresql", "port": "5436", "dbname": "begin2m"},
 }
 
 
@@ -52,8 +52,12 @@ if __name__ == "__main__":
         print(f"    total size: {relation_size[table]} bytes ({relation_size[table] / row_count[table]:.2f} per row)")
 
     print("ratios:")
-    print(f" content/revision:              {row_count['content'] / row_count['revision']:.2f}")
-    print(f" content_early_in_rev/content:  {row_count['content_early_in_rev'] / row_count['content']:.2f}")
-    print(f" directory/revision:            {row_count['directory'] / row_count['revision']:.2f}")
-    print(f" content_in_dir/directory:      {row_count['content_in_dir'] / row_count['directory']:.2f}")
-    print(f" directory_in_rev/revision:     {row_count['directory_in_rev'] / row_count['revision']:.2f}")
+    print(f"    content/revision:              {row_count['content'] / row_count['revision']:.2f}")
+    print(f"    content_early_in_rev/content:  {row_count['content_early_in_rev'] / row_count['content']:.2f}")
+    print(f"    content_in_dir/content:        {row_count['content_in_dir'] / row_count['content']:.2f}")
+    print(f"    directory/revision:            {row_count['directory'] / row_count['revision']:.2f}")
+    print(f"    directory_in_rev/directory:    {row_count['directory_in_rev'] / row_count['directory']:.2f}")
+    print(f"    ==============================")
+    print(f"    content_early_in_rev/revision: {row_count['content_early_in_rev'] / row_count['revision']:.2f}")
+    print(f"    content_in_dir/directory:      {row_count['content_in_dir'] / row_count['directory']:.2f}")
+    print(f"    directory_in_rev/revision:     {row_count['directory_in_rev'] / row_count['revision']:.2f}")

@@ -90,13 +90,13 @@ class ProvenanceInterface:
     def revision_get_early_date(self, revision: RevisionEntry) -> Optional[datetime]:
         raise NotImplementedError
 
-    def revision_get_prefered_origin(self, revision: RevisionEntry) -> int:
+    def revision_get_preferred_origin(self, revision: RevisionEntry) -> int:
         raise NotImplementedError
 
     def revision_in_history(self, revision: RevisionEntry) -> bool:
         raise NotImplementedError
 
-    def revision_set_prefered_origin(
+    def revision_set_preferred_origin(
         self, origin: OriginEntry, revision: RevisionEntry
     ):
         raise NotImplementedError
@@ -138,11 +138,11 @@ def origin_add_revision(
     while stack:
         relative, current = stack.pop()
 
-        # Check if current revision has no prefered origin and update if necessary.
-        prefered = provenance.revision_get_prefered_origin(current)
+        # Check if current revision has no preferred origin and update if necessary.
+        preferred = provenance.revision_get_preferred_origin(current)
 
-        if prefered is None:
-            provenance.revision_set_prefered_origin(origin, current)
+        if preferred is None:
+            provenance.revision_set_preferred_origin(origin, current)
         ########################################################################
 
         if relative is None:
@@ -196,7 +196,7 @@ def revision_add(
             provenance, revision, DirectoryEntry(archive, revision.root, b"")
         )
     # TODO: improve this! Maybe using a max attempt counter?
-    # Idealy Provenance class should guarante that a commit never fails.
+    # Ideally Provenance class should guarantee that a commit never fails.
     while not provenance.commit():
         continue
 
@@ -317,7 +317,7 @@ def revision_process_content(
                 # No point moving the frontier here. Either there are no files or they
                 # are being seen for the first time here. Add all blobs to current
                 # revision updating date if necessary, and recursively analyse
-                # subdirectories as canditates to the outer frontier.
+                # subdirectories as candidates to the outer frontier.
                 for child in current.children:
                     if isinstance(child.entry, FileEntry):
                         blob = child.entry
@@ -337,12 +337,29 @@ def is_new_frontier(node: IsochroneNode, revision: RevisionEntry) -> bool:
 
 
 def has_blobs(node: IsochroneNode) -> bool:
-    stack = [node]
-    while stack:
-        current = stack.pop()
-        if any(map(lambda child: isinstance(child.entry, FileEntry), current.children)):
-            return True
-        else:
-            # All children are directory entries.
-            stack.extend(current.children)
-    return False
+    # We may want to look for files in different ways to decide whether to define a
+    # frontier or not:
+    # 1. Only files in current node:
+    # return any(map(lambda child: isinstance(child.entry, FileEntry), node.children))
+    # 2. Files anywhere in the isochrone graph
+    # stack = [node]
+    # while stack:
+    #     current = stack.pop()
+    #     if any(
+    #         map(lambda child: isinstance(child.entry, FileEntry), current.children)):
+    #         return True
+    #     else:
+    #         # All children are directory entries.
+    #         stack.extend(current.children)
+    # return False
+    # 3. Files in the intermediate directories between current node and any previously
+    #    defined frontier:
+    return (
+        any(map(lambda child: isinstance(child.entry, FileEntry), node.children)) or
+        all(
+            map(
+                lambda child: (not (isinstance(child.entry, DirectoryEntry) and child.date is None)) or has_blobs(child),
+                node.children
+            )
+        )
+    )

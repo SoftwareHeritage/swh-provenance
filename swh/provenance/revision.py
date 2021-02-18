@@ -127,12 +127,12 @@ class FileRevisionIterator(RevisionIterator):
 #             return None
 #
 #     def make_record(self, row):
-#         # Only revision with author or commiter date are considered
+#         # Only revision with author or committer date are considered
 #         if row[1] is not None:
 #             # If the revision has author date, it takes precedence
 #             return RevisionEntry(row[0], row[1], row[3])
 #         elif row[2] is not None:
-#             # If not, we use the commiter date
+#             # If not, we use the committer date
 #             return RevisionEntry(row[0], row[2], row[3])
 
 

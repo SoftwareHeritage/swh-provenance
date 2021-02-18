@@ -462,14 +462,14 @@ class ProvenancePostgreSQL(ProvenanceInterface):
                 self.select_cache["revision"][revision.id] = date
         return date
 
-    def revision_get_prefered_origin(self, revision: RevisionEntry) -> int:
+    def revision_get_preferred_origin(self, revision: RevisionEntry) -> int:
         # TODO: adapt this method to consider cached values
         self.cursor.execute(
             """SELECT COALESCE(org,0) FROM revision WHERE sha1=%s""", (revision.id,)
         )
         row = self.cursor.fetchone()
         # None means revision is not in database;
-        # 0 means revision has no prefered origin
+        # 0 means revision has no preferred origin
         return row[0] if row is not None and row[0] != 0 else None
 
     def revision_in_history(self, revision: RevisionEntry) -> bool:
@@ -484,7 +484,7 @@ class ProvenancePostgreSQL(ProvenanceInterface):
         )
         return self.cursor.fetchone() is not None
 
-    def revision_set_prefered_origin(
+    def revision_set_preferred_origin(
         self, origin: OriginEntry, revision: RevisionEntry
     ):
         # TODO: adapt this method to consider cached values

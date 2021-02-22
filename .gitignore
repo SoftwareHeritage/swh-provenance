@@ -3,6 +3,7 @@
 *.log
 *.prof
 *.zip
+.coverage
 .tox
 .vscode
 __pycache__

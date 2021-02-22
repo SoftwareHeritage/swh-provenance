@@ -314,7 +314,9 @@ def revision_process_content(
                 )
                 provenance.directory_add_to_revision(revision, current.entry, path)
                 directory_process_content(
-                    provenance, directory=current.entry, relative=current.entry,
+                    provenance,
+                    directory=current.entry,
+                    relative=current.entry,
                 )
             else:
                 # No point moving the frontier here. Either there are no files or they
@@ -343,7 +345,7 @@ def has_blobs(node: IsochroneNode) -> bool:
     # We may want to look for files in different ways to decide whether to define a
     # frontier or not:
     # 1. Only files in current node:
-    # return any(map(lambda child: isinstance(child.entry, FileEntry), node.children))
+    return any(map(lambda child: isinstance(child.entry, FileEntry), node.children))
     # 2. Files anywhere in the isochrone graph
     # stack = [node]
     # while stack:
@@ -357,12 +359,15 @@ def has_blobs(node: IsochroneNode) -> bool:
     # return False
     # 3. Files in the intermediate directories between current node and any previously
     #    defined frontier:
-    return (
-        any(map(lambda child: isinstance(child.entry, FileEntry), node.children)) or
-        all(
-            map(
-                lambda child: (not (isinstance(child.entry, DirectoryEntry) and child.date is None)) or has_blobs(child),
-                node.children
-            )
-        )
-    )
+    # TODO: complete this!
+    # return any(
+    #     map(lambda child: isinstance(child.entry, FileEntry), node.children)
+    # ) or all(
+    #     map(
+    #         lambda child: (
+    #             not (isinstance(child.entry, DirectoryEntry) and child.date is None)
+    #         )
+    #         or has_blobs(child),
+    #         node.children,
+    #     )
+    # )

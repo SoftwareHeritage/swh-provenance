@@ -28,11 +28,13 @@ def get_provenance(cls: str, **kwargs) -> "ProvenanceInterface":
             from swh.provenance.postgresql.provenancedb_with_path import (
                 ProvenanceWithPathDB,
             )
+
             return ProvenanceWithPathDB(conn)
         else:
             from swh.provenance.postgresql.provenancedb_without_path import (
                 ProvenanceWithoutPathDB,
             )
+
             return ProvenanceWithoutPathDB(conn)
     else:
         raise NotImplementedError

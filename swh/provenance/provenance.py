@@ -238,6 +238,7 @@ def build_isochrone_graph(
             # the revision is being processed out of order.
             if current.date is not None and current.date >= revision.date:
                 provenance.directory_invalidate_in_isochrone_frontier(current.entry)
+                #XXX do not understand why (if) you really use the command above
                 current.date = None
             # Pre-query all known dates for content/directories in the current directory
             # for the provenance object to have them cached and (potentially) improve
@@ -256,12 +257,15 @@ def build_isochrone_graph(
                 else:
                     current.add_child(child, dates=fdates)
     # Precalculate max known date for each node in the graph.
+    # XXX too expensive and not necessary
     stack = [root]
     while stack:
         current = stack.pop()
         if current.date is None:
             if any(map(lambda child: child.maxdate is None, current.children)):
                 # Current node needs to be analysed again after its children.
+                # XXX if only FileEntry child have child.maxdate==None
+                #     maxdate for current can be set
                 stack.append(current)
                 for child in current.children:
                     if isinstance(child.entry, FileEntry):
@@ -269,6 +273,7 @@ def build_isochrone_graph(
                             # File node that has been seen before, just use its known
                             # date.
                             child.maxdate = child.date
+                            #XXX child.date can be > revision.date
                         else:
                             # File node that has never been seen before, use current
                             # revision date.
@@ -282,6 +287,8 @@ def build_isochrone_graph(
                     assert child.maxdate is not None
                     maxdates.append(child.maxdate)
                 current.maxdate = max(maxdates) if maxdates else revision.date
+                #XXX ! : empty dir -> revision.date -> inner isochrone frontier
+                #XXX ! : can be greater than revision.date if filechild.date>revision.date
         else:
             # Directory node in the frontier, just use its known date.
             current.maxdate = current.date

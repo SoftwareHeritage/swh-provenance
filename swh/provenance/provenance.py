@@ -289,7 +289,8 @@ def build_isochrone_graph(
                 for child in current.children:
                     assert child.maxdate is not None
                     maxdates.append(child.maxdate)
-                current.maxdate = max(maxdates) if maxdates else revision.date
+                #current.maxdate = max(maxdates) if maxdates else revision.date
+                current.maxdate = max(maxdates) if maxdates else -1
                 #XXX ! : empty dir -> revision.date -> inner isochrone frontier
                 #XXX ! : can be greater than revision.date if filechild.date>revision.date
         else:
@@ -319,15 +320,17 @@ def revision_process_content(
                 # Outer frontier should be moved to current position in the isochrone
                 # graph. This is the first time this directory is found in the isochrone
                 # frontier.
-                provenance.directory_set_date_in_isochrone_frontier(
-                    current.entry, current.maxdate
-                )
-                provenance.directory_add_to_revision(revision, current.entry, path)
-                directory_process_content(
-                    provenance,
-                    directory=current.entry,
-                    relative=current.entry,
-                )
+                if current.maxdate!=-1:
+                    # exclude tree node with maxdate==-1 (directory node without file node)
+                    provenance.directory_set_date_in_isochrone_frontier(
+                        current.entry, current.maxdate
+                    )
+                    provenance.directory_add_to_revision(revision, current.entry, path)
+                    directory_process_content(
+                        provenance,
+                        directory=current.entry,
+                        relative=current.entry,
+                    )
             else:
                 # No point moving the frontier here. Either there are no files or they
                 # are being seen for the first time here. Add all blobs to current

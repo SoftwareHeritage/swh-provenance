@@ -233,6 +233,7 @@ def build_isochrone_graph(
         current = stack.pop()
         assert isinstance(current.entry, DirectoryEntry)
         if current.date is None or current.date >= revision.date:
+            # XXX: OK it processes all nodes (but not all nodes)
             # If current directory has an associated date in the isochrone frontier that
             # is greater or equal to the current revision's one, it should be ignored as
             # the revision is being processed out of order.
@@ -258,6 +259,7 @@ def build_isochrone_graph(
                     current.add_child(child, dates=fdates)
     # Precalculate max known date for each node in the graph.
     # XXX too expensive and not necessary
+    # XXX ok since it limits itself to the isochrone graph.
     stack = [root]
     while stack:
         current = stack.pop()
@@ -265,7 +267,8 @@ def build_isochrone_graph(
             if any(map(lambda child: child.maxdate is None, current.children)):
                 # Current node needs to be analysed again after its children.
                 # XXX if only FileEntry child have child.maxdate==None
-                #     maxdate for current can be set
+                #     maxdate for current directory node can be set
+                #     without processing it recursively thorugh th estack
                 stack.append(current)
                 for child in current.children:
                     if isinstance(child.entry, FileEntry):
@@ -332,6 +335,8 @@ def revision_process_content(
                 # subdirectories as candidates to the outer frontier.
                 for child in current.children:
                     if isinstance(child.entry, FileEntry):
+                        #XXX can be processed in the build isochrone frontier 
+                        #XXX it may help reducing the conflict if the // version.
                         blob = child.entry
                         if child.date is None or revision.date < child.date:
                             provenance.content_set_early_date(blob, revision.date)

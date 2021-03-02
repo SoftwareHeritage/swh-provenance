@@ -233,13 +233,11 @@ def build_isochrone_graph(
         current = stack.pop()
         assert isinstance(current.entry, DirectoryEntry)
         if current.date is None or current.date >= revision.date:
-            # XXX: OK it processes all nodes (but not all nodes)
             # If current directory has an associated date in the isochrone frontier that
             # is greater or equal to the current revision's one, it should be ignored as
             # the revision is being processed out of order.
             if current.date is not None and current.date >= revision.date:
                 provenance.directory_invalidate_in_isochrone_frontier(current.entry)
-                #XXX do not understand why (if) you really use the command above
                 current.date = None
             # Pre-query all known dates for content/directories in the current directory
             # for the provenance object to have them cached and (potentially) improve
@@ -258,17 +256,12 @@ def build_isochrone_graph(
                 else:
                     current.add_child(child, dates=fdates)
     # Precalculate max known date for each node in the graph.
-    # XXX too expensive and not necessary
-    # XXX ok since it limits itself to the isochrone graph.
     stack = [root]
     while stack:
         current = stack.pop()
         if current.date is None:
             if any(map(lambda child: child.maxdate is None, current.children)):
                 # Current node needs to be analysed again after its children.
-                # XXX if only FileEntry child have child.maxdate==None
-                #     maxdate for current directory node can be set
-                #     without processing it recursively thorugh th estack
                 stack.append(current)
                 for child in current.children:
                     if isinstance(child.entry, FileEntry):
@@ -276,7 +269,6 @@ def build_isochrone_graph(
                             # File node that has been seen before, just use its known
                             # date.
                             child.maxdate = child.date
-                            #XXX child.date can be > revision.date
                         else:
                             # File node that has never been seen before, use current
                             # revision date.
@@ -289,10 +281,7 @@ def build_isochrone_graph(
                 for child in current.children:
                     assert child.maxdate is not None
                     maxdates.append(child.maxdate)
-                #current.maxdate = max(maxdates) if maxdates else revision.date
-                current.maxdate = max(maxdates) if maxdates else -1
-                #XXX ! : empty dir -> revision.date -> inner isochrone frontier
-                #XXX ! : can be greater than revision.date if filechild.date>revision.date
+                current.maxdate = max(maxdates) if maxdates else datetime.min
         else:
             # Directory node in the frontier, just use its known date.
             current.maxdate = current.date
@@ -320,17 +309,15 @@ def revision_process_content(
                 # Outer frontier should be moved to current position in the isochrone
                 # graph. This is the first time this directory is found in the isochrone
                 # frontier.
-                if current.maxdate!=-1:
-                    # exclude tree node with maxdate==-1 (directory node without file node)
-                    provenance.directory_set_date_in_isochrone_frontier(
-                        current.entry, current.maxdate
-                    )
-                    provenance.directory_add_to_revision(revision, current.entry, path)
-                    directory_process_content(
-                        provenance,
-                        directory=current.entry,
-                        relative=current.entry,
-                    )
+                provenance.directory_set_date_in_isochrone_frontier(
+                    current.entry, current.maxdate
+                )
+                provenance.directory_add_to_revision(revision, current.entry, path)
+                directory_process_content(
+                    provenance,
+                    directory=current.entry,
+                    relative=current.entry,
+                )
             else:
                 # No point moving the frontier here. Either there are no files or they
                 # are being seen for the first time here. Add all blobs to current
@@ -338,8 +325,6 @@ def revision_process_content(
                 # subdirectories as candidates to the outer frontier.
                 for child in current.children:
                     if isinstance(child.entry, FileEntry):
-                        #XXX can be processed in the build isochrone frontier 
-                        #XXX it may help reducing the conflict if the // version.
                         blob = child.entry
                         if child.date is None or revision.date < child.date:
                             provenance.content_set_early_date(blob, revision.date)

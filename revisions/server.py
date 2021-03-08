@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import sys
 import zmq
 
 from swh.model.hashutil import hash_to_hex
@@ -21,9 +22,19 @@ conninfo = {
 }
 
 if __name__ == "__main__":
-    # TODO: make this a command line parameter
-    filename = "../../swh-provenance/data/ordered.csv"
-    limit = None
+    # Set minimum logging level to INFO.
+    logging.getLogger().setLevel(logging.INFO)
+
+    if len(sys.argv) < 2:
+        print("usage: server <filename> [limit]")
+        print("where")
+        print("    filename     : csv file containing the list of revisions to be iterated (one per")
+        print("                   line): revision sha1, date in ISO format, root directory sha1.")
+        print("    limit        : max number of revisions to be retrieved from the file.")
+        exit(-1)
+
+    filename = sys.arv[1]
+    limit = int(sys.arv[2]) if len(sys.argv) > 2 else None
     port = 5556
     
     context = zmq.Context()

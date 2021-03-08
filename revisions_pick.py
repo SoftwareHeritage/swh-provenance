@@ -12,7 +12,6 @@ conninfo = {
     "dbname": "softwareheritage",
     "user": "guest"
 }
-# conninfo = 'postgresql://guest@db.internal.softwareheritage.org/softwareheritage'
 
 
 if __name__ == "__main__":
@@ -26,37 +25,19 @@ if __name__ == "__main__":
     print(f'Connection to database: {conninfo}...')
     conn = connect(conninfo)
 
-    low = b'\x0150352e5a43c5b9368990e1dfe0c1510f86de73'
-    high = b'\xffecf10c8c0106a8d66718e29aa6604df441704e'
-    limit = count
+    cursor = conn.cursor()
+    cursor.execute('''SELECT COUNT(*) FROM revision''')
+    total = cursor.fetchone()[0]
 
-    revcur = conn.cursor()
-    revcur.execute('''SELECT id FROM revision
-                      WHERE id BETWEEN %s AND %s LIMIT %s''',
-                      (low, high, limit))
-
-    ids = []
-    for revision in revcur.fetchall():
-        ids.append(revision)
-
-        parcur = conn.cursor()
-        parcur.execute('''SELECT parent_id FROM revision_history
-                          WHERE id=%s''',
-                          (revision))
-        ids.extend(parcur.fetchall())
-
-    # Remove duplicates
-    ids = list(dict().fromkeys(ids))
-    print(f"Found {len(ids)} distinct revisions.")
-
-    revcur.execute('''SELECT id, date, directory FROM revision
-                      WHERE id IN %s AND date IS NOT NULL''',
-                      (tuple(ids),))
-    revisions = list(revcur.fetchall())
+    probability = count / total * 100
+    print(f"Requesting {count} revisions out of {total} (probability {probability}).")
+    cursor.execute('''SELECT id, date, directory FROM revision TABLESAMPLE BERNOULLI(%s)''',
+                      (probability,))
+    revisions = [row for row in cursor.fetchall() if row[1] is not None]
     revisions.sort(key=lambda rev: rev[1])
-    assert len(revisions) >= count
+    # assert len(revisions) >= count
 
-    print(f"Filtering first {count}.")
+    print(f"Filtering first {count} of {len(revisions)} obtained.")
     with io.open(filename, 'w') as outfile:
         for rev in revisions[:count]:
             outfile.write(f'{hash_to_hex(rev[0])},{rev[1]},{hash_to_hex(rev[2])}\n')

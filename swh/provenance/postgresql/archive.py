@@ -3,10 +3,8 @@ from typing import Any, Dict, List
 from methodtools import lru_cache
 import psycopg2
 
-from ..archive import ArchiveInterface
 
-
-class ArchivePostgreSQL(ArchiveInterface):
+class ArchivePostgreSQL:
     def __init__(self, conn: psycopg2.extensions.connection):
         self.conn = conn
 

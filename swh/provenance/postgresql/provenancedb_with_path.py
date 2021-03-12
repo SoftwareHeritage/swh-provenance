@@ -134,7 +134,7 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
     def directory_add_to_revision(
         self, revision: RevisionEntry, directory: DirectoryEntry, path: bytes
     ):
-        self.insert_cache["directory_in_rev"].append(
+        self.insert_cache["directory_in_rev"].add(
             (directory.id, revision.id, normalize(path))
         )
 

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from itertools import islice
 import threading
 from typing import Iterable, Iterator, Optional, Tuple
@@ -20,6 +20,7 @@ class RevisionEntry:
         self.archive = archive
         self.id = id
         self.date = date
+        assert self.date is None or self.date.tzinfo is not None
         self.parents = parents
         self.root = root
 
@@ -78,11 +79,11 @@ class CSVRevisionIterator:
     def __next__(self):
         with self.mutex:
             id, date, root = next(self.revisions)
+            date = datetime.fromisoformat(date)
+            if date.tzinfo is None:
+                date = date.replace(tzinfo=timezone.utc)
             return RevisionEntry(
-                self.archive,
-                hash_to_bytes(id),
-                date=datetime.fromisoformat(date),
-                root=hash_to_bytes(root),
+                self.archive, hash_to_bytes(id), date=date, root=hash_to_bytes(root),
             )
 
 

@@ -1,6 +1,5 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import os
-import pytz
 from typing import Dict, Generator, List, Optional, Tuple
 
 from typing_extensions import Protocol, runtime_checkable
@@ -9,6 +8,8 @@ from .archive import ArchiveInterface
 from .model import DirectoryEntry, FileEntry, TreeEntry
 from .origin import OriginEntry
 from .revision import RevisionEntry
+
+UTCMIN = datetime.min.replace(tzinfo=timezone.utc)
 
 
 @runtime_checkable
@@ -284,13 +285,12 @@ def build_isochrone_graph(
                         # Recursively analyse directory nodes.
                         stack.append(child)
             else:
-                maxdates = []
-                for child in current.children:
-                    assert child.maxdate is not None
-                    maxdates.append(child.maxdate)
-                current.maxdate = (
-                    max(maxdates) if maxdates else datetime.min.replace(tzinfo=pytz.UTC)
-                )
+                maxdates = [
+                    child.maxdate
+                    for child in current.children
+                    if child.maxdate is not None  # mostly to please mypy
+                ]
+                current.maxdate = max(maxdates) if maxdates else UTCMIN
         else:
             # Directory node in the frontier, just use its known date.
             current.maxdate = current.date
@@ -327,9 +327,7 @@ def revision_process_content(
                 )
                 provenance.directory_add_to_revision(revision, current.entry, path)
                 directory_process_content(
-                    provenance,
-                    directory=current.entry,
-                    relative=current.entry,
+                    provenance, directory=current.entry, relative=current.entry,
                 )
             else:
                 # No point moving the frontier here. Either there are no files or they

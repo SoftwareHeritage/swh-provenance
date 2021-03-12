@@ -1,6 +1,4 @@
 from datetime import datetime
-import itertools
-import operator
 import os
 from typing import Generator, Optional, Tuple
 
@@ -140,50 +138,52 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
         )
 
     def insert_location(self, src0_table, src1_table, dst_table):
+        """Insert location entries in `dst_table` from the insert_cache
+
+        Also insert missing location entries in the 'location' table.
+        """
+        # TODO: find a better way of doing this; might be doable in a coupls of
+        # SQL queries (one to insert missing entries in the location' table,
+        # one to insert entries in the dst_table)
+
         # Resolve src0 ids
-        src0_values = dict().fromkeys(
-            map(operator.itemgetter(0), self.insert_cache[dst_table])
-        )
-        values = ", ".join(itertools.repeat("%s", len(src0_values)))
+        src0_sha1s = tuple(set(sha1 for (sha1, _, _) in self.insert_cache[dst_table]))
+        fmt = ",".join(["%s"] * len(src0_sha1s))
         self.cursor.execute(
-            f"""SELECT sha1, id FROM {src0_table} WHERE sha1 IN ({values})""",
-            tuple(src0_values),
+            f"""SELECT sha1, id FROM {src0_table} WHERE sha1 IN ({fmt})""", src0_sha1s,
         )
         src0_values = dict(self.cursor.fetchall())
 
         # Resolve src1 ids
-        src1_values = dict().fromkeys(
-            map(operator.itemgetter(1), self.insert_cache[dst_table])
-        )
-        values = ", ".join(itertools.repeat("%s", len(src1_values)))
+        src1_sha1s = tuple(set(sha1 for (_, sha1, _) in self.insert_cache[dst_table]))
+        fmt = ",".join(["%s"] * len(src1_sha1s))
         self.cursor.execute(
-            f"""SELECT sha1, id FROM {src1_table} WHERE sha1 IN ({values})""",
-            tuple(src1_values),
+            f"""SELECT sha1, id FROM {src1_table} WHERE sha1 IN ({fmt})""", src1_sha1s,
         )
         src1_values = dict(self.cursor.fetchall())
 
-        # Resolve location ids
-        location = dict().fromkeys(
-            map(operator.itemgetter(2), self.insert_cache[dst_table])
+        # insert missing locations
+        locations = tuple(set((loc,) for (_, _, loc) in self.insert_cache[dst_table]))
+        psycopg2.extras.execute_values(
+            self.cursor,
+            """
+            INSERT INTO location(path) VALUES %s
+            ON CONFLICT (path) DO NOTHING
+            """,
+            locations,
         )
-        location = dict(
-            psycopg2.extras.execute_values(
-                self.cursor,
-                """LOCK TABLE ONLY location;
-                   INSERT INTO location(path) VALUES %s
-                     ON CONFLICT (path) DO
-                       UPDATE SET path=EXCLUDED.path
-                     RETURNING path, id""",
-                map(lambda path: (path,), location.keys()),
-                fetch=True,
-            )
+        # fetch location ids
+        fmt = ",".join(["%s"] * len(locations))
+        self.cursor.execute(
+            f"SELECT path, id FROM location WHERE path IN ({fmt})", locations,
         )
+        loc_ids = dict(self.cursor.fetchall())
 
         # Insert values in dst_table
-        rows = map(
-            lambda row: (src0_values[row[0]], src1_values[row[1]], location[row[2]]),
-            self.insert_cache[dst_table],
-        )
+        rows = [
+            (src0_values[sha1_src], src1_values[sha1_dst], loc_ids[loc])
+            for (sha1_src, sha1_dst, loc) in self.insert_cache[dst_table]
+        ]
         psycopg2.extras.execute_values(
             self.cursor,
             f"""INSERT INTO {dst_table} VALUES %s

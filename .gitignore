@@ -1,4 +1,6 @@
+*.c
 *.csv
+*.json
 *.log
 *.txt
 *.zip

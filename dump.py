@@ -12,8 +12,8 @@ from swh.provenance import get_provenance
 
 # TODO: take conninfo as command line arguments.
 conninfo = {
-    "cls": "ps",
-    "db": {"host": "/var/run/postgresql", "port": "5436", "dbname": "synthetic"},
+    "cls": "local",
+    "db": {"host": "/var/run/postgresql", "port": "5436", "dbname": "provenance"},
 }
 
 

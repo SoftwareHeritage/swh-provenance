@@ -12,11 +12,8 @@ from threading import Thread
 
 from datetime import datetime
 from swh.model.hashutil import hash_to_bytes, hash_to_hex
-from swh.provenance import (
-    ArchiveInterface,
-    get_archive,
-    get_provenance
-)
+from swh.provenance import get_archive, get_provenance
+from swh.provenance.archive import ArchiveInterface
 from swh.provenance.provenance import revision_add
 from swh.provenance.revision import RevisionEntry
 from typing import Any, Dict
@@ -25,7 +22,7 @@ from typing import Any, Dict
 # TODO: take this from a configuration file
 conninfo = {
     "archive": {
-        "cls": "ps",
+        "cls": "direct",
         "db": {
             "host": "somerset.internal.softwareheritage.org",
             "port": "5433",
@@ -34,14 +31,13 @@ conninfo = {
         }
     },
     "provenance": {
-        "cls": "ps",
+        "cls": "local",
         "db": {
             "host": "/var/run/postgresql",
             "port": "5436",
-            # "dbname": "postgres"
+            "dbname": "provenance"
         }
     },
-    "server": "tcp://localhost:5556"
 }
 
 
@@ -103,29 +99,18 @@ class Worker(Thread):
 
 if __name__ == "__main__":
     # Check parameters
-    if len(sys.argv) < 3:
-        print("usage: client <processes> <threads>")
+    if len(sys.argv) != 3:
+        print("usage: client <processes> <port>")
         exit(-1)
 
     processes = int(sys.argv[1])
-    threads = int(sys.argv[2])
-    dbname = f"proc{processes}thread{threads}"
+    port = int(sys.argv[2])
+    threads = 1 # int(sys.argv[2])
+    dbname = conninfo["provenance"]["db"]["dbname"]
+    conninfo["server"] = f"tcp://localhost:{port}"
 
     # Set logging level
     # logging.getLogger().setLevel(logging.INFO)
-
-    # Create database
-    logging.info(f"MAIN: creating provenance database {dbname}")
-    status = subprocess.run(
-        ["swh", "provenance", "create", "--name", dbname],
-        capture_output=True
-    )
-    if status.returncode != 0:
-        logging.error("Failed to create provenance database")
-        exit(-1)
-    logging.info(f"MAIN: database {dbname} successfuly created")
-
-    conninfo["provenance"]["db"]["dbname"] = dbname
 
     # Start counter
     start = time.time()

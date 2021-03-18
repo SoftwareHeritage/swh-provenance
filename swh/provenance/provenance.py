@@ -1,5 +1,6 @@
 from datetime import datetime
 import os
+import pytz
 from typing import Dict, Generator, List, Optional, Tuple
 
 from typing_extensions import Protocol, runtime_checkable
@@ -8,11 +9,6 @@ from .archive import ArchiveInterface
 from .model import DirectoryEntry, FileEntry, TreeEntry
 from .origin import OriginEntry
 from .revision import RevisionEntry
-
-
-# TODO: consider moving to path utils file together with normalize.
-def is_child(path: bytes, prefix: bytes) -> bool:
-    return path != prefix and os.path.dirname(path) == prefix
 
 
 @runtime_checkable
@@ -37,7 +33,7 @@ class ProvenanceInterface(Protocol):
         ...
 
     def content_find_all(
-        self, blobid: bytes
+        self, blobid: bytes, limit: Optional[int] = None
     ) -> Generator[Tuple[bytes, bytes, datetime, bytes], None, None]:
         ...
 
@@ -281,7 +277,9 @@ def build_isochrone_graph(
                 for child in current.children:
                     assert child.maxdate is not None
                     maxdates.append(child.maxdate)
-                current.maxdate = max(maxdates) if maxdates else datetime.min
+                current.maxdate = (
+                    max(maxdates) if maxdates else datetime.min.replace(tzinfo=pytz.UTC)
+                )
         else:
             # Directory node in the frontier, just use its known date.
             current.maxdate = current.date
@@ -337,8 +335,27 @@ def is_new_frontier(node: IsochroneNode, revision: RevisionEntry) -> bool:
     assert node.maxdate is not None and revision.date is not None
     # Using the following condition should we should get an algorithm equivalent to old
     # version where frontiers are pushed up in the tree whenever possible.
-    return node.maxdate < revision.date
-    # return node.maxdate < revision.date and has_blobs(node)
+    # return node.maxdate < revision.date  # all content in node is already known
+
+    # Push frontiers up while forbidding them in the root directory of the revision.
+    # return (
+    #     node.maxdate < revision.date  # all content in node is already known
+    #     and node.entry.id != revision.root  # it is not the root directory
+    # )
+
+    # Keep frontiers down in the directory tree with the aim of maximizing their
+    # reusage.
+    # return (
+    #     node.maxdate < revision.date  # all content in node is already known
+    #     and has_blobs(node)  # there is at least one blob in it
+    # )
+
+    # Keep frontiers down and also forbid placing them in the root directory.
+    return (
+        node.maxdate < revision.date  # all content in node is already known
+        and node.entry.id != revision.root  # it is not the root directory
+        and has_blobs(node)  # there is at least one blob in it
+    )
 
 
 def has_blobs(node: IsochroneNode) -> bool:
@@ -359,7 +376,7 @@ def has_blobs(node: IsochroneNode) -> bool:
     # return False
     # 3. Files in the intermediate directories between current node and any previously
     #    defined frontier:
-    # TODO: complete this!
+    # TODO: complete this case!
     # return any(
     #     map(lambda child: isinstance(child.entry, FileEntry), node.children)
     # ) or all(

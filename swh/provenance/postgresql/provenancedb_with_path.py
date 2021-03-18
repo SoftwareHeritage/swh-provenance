@@ -61,71 +61,72 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
         return self.cursor.fetchone()
 
     def content_find_all(
-        self, blobid: bytes
+        self, blobid: bytes, limit: Optional[int] = None
     ) -> Generator[Tuple[bytes, bytes, datetime, bytes], None, None]:
+        early_cut = f"LIMIT {limit}" if limit is not None else ""
         self.cursor.execute(
-            """(SELECT content_location.sha1 AS blob,
-                       revision.sha1 AS rev,
-                       revision.date AS date,
-                       content_location.path AS path
-                 FROM (SELECT content_hex.sha1,
-                              content_hex.rev,
-                              location.path
-                        FROM (SELECT content.sha1,
-                                     content_early_in_rev.rev,
-                                     content_early_in_rev.loc
-                               FROM content_early_in_rev
-                               JOIN content
-                                 ON content.id=content_early_in_rev.blob
-                               WHERE content.sha1=%s
-                             ) AS content_hex
-                        JOIN location
-                          ON location.id=content_hex.loc
-                      ) AS content_location
-                 JOIN revision
-                   ON revision.id=content_location.rev
-                 )
-               UNION
-               (SELECT content_prefix.sha1 AS blob,
-                       revision.sha1 AS rev,
-                       revision.date AS date,
-                       content_prefix.path AS path
-                 FROM (SELECT content_in_rev.sha1,
-                              content_in_rev.rev,
-                              CASE location.path
-                                WHEN '' THEN content_in_rev.suffix
-                                WHEN '.' THEN content_in_rev.suffix
-                                ELSE (location.path || '/' ||
-                                         content_in_rev.suffix)::unix_path
-                              END AS path
-                        FROM (SELECT content_suffix.sha1,
-                                     directory_in_rev.rev,
-                                     directory_in_rev.loc,
-                                     content_suffix.path AS suffix
-                               FROM (SELECT content_hex.sha1,
-                                            content_hex.dir,
-                                            location.path
-                                      FROM (SELECT content.sha1,
-                                                   content_in_dir.dir,
-                                                   content_in_dir.loc
-                                             FROM content_in_dir
-                                             JOIN content
-                                               ON content_in_dir.blob=content.id
-                                             WHERE content.sha1=%s
-                                           ) AS content_hex
-                                      JOIN location
-                                        ON location.id=content_hex.loc
-                                    ) AS content_suffix
-                               JOIN directory_in_rev
-                                 ON directory_in_rev.dir=content_suffix.dir
-                             ) AS content_in_rev
-                        JOIN location
-                          ON location.id=content_in_rev.loc
-                      ) AS content_prefix
-                 JOIN revision
-                   ON revision.id=content_prefix.rev
-               )
-               ORDER BY date, rev, path""",
+            f"""(SELECT content_location.sha1 AS blob,
+                        revision.sha1 AS rev,
+                        revision.date AS date,
+                        content_location.path AS path
+                  FROM (SELECT content_hex.sha1,
+                               content_hex.rev,
+                               location.path
+                         FROM (SELECT content.sha1,
+                                      content_early_in_rev.rev,
+                                      content_early_in_rev.loc
+                                FROM content_early_in_rev
+                                JOIN content
+                                  ON content.id=content_early_in_rev.blob
+                                WHERE content.sha1=%s
+                              ) AS content_hex
+                         JOIN location
+                           ON location.id=content_hex.loc
+                       ) AS content_location
+                  JOIN revision
+                    ON revision.id=content_location.rev
+                  )
+                UNION
+                (SELECT content_prefix.sha1 AS blob,
+                        revision.sha1 AS rev,
+                        revision.date AS date,
+                        content_prefix.path AS path
+                  FROM (SELECT content_in_rev.sha1,
+                               content_in_rev.rev,
+                               CASE location.path
+                                 WHEN '' THEN content_in_rev.suffix
+                                 WHEN '.' THEN content_in_rev.suffix
+                                 ELSE (location.path || '/' ||
+                                          content_in_rev.suffix)::unix_path
+                               END AS path
+                         FROM (SELECT content_suffix.sha1,
+                                      directory_in_rev.rev,
+                                      directory_in_rev.loc,
+                                      content_suffix.path AS suffix
+                                FROM (SELECT content_hex.sha1,
+                                             content_hex.dir,
+                                             location.path
+                                       FROM (SELECT content.sha1,
+                                                    content_in_dir.dir,
+                                                    content_in_dir.loc
+                                              FROM content_in_dir
+                                              JOIN content
+                                                ON content_in_dir.blob=content.id
+                                              WHERE content.sha1=%s
+                                            ) AS content_hex
+                                       JOIN location
+                                         ON location.id=content_hex.loc
+                                     ) AS content_suffix
+                                JOIN directory_in_rev
+                                  ON directory_in_rev.dir=content_suffix.dir
+                              ) AS content_in_rev
+                         JOIN location
+                           ON location.id=content_in_rev.loc
+                       ) AS content_prefix
+                  JOIN revision
+                    ON revision.id=content_prefix.rev
+                )
+                ORDER BY date, rev, path {early_cut}""",
             (blobid, blobid),
         )
         # TODO: use POSTGRESQL EXPLAIN looking for query optimizations.

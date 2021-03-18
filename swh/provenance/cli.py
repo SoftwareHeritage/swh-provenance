@@ -28,7 +28,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
             "cls": "remote",
             "url": "http://uffizi.internal.softwareheritage.org:5002",
         }
-        # "cls": "local",
+        # "cls": "direct",
         # "db": {
         #     "host": "db.internal.softwareheritage.org",
         #     "dbname": "softwareheritage",
@@ -169,8 +169,8 @@ def find_first(ctx, swhid):
     row = provenance.content_find_first(hash_to_bytes(swhid))
     if row is not None:
         print(
-            "{blob}, {rev}, {date}, {path}".format(
-                blob=hash_to_hex(row[0]),
+            "swh:1:cnt:{cnt}, swh:1:rev:{rev}, {date}, {path}".format(
+                cnt=hash_to_hex(row[0]),
                 rev=hash_to_hex(row[1]),
                 date=row[2],
                 path=os.fsdecode(row[3]),
@@ -182,17 +182,18 @@ def find_first(ctx, swhid):
 
 @cli.command(name="find-all")
 @click.argument("swhid")
+@click.option("-l", "--limit", type=int)
 @click.pass_context
-def find_all(ctx, swhid):
+def find_all(ctx, swhid, limit):
     """Find all occurrences of the requested blob."""
     from swh.provenance import get_provenance
 
     provenance = get_provenance(**ctx.obj["config"]["provenance"])
     # TODO: return a dictionary with proper keys for each field
-    for row in provenance.content_find_all(hash_to_bytes(swhid)):
+    for row in provenance.content_find_all(hash_to_bytes(swhid), limit=limit):
         print(
-            "{blob}, {rev}, {date}, {path}".format(
-                blob=hash_to_hex(row[0]),
+            "swh:1:cnt:{cnt}, swh:1:rev:{rev}, {date}, {path}".format(
+                cnt=hash_to_hex(row[0]),
                 rev=hash_to_hex(row[1]),
                 date=row[2],
                 path=os.fsdecode(row[3]),

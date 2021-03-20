@@ -25,7 +25,7 @@ if __name__ == "__main__":
     # Set minimum logging level to INFO.
     logging.getLogger().setLevel(logging.INFO)
 
-    # Get provenance object for both databases and query its lists of content.
+    # Get provenance object.
     provenance = get_provenance(**conninfo)
 
     provenance.cursor.execute("""SELECT sha1, date FROM revision ORDER BY date""")

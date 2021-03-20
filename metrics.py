@@ -46,7 +46,7 @@ def get_tables_stats(provenance: ProvenanceInterface):
 
 
 if __name__ == "__main__":
-    # Get provenance object for both databases and query its lists of content.
+    # Get provenance object.
     provenance = get_provenance(**conninfo)
 
     tables = get_tables_stats(provenance)
@@ -119,40 +119,3 @@ if __name__ == "__main__":
                                     GROUP BY roots.dir""", (b"",))
     directories = list(provenance.cursor.fetchall())
     print(f"Total distinct other uses of frontiers: {len(directories)}")
-
-    # provenance.cursor.execute(f"""SELECT location.path
-    #                                 FROM directory_in_rev
-    #                                 JOIN location
-    #                                   ON directory_in_rev.loc=location.id""")
-    # depths = list(map(lambda row: os.fsdecode(row[0]).count('/'), provenance.cursor.fetchall()))
-    # with io.open("directory_in_rev.json", "w") as outfile:
-    #     outfile.write(json.dumps(depths))
-
-    # provenance.cursor.execute(f"""SELECT location.path
-    #                                 FROM content_in_dir
-    #                                 JOIN location
-    #                                   ON content_in_dir.loc=location.id""")
-    # depths = list(map(lambda row: os.fsdecode(row[0]).count('/'), provenance.cursor.fetchall()))
-    # with io.open("content_in_dir.json", "w") as outfile:
-    #     outfile.write(json.dumps(depths))
-
-
-
-
-
-# Query the 'limit' most common files inside any isochrone frontier.
-# f"SELECT blob, COUNT(blob) AS occur FROM content_early_in_rev GROUP BY blob ORDER BY occur DESC LIMIT {limit}"
-
-# Query the 'limit' most common files outside any isochrone frontier.
-# f"SELECT blob, COUNT(blob) AS occur FROM content_in_dir GROUP BY blob ORDER BY occur DESC LIMIT {limit}"
-# blob 141557 | occur 34610802
-
-# f"SELECT dir FROM directory_in_rev INNER JOIN location ON loc=location.id WHERE location.path=%s"
-
-# f"SELECT blob, COUNT(blob) AS occur FROM content_in_dir GROUP BY blob ORDER BY occur DESC LIMIT {limit}"
-
-# f"SELECT depth, COUNT(depth) AS occur FROM (SELECT ARRAY_LENGTH(STRING_TO_ARRAY(path, '/'), 1) - 1 AS depth FROM location) GROUP BY depth ORDER BY occur ASC"
-
-# f"SELECT path FROM location JOIN content_in_dir ON location.id=content_in_dir.loc WHERE blob=%s GROUP BY path"
-# f"SELECT ENCODE(location.path::bytea, 'escape'), COUNT(*) FROM content_in_dir INNER JOIN location ON loc=location.id WHERE blob=%s GROUP BY 1 ORDER BY 2 DESC"
-# f"SELECT ENCODE(sha1::bytea, 'escape') FROM content WHERE id=%s"

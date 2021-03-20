@@ -24,7 +24,7 @@ if __name__ == "__main__":
         print("usage: find-blob <filename> [limit]")
         exit(-1)
 
-    # Get provenance object for both databases and query its lists of content.
+    # Get provenance object.
     provenance = get_provenance(**conninfo)
 
     obj, swhid = identify_object("content", True, True, sys.argv[1])

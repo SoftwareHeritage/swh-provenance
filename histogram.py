@@ -19,22 +19,22 @@ if __name__ == "__main__":
     tables = ["directory_in_rev", "content_in_dir"]
 
     for table in tables:
-        provenance.cursor.execute(f"""
-            SELECT depths.depth, COUNT(depths.depth)
-              FROM (SELECT 
-                      CASE location.path
-                        WHEN '' THEN 0
-                        WHEN '.' THEN 0
-                        ELSE 1 + CHAR_LENGTH(ENCODE(location.path, 'escape')) - 
-                                 CHAR_LENGTH(REPLACE(ENCODE(location.path, 'escape'), '/', ''))
-                      END AS depth
-                    FROM {table}
-                    JOIN location
-                      ON {table}.loc=location.id
-                   ) AS depths
-              GROUP BY depths.depth
-              ORDER BY depths.depth
-        """)
+        provenance.cursor.execute(
+            f"""SELECT depths.depth, COUNT(depths.depth)
+                  FROM (SELECT 
+                          CASE location.path
+                            WHEN '' THEN 0
+                            WHEN '.' THEN 0
+                            ELSE 1 + CHAR_LENGTH(ENCODE(location.path, 'escape')) - 
+                                     CHAR_LENGTH(REPLACE(ENCODE(location.path, 'escape'), '/', ''))
+                          END AS depth
+                        FROM {table}
+                        JOIN location
+                          ON {table}.loc=location.id
+                       ) AS depths
+                  GROUP BY depths.depth
+                  ORDER BY depths.depth"""
+        )
 
         filename = "depths_" + conninfo["db"]["dbname"] + f"_{table}.csv"
 

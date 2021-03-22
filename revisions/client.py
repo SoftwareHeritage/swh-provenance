@@ -27,26 +27,31 @@ conninfo = {
             "host": "somerset.internal.softwareheritage.org",
             "port": "5433",
             "dbname": "softwareheritage",
-            "user": "guest"
-        }
+            "user": "guest",
+        },
     },
     "provenance": {
         "cls": "local",
-        "db": {
-            "host": "/var/run/postgresql",
-            "port": "5436",
-            "dbname": "provenance"
-        }
+        "db": {"host": "/var/run/postgresql", "port": "5436", "dbname": "provenance"},
     },
 }
 
 
 class Client(Process):
-    def __init__(self, idx: int, threads: int, conninfo : Dict[str, Any]):
+    def __init__(
+        self,
+        idx: int,
+        threads: int,
+        conninfo: Dict[str, Any],
+        lower: bool,
+        mindepth: int,
+    ):
         super().__init__()
         self.idx = idx
         self.threads = threads
         self.conninfo = conninfo
+        self.lower = lower
+        self.mindepth = mindepth
 
     def run(self):
         # Using the same archive object for every worker to share internal caches.
@@ -56,7 +61,7 @@ class Client(Process):
         workers = []
         for idx in range(self.threads):
             logging.info(f"Process {self.idx}: launching thread {idx}")
-            worker = Worker(idx, archive, self.conninfo)
+            worker = Worker(idx, archive, self.conninfo, self.lower, self.mindepth)
             worker.start()
             workers.append(worker)
 
@@ -68,7 +73,14 @@ class Client(Process):
 
 
 class Worker(Thread):
-    def __init__(self, idx: int, archive : ArchiveInterface, conninfo : Dict[str, Any]):
+    def __init__(
+        self,
+        idx: int,
+        archive: ArchiveInterface,
+        conninfo: Dict[str, Any],
+        lower: bool,
+        mindepth: int,
+    ):
         super().__init__()
         self.idx = idx
         self.archive = archive
@@ -76,6 +88,8 @@ class Worker(Thread):
         # Each worker has its own provenance object to isolate
         # the processing of each revision.
         self.provenance = get_provenance(**conninfo["provenance"])
+        self.lower = lower
+        self.mindepth = mindepth
 
     def run(self):
         context = zmq.Context()
@@ -92,20 +106,28 @@ class Worker(Thread):
                 self.archive,
                 hash_to_bytes(message["rev"]),
                 date=datetime.fromisoformat(message["date"]),
-                root=hash_to_bytes(message["root"])
+                root=hash_to_bytes(message["root"]),
             )
-            revision_add(self.provenance, self.archive, revision)
+            revision_add(
+                self.provenance,
+                self.archive,
+                revision,
+                lower=self.lower,
+                mindepth=self.mindepth,
+            )
 
 
 if __name__ == "__main__":
     # Check parameters
-    if len(sys.argv) != 3:
-        print("usage: client <processes> <port>")
+    if len(sys.argv) != 5:
+        print("usage: client <processes> <port> <lower> <mindepth>")
         exit(-1)
 
     processes = int(sys.argv[1])
     port = int(sys.argv[2])
-    threads = 1 # int(sys.argv[2])
+    threads = 1  # int(sys.argv[2])
+    lower = bool(sys.argv[3])
+    mindepth = int(sys.argv[4])
     dbname = conninfo["provenance"]["db"]["dbname"]
     conninfo["server"] = f"tcp://localhost:{port}"
 
@@ -119,7 +141,7 @@ if __name__ == "__main__":
     clients = []
     for idx in range(processes):
         logging.info(f"MAIN: launching process {idx}")
-        client = Client(idx, threads, conninfo)
+        client = Client(idx, threads, conninfo, lower, mindepth)
         client.start()
         clients.append(client)
 
@@ -131,4 +153,4 @@ if __name__ == "__main__":
 
     # Stop counter and report elapsed time
     stop = time.time()
-    print("Elapsed time:", stop-start, "seconds")
+    print("Elapsed time:", stop - start, "seconds")

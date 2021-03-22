@@ -12,7 +12,7 @@ def linecount(filename):
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print('usage: count <infile>')
+        print("usage: count <infile>")
         exit(-1)
 
     print(linecount(sys.argv[1]))

@@ -36,7 +36,9 @@ if __name__ == "__main__":
     first = provenance.content_find_first(sha1)
 
     if first is not None:
-        print("===============================================================================")
+        print(
+            "==============================================================================="
+        )
         print(f"First occurrence of {obj}:")
         print(
             "   content: swh:1:cnt:{cnt}, revision: swh:1:rev:{rev}, date: {date}, location: {path}".format(
@@ -47,7 +49,9 @@ if __name__ == "__main__":
             )
         )
 
-        print("===============================================================================")
+        print(
+            "==============================================================================="
+        )
         if limit is None:
             print(f"All occurrences of {obj}:")
         else:

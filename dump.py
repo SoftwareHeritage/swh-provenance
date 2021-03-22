@@ -58,7 +58,7 @@ if __name__ == "__main__":
                  JOIN content
                    ON content.id=content_location.blob
                  ORDER BY path""",
-            (revision,)
+            (revision,),
         )
         content = list(provenance.cursor.fetchall())
 
@@ -87,14 +87,15 @@ if __name__ == "__main__":
                  JOIN directory
                    ON directory.id=directory_location.dir
                  ORDER BY path""",
-            (revision,)
+            (revision,),
         )
         directories = list(provenance.cursor.fetchall())
 
         for directory, date, path in directories:
             delta = date.timestamp() - timestamp
             location = os.fsdecode(path) + "/"
-            if location == "/": location = "./"
+            if location == "/":
+                location = "./"
             print(dump("D", directory, delta, path=location, table="R-D  "))
 
             # Display content found outside the current isochrone frontier.
@@ -117,7 +118,7 @@ if __name__ == "__main__":
                      JOIN content
                        ON content.id=content_location.blob
                      ORDER BY path""",
-                (directory,)
+                (directory,),
             )
             content = list(provenance.cursor.fetchall())
 

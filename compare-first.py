@@ -44,11 +44,7 @@ def logdiff(filename, occurrence):
 def loglist(filename, occurrences):
     with io.open(filename, "a") as outfile:
         for blobid in occurrences:
-            outfile.write(
-                "{blob}\n".format(
-                    blob=hash_to_hex(blobid)
-                )
-            )
+            outfile.write("{blob}\n".format(blob=hash_to_hex(blobid)))
 
 
 # Output log file name.

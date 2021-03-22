@@ -22,29 +22,25 @@ conninfo = {
             "host": "somerset.internal.softwareheritage.org",
             "port": "5433",
             "dbname": "softwareheritage",
-            "user": "guest"
-        }
+            "user": "guest",
+        },
     },
     "provenance": {
         "cls": "local",
-        "db": {
-            "host": "/var/run/postgresql",
-            "port": "5436",
-            "dbname": "provenance"
-        }
+        "db": {"host": "/var/run/postgresql", "port": "5436", "dbname": "provenance"},
     },
 }
 
 
 def get_tables_stats(provenance: ProvenanceInterface):
     tables = {
-      "content": dict(),
-      "content_early_in_rev": dict(),
-      "content_in_dir": dict(),
-      "directory": dict(),
-      "directory_in_rev": dict(),
-      "location": dict(),
-      "revision": dict()
+        "content": dict(),
+        "content_early_in_rev": dict(),
+        "content_in_dir": dict(),
+        "directory": dict(),
+        "directory_in_rev": dict(),
+        "location": dict(),
+        "revision": dict(),
     }
 
     for table in tables:
@@ -59,20 +55,22 @@ def get_tables_stats(provenance: ProvenanceInterface):
 
         # provenance.cursor.execute(f"SELECT pg_total_relation_size('{table}')")
         # relation_size[table] = provenance.cursor.fetchone()[0]
-        tables[table]["relation_size"] = tables[table]["table_size"] + tables[table]["indexes_size"]
+        tables[table]["relation_size"] = (
+            tables[table]["table_size"] + tables[table]["indexes_size"]
+        )
 
     return tables
 
 
 def init_stats(filename):
     tables = [
-      "content",
-      "content_early_in_rev",
-      "content_in_dir",
-      "directory",
-      "directory_in_rev",
-      "location",
-      "revision"
+        "content",
+        "content_early_in_rev",
+        "content_in_dir",
+        "directory",
+        "directory_in_rev",
+        "location",
+        "revision",
     ]
 
     header = ["revisions count"]
@@ -83,8 +81,8 @@ def init_stats(filename):
         header.append(f"{table} relation size")
 
     with io.open(filename, "w") as outfile:
-        outfile.write(','.join(header))
-        outfile.write('\n')
+        outfile.write(",".join(header))
+        outfile.write("\n")
 
 
 def write_stats(filename, count, tables):
@@ -97,26 +95,34 @@ def write_stats(filename, count, tables):
         line.append(str(stats["relation_size"]))
 
     with io.open(filename, "a") as outfile:
-        outfile.write(','.join(line))
-        outfile.write('\n')
+        outfile.write(",".join(line))
+        outfile.write("\n")
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
         print("usage: server <filename> <port> [limit]")
         print("where")
-        print("    filename     : csv file containing the list of revisions to be iterated (one per")
-        print("                   line): revision sha1, date in ISO format, root directory sha1.")
+        print(
+            "    filename     : csv file containing the list of revisions to be iterated (one per"
+        )
+        print(
+            "                   line): revision sha1, date in ISO format, root directory sha1."
+        )
         print("    port         : server listening port.")
-        print("    limit        : max number of revisions to be retrieved from the file.")
-        print("    stats        : number of iteration after which stats should be taken.")
+        print(
+            "    limit        : max number of revisions to be retrieved from the file."
+        )
+        print(
+            "    stats        : number of iteration after which stats should be taken."
+        )
         exit(-1)
 
     filename = sys.argv[1]
     port = int(sys.argv[2])
     limit = int(sys.argv[3]) if len(sys.argv) > 3 else None
     stats = int(sys.argv[4]) if len(sys.argv) > 3 else None
-    
+
     context = zmq.Context()
     socket = context.socket(zmq.REP)
     socket.bind(f"tcp://*:{port}")
@@ -132,16 +138,18 @@ if __name__ == "__main__":
         line.strip().split(",") for line in open(filename, "r") if line.strip()
     )
 
-    for idx, revision in enumerate(CSVRevisionIterator(revisions_provider, archive, limit=limit)):
+    for idx, revision in enumerate(
+        CSVRevisionIterator(revisions_provider, archive, limit=limit)
+    ):
         if stats is not None and idx != 0 and idx % stats == 0:
             write_stats(statsfile, idx, get_tables_stats(provenance))
 
         # Wait for next request from client
         message = socket.recv()
         message = {
-            "rev" : hash_to_hex(revision.id),
-            "date" : str(revision.date),
-            "root" : hash_to_hex(revision.root)
+            "rev": hash_to_hex(revision.id),
+            "date": str(revision.date),
+            "root": hash_to_hex(revision.root),
         }
         socket.send_json(message)
 

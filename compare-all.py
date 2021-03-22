@@ -45,11 +45,7 @@ def logdiff(filename, occurrences):
 def loglist(filename, occurrences):
     with io.open(filename, "a") as outfile:
         for blobid in occurrences:
-            outfile.write(
-                "{blob}\n".format(
-                    blob=hash_to_hex(blobid)
-                )
-            )
+            outfile.write("{blob}\n".format(blob=hash_to_hex(blobid)))
 
 
 # Output log file name.
@@ -127,7 +123,7 @@ if __name__ == "__main__":
         # Iterate over all content querying all its occurrences on both databases.
         for i, blobid in enumerate(content1):
             provenance1.cursor.execute(
-	            """(SELECT content_early_in_rev.blob,
+                """(SELECT content_early_in_rev.blob,
                            content_early_in_rev.rev, 
                            revision.date,
                            content_early_in_rev.path
@@ -164,9 +160,8 @@ if __name__ == "__main__":
             occurrences2 = list(provenance2.content_find_all(blobid))
 
             # If there is a mismatch log it to file.
-            if (
-                len(occurrences1) != len(occurrences2) or
-                set(occurrences1) != set(occurrences2)
+            if len(occurrences1) != len(occurrences2) or set(occurrences1) != set(
+                occurrences2
             ):
                 mismatch = True
                 logging.warning(f"Occurrencies mismatch for {hash_to_hex(blobid)}")

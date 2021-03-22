@@ -183,7 +183,11 @@ def origin_add_revision(
 
 
 def revision_add(
-    provenance: ProvenanceInterface, archive: ArchiveInterface, revision: RevisionEntry
+    provenance: ProvenanceInterface,
+    archive: ArchiveInterface,
+    revision: RevisionEntry,
+    lower: bool = True,
+    mindepth: int = 1,
 ) -> None:
     assert revision.date is not None
     assert revision.root is not None
@@ -193,7 +197,11 @@ def revision_add(
         provenance.revision_add(revision)
         # TODO: add file size filtering
         revision_process_content(
-            provenance, revision, DirectoryEntry(archive, revision.root, b"")
+            provenance,
+            revision,
+            DirectoryEntry(archive, revision.root, b""),
+            lower=lower,
+            mindepth=mindepth,
         )
     # TODO: improve this! Maybe using a max attempt counter?
     # Ideally Provenance class should guarantee that a commit never fails.
@@ -202,8 +210,11 @@ def revision_add(
 
 
 class IsochroneNode:
-    def __init__(self, entry: TreeEntry, dates: Dict[bytes, datetime] = {}):
+    def __init__(
+        self, entry: TreeEntry, dates: Dict[bytes, datetime] = {}, depth: int = 0
+    ):
         self.entry = entry
+        self.depth = depth
         self.date = dates.get(self.entry.id, None)
         self.children: List[IsochroneNode] = []
         self.maxdate: Optional[datetime] = None
@@ -212,7 +223,7 @@ class IsochroneNode:
         self, child: TreeEntry, dates: Dict[bytes, datetime] = {}
     ) -> "IsochroneNode":
         assert isinstance(self.entry, DirectoryEntry) and self.date is None
-        node = IsochroneNode(child, dates=dates)
+        node = IsochroneNode(child, dates=dates, depth=self.depth + 1)
         self.children.append(node)
         return node
 
@@ -287,7 +298,11 @@ def build_isochrone_graph(
 
 
 def revision_process_content(
-    provenance: ProvenanceInterface, revision: RevisionEntry, root: DirectoryEntry
+    provenance: ProvenanceInterface,
+    revision: RevisionEntry,
+    root: DirectoryEntry,
+    lower: bool = True,
+    mindepth: int = 1,
 ):
     assert revision.date is not None
     stack = [(build_isochrone_graph(provenance, revision, root), root.name)]
@@ -302,7 +317,7 @@ def revision_process_content(
         else:
             # Current directory is not an outer isochrone frontier for any previous
             # revision. It might be eligible for this one.
-            if is_new_frontier(current, revision):
+            if is_new_frontier(current, revision, lower=lower, mindepth=mindepth):
                 assert current.maxdate is not None
                 # Outer frontier should be moved to current position in the isochrone
                 # graph. This is the first time this directory is found in the isochrone
@@ -331,30 +346,19 @@ def revision_process_content(
                         stack.append((child, os.path.join(path, child.entry.name)))
 
 
-def is_new_frontier(node: IsochroneNode, revision: RevisionEntry) -> bool:
+def is_new_frontier(
+    node: IsochroneNode, revision: RevisionEntry, lower: bool = True, mindepth: int = 1
+) -> bool:
     assert node.maxdate is not None and revision.date is not None
-    # Using the following condition should we should get an algorithm equivalent to old
-    # version where frontiers are pushed up in the tree whenever possible.
-    # return node.maxdate < revision.date  # all content in node is already known
-
-    # Push frontiers up while forbidding them in the root directory of the revision.
-    # return (
-    #     node.maxdate < revision.date  # all content in node is already known
-    #     and node.entry.id != revision.root  # it is not the root directory
-    # )
-
-    # Keep frontiers down in the directory tree with the aim of maximizing their
-    # reusage.
-    # return (
-    #     node.maxdate < revision.date  # all content in node is already known
-    #     and has_blobs(node)  # there is at least one blob in it
-    # )
-
-    # Keep frontiers down and also forbid placing them in the root directory.
+    # The only real condition for a directory to be a frontier is that its maxdate is
+    # strictily less than current revision's date. Checking mindepth is meant to skip
+    # root directories (or any arbitrary depth) to improve the result. The option lower
+    # tries to maximize the reusage rate of previously defined frontiers by keeping them
+    # low in the directory tree.
     return (
         node.maxdate < revision.date  # all content in node is already known
-        and node.entry.id != revision.root  # it is not the root directory
-        and has_blobs(node)  # there is at least one blob in it
+        and node.depth >= mindepth  # current node is deeper than the min allowed depth
+        and (has_blobs(node) if lower else True)  # there is at least one blob in it
     )
 
 

@@ -121,8 +121,10 @@ def create(ctx, maintenance_db, drop_db):
 @cli.command(name="iter-revisions")
 @click.argument("filename")
 @click.option("-l", "--limit", type=int)
+@click.option("-m", "--min-depth", default=1, type=int)
+@click.option("-r", "--reuse", default=True, type=bool)
 @click.pass_context
-def iter_revisions(ctx, filename, limit):
+def iter_revisions(ctx, filename, limit, min_depth, reuse):
     # TODO: add file size filtering
     """Process a provided list of revisions."""
     from . import get_archive, get_provenance
@@ -137,7 +139,7 @@ def iter_revisions(ctx, filename, limit):
     revisions = CSVRevisionIterator(revisions_provider, archive, limit=limit)
 
     for revision in revisions:
-        revision_add(provenance, archive, revision)
+        revision_add(provenance, archive, revision, lower=reuse, mindepth=min_depth)
 
 
 @cli.command(name="iter-origins")

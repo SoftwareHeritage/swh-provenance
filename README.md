@@ -27,7 +27,7 @@ archive:
       url: http://uffizi.internal.softwareheritage.org:5002
 
 provenance:
-  cls: ps
+  cls: direct
   db:
     dbname: provenance
     host: localhost

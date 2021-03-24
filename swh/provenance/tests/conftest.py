@@ -5,8 +5,11 @@
 
 import glob
 from os import path
+import re
+from typing import Iterable, Iterator, List
 
 import pytest
+from typing_extensions import TypedDict
 
 from swh.core.api.serializers import msgpack_loads
 from swh.core.db import BaseDb
@@ -84,6 +87,10 @@ def archive_pg(swh_storage_with_objects):
     archive.conn.rollback()
 
 
+def get_datafile(fname):
+    return path.join(path.dirname(__file__), "data", fname)
+
+
 @pytest.fixture
 def CMDBTS_data():
     # imported git tree is https://github.com/grouss/CMDBTS rev 4c5551b496
@@ -145,9 +152,7 @@ def CMDBTS_data():
     #      |- Paris/Purple/g                   94ba40161084e8b80943accd9d24e1f9dd47189b
     #      `- Paris/k                        * cb79b39935c9392fa5193d9f84a6c35dc9c22c75
     data = {"revision": [], "directory": [], "content": []}
-    with open(
-        path.join(path.dirname(__file__), "data", "CMDBTS.msgpack"), "rb"
-    ) as fobj:
+    with open(get_datafile("CMDBTS.msgpack"), "rb") as fobj:
         for etype, value in msgpack_loads(fobj.read()):
             data[etype].append(value)
     return data
@@ -181,3 +186,115 @@ def storage_and_CMDBTS(swh_storage, CMDBTS_data):
         Revision.from_dict(revision) for revision in CMDBTS_data["revision"]
     )
     return swh_storage, CMDBTS_data
+
+
+class SynthRelation(TypedDict):
+    path: str
+    src: bytes
+    dst: bytes
+    rel_ts: float
+
+
+class SynthRevision(TypedDict):
+    sha1: bytes
+    date: float
+    msg: str
+    R_C: List[SynthRelation]
+    R_D: List[SynthRelation]
+    D_C: List[SynthRelation]
+
+
+def synthetic_result(filename: str) -> Iterator[SynthRevision]:
+    """Generates dict representations of synthetic revisions found in the synthetic
+    file (from the data/ directory) given as argument of the generator.
+
+    Generated SynthRevision (typed dict) with the following elements:
+
+      "sha1": (bytes) sha1 of the revision,
+      "date": (float) timestamp of the revision,
+      "msg": (str) commit message of the revision,
+      "R_C": (list) new R---C relations added by this revision
+      "R_D": (list) new R-D   relations added by this revision
+      "D_C": (list) new   D-C relations added by this revision
+
+    Each relation above is a SynthRelation typed dict with:
+
+      "path": (str) location
+      "src": (bytes) sha1 of the source of the relation
+      "dst": (bytes) sha1 of the destination of the relation
+      "rel_ts": (float) timestamp of the target of the relation
+                (related to the timestamp of the revision)
+
+    """
+
+    with open(get_datafile(filename), "r") as fobj:
+        yield from _parse_synthetic_file(fobj)
+
+
+def _parse_synthetic_file(fobj: Iterable[str]) -> Iterator[SynthRevision]:
+    """Read a 'synthetic' file and generate a dict representation of the synthetic
+    revision for each revision listed in the synthetic file.
+    """
+    regs = [
+        "(?P<revname>R[0-9]{4})?",
+        "(?P<reltype>[^| ]*)",
+        "(?P<path>[^|]*?)",
+        "(?P<type>[RDC]) (?P<sha1>[0-9a-z]{40})",
+        "(?P<ts>-?[0-9]+(.[0-9]+)?)",
+    ]
+    regex = re.compile("^ *" + r" *[|] *".join(regs) + r" *$")
+    current_rev: List[dict] = []
+    for m in (regex.match(line) for line in fobj):
+        if m:
+            d = m.groupdict()
+            if d["revname"]:
+                if current_rev:
+                    yield _mk_synth_rev(current_rev)
+                current_rev.clear()
+            current_rev.append(d)
+    if current_rev:
+        yield _mk_synth_rev(current_rev)
+
+
+def _mk_synth_rev(synth_rev) -> SynthRevision:
+    assert synth_rev[0]["type"] == "R"
+    rev = SynthRevision(
+        sha1=bytes.fromhex(synth_rev[0]["sha1"]),
+        date=float(synth_rev[0]["ts"]),
+        msg=synth_rev[0]["revname"],
+        R_C=[],
+        R_D=[],
+        D_C=[],
+    )
+    for row in synth_rev[1:]:
+        if row["reltype"] == "R---C":
+            assert row["type"] == "C"
+            rev["R_C"].append(
+                SynthRelation(
+                    path=row["path"],
+                    src=rev["sha1"],
+                    dst=bytes.fromhex(row["sha1"]),
+                    rel_ts=float(row["ts"]),
+                )
+            )
+        elif row["reltype"] == "R-D":
+            assert row["type"] == "D"
+            rev["R_D"].append(
+                SynthRelation(
+                    path=row["path"],
+                    src=rev["sha1"],
+                    dst=bytes.fromhex(row["sha1"]),
+                    rel_ts=float(row["ts"]),
+                )
+            )
+        elif row["reltype"] == "D-C":
+            assert row["type"] == "C"
+            rev["D_C"].append(
+                SynthRelation(
+                    path=row["path"],
+                    src=rev["R_D"][-1]["dst"],
+                    dst=bytes.fromhex(row["sha1"]),
+                    rel_ts=float(row["ts"]),
+                )
+            )
+    return rev

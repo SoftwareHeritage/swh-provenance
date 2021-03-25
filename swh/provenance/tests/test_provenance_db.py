@@ -5,6 +5,8 @@
 
 import datetime
 
+import pytest
+
 from swh.model.tests.swh_model_data import TEST_OBJECTS
 from swh.provenance.origin import OriginEntry
 from swh.provenance.provenance import origin_add, revision_add
@@ -164,7 +166,14 @@ def test_provenance_content_find_first(provenance, storage_and_CMDBTS, archive_p
         assert int(date.timestamp()) == expected["date"]
 
 
-def test_provenance_db(provenance, storage_and_CMDBTS, archive_pg):
+@pytest.mark.parametrize(
+    "syntheticfile, args",
+    (
+        ("synthetic_noroot_lower.txt", {"lower": True, "mindepth": 1}),
+        ("synthetic_noroot_upper.txt", {"lower": False, "mindepth": 1}),
+    ),
+)
+def test_provenance_db(provenance, storage_and_CMDBTS, archive_pg, syntheticfile, args):
     storage, data = storage_and_CMDBTS
 
     revisions = {rev["id"]: rev for rev in data["revision"]}
@@ -183,7 +192,7 @@ def test_provenance_db(provenance, storage_and_CMDBTS, archive_pg):
         provenance.cursor.execute(f"SELECT count(*) FROM {table}")
         return provenance.cursor.fetchone()[0]
 
-    for synth_rev in synthetic_result("synthetic_noroot_lower.txt"):
+    for synth_rev in synthetic_result(syntheticfile):
         revision = revisions[synth_rev["sha1"]]
         entry = RevisionEntry(
             archive_pg,
@@ -192,7 +201,7 @@ def test_provenance_db(provenance, storage_and_CMDBTS, archive_pg):
             root=revision["directory"],
             parents=revision["parents"],
         )
-        revision_add(provenance, archive_pg, entry)
+        revision_add(provenance, archive_pg, entry, **args)
 
         # each "entry" in the synth file is one new revision
         rows["revision"].add(synth_rev["sha1"])

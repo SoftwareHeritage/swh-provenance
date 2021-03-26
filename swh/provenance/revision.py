@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import iso8601
 from itertools import islice
 import threading
 from typing import Iterable, Iterator, Optional, Tuple
@@ -79,7 +80,7 @@ class CSVRevisionIterator:
     def __next__(self):
         with self.mutex:
             id, date, root = next(self.revisions)
-            date = datetime.fromisoformat(date)
+            date = iso8601.parse_date(date)
             if date.tzinfo is None:
                 date = date.replace(tzinfo=timezone.utc)
             return RevisionEntry(

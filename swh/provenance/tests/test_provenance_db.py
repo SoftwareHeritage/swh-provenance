@@ -212,6 +212,8 @@ def relations(cur, src, dst):
     (
         ("synthetic_lower_1.txt", {"lower": True, "mindepth": 1}),
         ("synthetic_upper_1.txt", {"lower": False, "mindepth": 1}),
+        ("synthetic_lower_2.txt", {"lower": True, "mindepth": 2}),
+        ("synthetic_upper_2.txt", {"lower": False, "mindepth": 2}),
     ),
 )
 def test_provenance_heuristics(

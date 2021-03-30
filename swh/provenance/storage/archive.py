@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, Iterable, List
 
 # from functools import lru_cache
 from methodtools import lru_cache
@@ -32,13 +32,13 @@ class ArchiveStorage:
         # TODO: filter unused fields
         yield from iter_origin_visit_statuses(self.storage, origin, visit)
 
-    def release_get(self, ids: List[bytes]):
+    def release_get(self, ids: Iterable[bytes]):
         # TODO: filter unused fields
-        yield from self.storage.release_get(ids)
+        yield from self.storage.release_get(list(ids))
 
-    def revision_get(self, ids: List[bytes]):
+    def revision_get(self, ids: Iterable[bytes]):
         # TODO: filter unused fields
-        yield from self.storage.revision_get(ids)
+        yield from self.storage.revision_get(list(ids))
 
     def snapshot_get_all_branches(self, snapshot: bytes):
         from swh.storage.algos.snapshot import snapshot_get_all_branches

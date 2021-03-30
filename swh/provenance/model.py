@@ -1,32 +1,75 @@
+# Copyright (C) 2021  The Software Heritage developers
+# See the AUTHORS file at the top-level directory of this distribution
+# License: GNU General Public License version 3, or any later version
+# See top-level LICENSE file for more information
+
+from datetime import datetime
+from typing import Iterable, List, Optional, Union
+
 from .archive import ArchiveInterface
 
 
-class TreeEntry:
+class OriginEntry:
+    def __init__(self, url, revisions: Iterable["RevisionEntry"], id=None):
+        self.id = id
+        self.url = url
+        self.revisions = revisions
+
+
+class RevisionEntry:
+    def __init__(
+        self,
+        id: bytes,
+        date: Optional[datetime] = None,
+        root: Optional[bytes] = None,
+        parents: Optional[Iterable[bytes]] = None,
+    ):
+        self.id = id
+        self.date = date
+        assert self.date is None or self.date.tzinfo is not None
+        self.root = root
+        self._parents = parents
+        self._nodes: List[RevisionEntry] = []
+
+    def parents(self, archive: ArchiveInterface):
+        if self._parents is None:
+            # XXX: no check is done to ensure node.id is a known revision in
+            # the SWH archive
+            self._parents = archive.revision_get([self.id])[0].parents
+            if self._parents:
+                self._nodes = [
+                    RevisionEntry(
+                        id=rev.id,
+                        root=rev.directory,
+                        date=rev.date,
+                        parents=rev.parents,
+                    )
+                    for rev in archive.revision_get(self._parents)
+                    if rev
+                ]
+        yield from self._nodes
+
+
+class DirectoryEntry:
     def __init__(self, id: bytes, name: bytes):
         self.id = id
         self.name = name
+        self._children: Optional[List[Union[DirectoryEntry, FileEntry]]] = None
 
-
-class DirectoryEntry(TreeEntry):
-    def __init__(self, archive: ArchiveInterface, id: bytes, name: bytes):
-        super().__init__(id, name)
-        self.archive = archive
-        self.children = None
-
-    def __iter__(self):
-        if self.children is None:
-            self.children = []
-            for child in self.archive.directory_ls(self.id):
+    def ls(self, archive: ArchiveInterface):
+        if self._children is None:
+            self._children = []
+            for child in archive.directory_ls(self.id):
                 if child["type"] == "dir":
-                    self.children.append(
-                        DirectoryEntry(self.archive, child["target"], child["name"])
+                    self._children.append(
+                        DirectoryEntry(child["target"], child["name"])
                     )
-
                 elif child["type"] == "file":
-                    self.children.append(FileEntry(child["target"], child["name"]))
+                    self._children.append(FileEntry(child["target"], child["name"]))
+        yield from self._children
 
-        return iter(self.children)
 
-
-class FileEntry(TreeEntry):
-    pass
+class FileEntry:
+    def __init__(self, id: bytes, name: bytes):
+        self.id = id
+        self.name = name

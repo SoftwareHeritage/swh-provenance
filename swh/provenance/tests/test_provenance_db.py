@@ -8,9 +8,10 @@ import datetime
 import pytest
 
 from swh.model.tests.swh_model_data import TEST_OBJECTS
+from swh.provenance.model import RevisionEntry
 from swh.provenance.origin import OriginEntry
 from swh.provenance.provenance import origin_add, revision_add
-from swh.provenance.revision import RevisionEntry
+from swh.provenance.storage.archive import ArchiveStorage
 from swh.provenance.tests.conftest import synthetic_result
 
 
@@ -26,7 +27,7 @@ def test_provenance_origin_add(provenance, swh_storage_with_objects):
     """Test the ProvenanceDB.origin_add() method"""
     for origin in TEST_OBJECTS["origin"]:
         entry = OriginEntry(url=origin.url, revisions=[])
-        origin_add(provenance, entry)
+        origin_add(ArchiveStorage(swh_storage_with_objects), provenance, entry)
     # TODO: check some facts here
 
 
@@ -37,11 +38,9 @@ def test_provenance_add_revision(provenance, storage_and_CMDBTS, archive_pg):
         # do it twice, there should be no change in results
         for revision in data["revision"]:
             entry = RevisionEntry(
-                archive_pg,
                 id=revision["id"],
                 date=ts2dt(revision["date"]),
                 root=revision["directory"],
-                parents=revision["parents"],
             )
             revision_add(provenance, archive_pg, entry)
 
@@ -83,11 +82,7 @@ def test_provenance_content_find_first(provenance, storage_and_CMDBTS, archive_p
     storage, data = storage_and_CMDBTS
     for revision in data["revision"]:
         entry = RevisionEntry(
-            archive_pg,
-            id=revision["id"],
-            date=ts2dt(revision["date"]),
-            root=revision["directory"],
-            parents=revision["parents"],
+            id=revision["id"], date=ts2dt(revision["date"]), root=revision["directory"],
         )
         revision_add(provenance, archive_pg, entry)
 
@@ -195,14 +190,11 @@ def test_provenance_db(provenance, storage_and_CMDBTS, archive_pg, syntheticfile
     for synth_rev in synthetic_result(syntheticfile):
         revision = revisions[synth_rev["sha1"]]
         entry = RevisionEntry(
-            archive_pg,
-            id=revision["id"],
-            date=ts2dt(revision["date"]),
-            root=revision["directory"],
-            parents=revision["parents"],
+            id=revision["id"], date=ts2dt(revision["date"]), root=revision["directory"],
         )
         revision_add(provenance, archive_pg, entry, **args)
 
+        # import pdb; pdb.set_trace()
         # each "entry" in the synth file is one new revision
         rows["revision"].add(synth_rev["sha1"])
         assert len(rows["revision"]) == db_count("revision")

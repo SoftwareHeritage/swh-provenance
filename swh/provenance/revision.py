@@ -1,47 +1,13 @@
 from datetime import datetime, timezone
-import iso8601
 from itertools import islice
 import threading
 from typing import Iterable, Iterator, Optional, Tuple
 
+import iso8601
+
 from swh.model.hashutil import hash_to_bytes
-
-from .archive import ArchiveInterface
-
-
-class RevisionEntry:
-    def __init__(
-        self,
-        archive: ArchiveInterface,
-        id: bytes,
-        date: Optional[datetime] = None,
-        root: Optional[bytes] = None,
-        parents: Optional[list] = None,
-    ):
-        self.archive = archive
-        self.id = id
-        self.date = date
-        assert self.date is None or self.date.tzinfo is not None
-        self.parents = parents
-        self.root = root
-
-    def __iter__(self):
-        if self.parents is None:
-            self.parents = []
-            for parent in self.archive.revision_get([self.id]):
-                if parent is not None:
-                    self.parents.append(
-                        RevisionEntry(
-                            self.archive,
-                            parent.id,
-                            parents=[
-                                RevisionEntry(self.archive, id) for id in parent.parents
-                            ],
-                        )
-                    )
-
-        return iter(self.parents)
-
+from swh.provenance.archive import ArchiveInterface
+from swh.provenance.model import RevisionEntry
 
 ########################################################################################
 ########################################################################################
@@ -84,7 +50,7 @@ class CSVRevisionIterator:
             if date.tzinfo is None:
                 date = date.replace(tzinfo=timezone.utc)
             return RevisionEntry(
-                self.archive, hash_to_bytes(id), date=date, root=hash_to_bytes(root),
+                hash_to_bytes(id), date=date, root=hash_to_bytes(root),
             )
 
 

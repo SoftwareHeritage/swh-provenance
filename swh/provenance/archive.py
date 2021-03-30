@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, Iterable, List
 
 from typing_extensions import Protocol, runtime_checkable
 
@@ -17,10 +17,10 @@ class ArchiveInterface(Protocol):
     def iter_origin_visit_statuses(self, origin: str, visit: int):
         ...
 
-    def release_get(self, ids: List[bytes]):
+    def release_get(self, ids: Iterable[bytes]):
         ...
 
-    def revision_get(self, ids: List[bytes]):
+    def revision_get(self, ids: Iterable[bytes]):
         ...
 
     def snapshot_get_all_branches(self, snapshot: bytes):

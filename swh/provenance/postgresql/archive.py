@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, Iterable, List
 
 from methodtools import lru_cache
 import psycopg2
@@ -67,10 +67,10 @@ class ArchivePostgreSQL:
     def iter_origin_visit_statuses(self, origin: str, visit: int):
         raise NotImplementedError
 
-    def release_get(self, ids: List[bytes]):
+    def release_get(self, ids: Iterable[bytes]):
         raise NotImplementedError
 
-    def revision_get(self, ids: List[bytes]):
+    def revision_get(self, ids: Iterable[bytes]):
         raise NotImplementedError
 
     def snapshot_get_all_branches(self, snapshot: bytes):

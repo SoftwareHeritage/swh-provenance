@@ -3,15 +3,7 @@ from typing import Optional
 from swh.model.model import ObjectType, Origin, TargetType
 
 from .archive import ArchiveInterface
-from .revision import RevisionEntry
-
-
-class OriginEntry:
-    def __init__(self, url, revisions, id=None):
-        self.id = id
-        self.url = url
-        self.revisions = revisions
-
+from .model import OriginEntry, RevisionEntry
 
 ################################################################################
 ################################################################################
@@ -69,31 +61,26 @@ def iterate_statuses(origins, archive: ArchiveInterface, limit: Optional[int] = 
                 # This is done to keep the query in release_get small, hence avoiding
                 # a timeout.
                 batchsize = 100
-                releases = list(releases_set)
-                while releases:
-                    for release in archive.release_get(releases[:batchsize]):
+                while releases_set:
+                    releases = [
+                        releases_set.pop() for i in range(batchsize) if releases_set
+                    ]
+                    for release in archive.release_get(releases):
                         if release is not None:
                             if release.target_type == ObjectType.REVISION:
                                 targets_set.add(release.target)
-                    releases[:batchsize] = []
 
                 # This is done to keep the query in revision_get small, hence avoiding
                 # a timeout.
                 revisions = set()
-                targets = list(targets_set)
-                while targets:
-                    for revision in archive.revision_get(targets[:batchsize]):
+                while targets_set:
+                    targets = [
+                        targets_set.pop() for i in range(batchsize) if targets_set
+                    ]
+                    for revision in archive.revision_get(targets):
                         if revision is not None:
-                            parents = list(
-                                map(
-                                    lambda id: RevisionEntry(archive, id),
-                                    revision.parents,
-                                )
-                            )
-                            revisions.add(
-                                RevisionEntry(archive, revision.id, parents=parents)
-                            )
-                    targets[:batchsize] = []
+                            revisions.add(RevisionEntry(revision.id))
+                            # target_set |= set(revision.parents)
 
                 yield OriginEntry(status.origin, list(revisions))
 

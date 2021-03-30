@@ -5,9 +5,7 @@ from typing import Dict, Generator, List, Optional, Tuple
 from typing_extensions import Protocol, runtime_checkable
 
 from .archive import ArchiveInterface
-from .model import DirectoryEntry, FileEntry, TreeEntry
-from .origin import OriginEntry
-from .revision import RevisionEntry
+from .model import DirectoryEntry, FileEntry, OriginEntry, RevisionEntry
 
 UTCMIN = datetime.min.replace(tzinfo=timezone.utc)
 
@@ -107,32 +105,40 @@ class ProvenanceInterface(Protocol):
 
 
 def directory_process_content(
-    provenance: ProvenanceInterface, directory: DirectoryEntry, relative: DirectoryEntry
+    archive: ArchiveInterface,
+    provenance: ProvenanceInterface,
+    directory: DirectoryEntry,
+    relative: DirectoryEntry,
 ) -> None:
     stack = [(directory, b"")]
     while stack:
         current, prefix = stack.pop()
-        for child in iter(current):
+        for child in current.ls(archive):
             if isinstance(child, FileEntry):
                 # Add content to the relative directory with the computed prefix.
                 provenance.content_add_to_directory(relative, child, prefix)
-            else:
+            elif isinstance(child, DirectoryEntry):
                 # Recursively walk the child directory.
                 stack.append((child, os.path.join(prefix, child.name)))
 
 
-def origin_add(provenance: ProvenanceInterface, origin: OriginEntry) -> None:
+def origin_add(
+    archive: ArchiveInterface, provenance: ProvenanceInterface, origin: OriginEntry
+) -> None:
     # TODO: refactor to iterate over origin visit statuses and commit only once
     # per status.
     origin.id = provenance.origin_get_id(origin)
     for revision in origin.revisions:
-        origin_add_revision(provenance, origin, revision)
+        origin_add_revision(archive, provenance, origin, revision)
         # Commit after each revision
         provenance.commit()  # TODO: verify this!
 
 
 def origin_add_revision(
-    provenance: ProvenanceInterface, origin: OriginEntry, revision: RevisionEntry
+    archive: ArchiveInterface,
+    provenance: ProvenanceInterface,
+    origin: OriginEntry,
+    revision: RevisionEntry,
 ) -> None:
     stack: List[Tuple[Optional[RevisionEntry], RevisionEntry]] = [(None, revision)]
 
@@ -157,7 +163,7 @@ def origin_add_revision(
         else:
             # This revision is a parent of another one in the history of the
             # relative revision.
-            for parent in iter(current):
+            for parent in current.parents(archive):
                 visited = provenance.revision_visited(parent)
 
                 if not visited:
@@ -198,9 +204,10 @@ def revision_add(
         provenance.revision_add(revision)
         # TODO: add file size filtering
         revision_process_content(
+            archive,
             provenance,
             revision,
-            DirectoryEntry(archive, revision.root, b""),
+            DirectoryEntry(revision.root, b""),
             lower=lower,
             mindepth=mindepth,
         )
@@ -212,7 +219,7 @@ def revision_add(
 
 class IsochroneNode:
     def __init__(
-        self, entry: TreeEntry, dates: Dict[bytes, datetime] = {}, depth: int = 0
+        self, entry: DirectoryEntry, dates: Dict[bytes, datetime] = {}, depth: int = 0
     ):
         self.entry = entry
         self.depth = depth
@@ -221,7 +228,7 @@ class IsochroneNode:
         self.maxdate: Optional[datetime] = None
 
     def add_child(
-        self, child: TreeEntry, dates: Dict[bytes, datetime] = {}
+        self, child: DirectoryEntry, dates: Dict[bytes, datetime] = {}
     ) -> "IsochroneNode":
         assert isinstance(self.entry, DirectoryEntry) and self.date is None
         node = IsochroneNode(child, dates=dates, depth=self.depth + 1)
@@ -230,9 +237,14 @@ class IsochroneNode:
 
 
 def build_isochrone_graph(
-    provenance: ProvenanceInterface, revision: RevisionEntry, directory: DirectoryEntry
+    archive: ArchiveInterface,
+    provenance: ProvenanceInterface,
+    revision: RevisionEntry,
+    directory: DirectoryEntry,
 ) -> IsochroneNode:
     assert revision.date is not None
+    assert revision.root == directory.id
+
     # Build the nodes structure
     root = IsochroneNode(directory)
     root.date = provenance.directory_get_date_in_isochrone_frontier(directory)
@@ -251,12 +263,20 @@ def build_isochrone_graph(
             # for the provenance object to have them cached and (potentially) improve
             # performance.
             ddates = provenance.directory_get_dates_in_isochrone_frontier(
-                [child for child in current.entry if isinstance(child, DirectoryEntry)]
+                [
+                    child
+                    for child in current.entry.ls(archive)
+                    if isinstance(child, DirectoryEntry)
+                ]
             )
             fdates = provenance.content_get_early_dates(
-                [child for child in current.entry if isinstance(child, FileEntry)]
+                [
+                    child
+                    for child in current.entry.ls(archive)
+                    if isinstance(child, FileEntry)
+                ]
             )
-            for child in current.entry:
+            for child in current.entry.ls(archive):
                 # Recursively analyse directory nodes.
                 if isinstance(child, DirectoryEntry):
                     node = current.add_child(child, dates=ddates)
@@ -298,6 +318,7 @@ def build_isochrone_graph(
 
 
 def revision_process_content(
+    archive: ArchiveInterface,
     provenance: ProvenanceInterface,
     revision: RevisionEntry,
     root: DirectoryEntry,
@@ -305,7 +326,7 @@ def revision_process_content(
     mindepth: int = 1,
 ):
     assert revision.date is not None
-    stack = [(build_isochrone_graph(provenance, revision, root), root.name)]
+    stack = [(build_isochrone_graph(archive, provenance, revision, root), root.name)]
     while stack:
         current, path = stack.pop()
         assert isinstance(current.entry, DirectoryEntry)
@@ -327,7 +348,10 @@ def revision_process_content(
                 )
                 provenance.directory_add_to_revision(revision, current.entry, path)
                 directory_process_content(
-                    provenance, directory=current.entry, relative=current.entry,
+                    archive,
+                    provenance,
+                    directory=current.entry,
+                    relative=current.entry,
                 )
             else:
                 # No point moving the frontier here. Either there are no files or they

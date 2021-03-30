@@ -156,7 +156,7 @@ def iter_origins(ctx, filename, limit):
     provenance = get_provenance(**ctx.obj["config"]["provenance"])
 
     for origin in FileOriginIterator(filename, archive, limit=limit):
-        origin_add(provenance, origin)
+        origin_add(archive, provenance, origin)
 
 
 @cli.command(name="find-first")

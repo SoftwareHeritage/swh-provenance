@@ -164,8 +164,8 @@ def test_provenance_content_find_first(provenance, storage_and_CMDBTS, archive):
 @pytest.mark.parametrize(
     "syntheticfile, args",
     (
-        ("synthetic_noroot_lower.txt", {"lower": True, "mindepth": 1}),
-        ("synthetic_noroot_upper.txt", {"lower": False, "mindepth": 1}),
+        ("synthetic_lower_1.txt", {"lower": True, "mindepth": 1}),
+        ("synthetic_upper_1.txt", {"lower": False, "mindepth": 1}),
     ),
 )
 def test_provenance_db(provenance, storage_and_CMDBTS, archive, syntheticfile, args):

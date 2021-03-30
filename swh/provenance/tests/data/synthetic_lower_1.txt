@@ -89,4 +89,3 @@ R0013 |       |                                | R 4c5551b4969eb2160824494d40b8e
       | R-D   | Paris/Purple/                  | D f86f65f0e58940f36c088cb1455da5bc224230bc |       -9.0
       |   D-C |  + f                           | C 94ba40161084e8b80943accd9d24e1f9dd47189b |       -9.0
       |   D-C |  + g                           | C 94ba40161084e8b80943accd9d24e1f9dd47189b |       -9.0
-

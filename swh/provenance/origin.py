@@ -17,17 +17,7 @@ class OriginEntry:
 ################################################################################
 
 
-class OriginIterator:
-    """Iterator interface."""
-
-    def __iter__(self):
-        pass
-
-    def __next__(self):
-        pass
-
-
-class FileOriginIterator(OriginIterator):
+class FileOriginIterator:
     """Iterator over origins present in the given CSV file."""
 
     def __init__(
@@ -35,7 +25,6 @@ class FileOriginIterator(OriginIterator):
     ):
         self.file = open(filename)
         self.limit = limit
-        # self.mutex = threading.Lock()
         self.archive = archive
 
     def __iter__(self):
@@ -49,7 +38,6 @@ class ArchiveOriginIterator:
 
     def __init__(self, archive: ArchiveInterface, limit: Optional[int] = None):
         self.limit = limit
-        # self.mutex = threading.Lock()
         self.archive = archive
 
     def __iter__(self):

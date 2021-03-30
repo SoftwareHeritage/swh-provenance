@@ -239,7 +239,7 @@ def _parse_synthetic_file(fobj: Iterable[str]) -> Iterator[SynthRevision]:
     regs = [
         "(?P<revname>R[0-9]{4})?",
         "(?P<reltype>[^| ]*)",
-        "(?P<path>[^|]*?)",
+        "([+] )?(?P<path>[^| +]*?)[/]?",
         "(?P<type>[RDC]) (?P<sha1>[0-9a-z]{40})",
         "(?P<ts>-?[0-9]+(.[0-9]+)?)",
     ]

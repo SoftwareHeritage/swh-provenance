@@ -161,6 +161,52 @@ def test_provenance_content_find_first(provenance, storage_and_CMDBTS, archive):
         assert int(date.timestamp()) == expected["date"]
 
 
+def sha1s(cur, table):
+    """return the 'sha1' column from the DB 'table' (as hex)
+
+    'cur' is a cursor to the provenance index DB.
+    """
+    cur.execute(f"SELECT sha1 FROM {table}")
+    return set(sha1.hex() for (sha1,) in cur.fetchall())
+
+
+def locations(cur):
+    """return the 'path' column from the DB location table
+
+    'cur' is a cursor to the provenance index DB.
+    """
+    cur.execute("SELECT encode(location.path::bytea, 'escape') FROM location")
+    return set(x for (x,) in cur.fetchall())
+
+
+def relations(cur, src, dst):
+    """return the triplets ('sha1', 'sha1', 'path') from the DB
+
+    for the relation between 'src' table and 'dst' table
+    (i.e. for C-R, C-D and D-R relations).
+
+    'cur' is a cursor to the provenance index DB.
+    """
+    relation = {
+        ("content", "revision"): "content_early_in_rev",
+        ("content", "directory"): "content_in_dir",
+        ("directory", "revision"): "directory_in_rev",
+    }[(src, dst)]
+
+    srccol = {"content": "blob", "directory": "dir"}[src]
+    dstcol = {"directory": "dir", "revision": "rev"}[dst]
+
+    cur.execute(
+        f"SELECT encode(src.sha1::bytea, 'hex'),"
+        f"       encode(dst.sha1::bytea, 'hex'),"
+        f"       encode(location.path::bytea, 'escape') "
+        f"FROM {relation} as rel, "
+        f"     {src} as src, {dst} as dst, location "
+        f"WHERE rel.{srccol}=src.id AND rel.{dstcol}=dst.id AND rel.loc=location.id"
+    )
+    return set(cur.fetchall())
+
+
 @pytest.mark.parametrize(
     "syntheticfile, args",
     (
@@ -168,7 +214,9 @@ def test_provenance_content_find_first(provenance, storage_and_CMDBTS, archive):
         ("synthetic_upper_1.txt", {"lower": False, "mindepth": 1}),
     ),
 )
-def test_provenance_db(provenance, storage_and_CMDBTS, archive, syntheticfile, args):
+def test_provenance_heuristics(
+    provenance, storage_and_CMDBTS, archive, syntheticfile, args
+):
     storage, data = storage_and_CMDBTS
 
     revisions = {rev["id"]: rev for rev in data["revision"]}
@@ -183,10 +231,6 @@ def test_provenance_db(provenance, storage_and_CMDBTS, archive, syntheticfile, a
         "revision": set(),
     }
 
-    def db_count(table):
-        provenance.cursor.execute(f"SELECT count(*) FROM {table}")
-        return provenance.cursor.fetchone()[0]
-
     for synth_rev in synthetic_result(syntheticfile):
         revision = revisions[synth_rev["sha1"]]
         entry = RevisionEntry(
@@ -194,40 +238,49 @@ def test_provenance_db(provenance, storage_and_CMDBTS, archive, syntheticfile, a
         )
         revision_add(provenance, archive, entry, **args)
 
-        # import pdb; pdb.set_trace()
         # each "entry" in the synth file is one new revision
-        rows["revision"].add(synth_rev["sha1"])
-        assert len(rows["revision"]) == db_count("revision")
+        rows["revision"].add(synth_rev["sha1"].hex())
+        assert rows["revision"] == sha1s(provenance.cursor, "revision"), synth_rev[
+            "msg"
+        ]
 
         # this revision might have added new content objects
-        rows["content"] |= set(x["dst"] for x in synth_rev["R_C"])
-        rows["content"] |= set(x["dst"] for x in synth_rev["D_C"])
-        assert len(rows["content"]) == db_count("content")
+        rows["content"] |= set(x["dst"].hex() for x in synth_rev["R_C"])
+        rows["content"] |= set(x["dst"].hex() for x in synth_rev["D_C"])
+        assert rows["content"] == sha1s(provenance.cursor, "content"), synth_rev["msg"]
 
         # check for R-C (direct) entries
         rows["content_early_in_rev"] |= set(
-            (x["src"], x["dst"], x["path"]) for x in synth_rev["R_C"]
+            (x["dst"].hex(), x["src"].hex(), x["path"]) for x in synth_rev["R_C"]
         )
-        assert len(rows["content_early_in_rev"]) == db_count("content_early_in_rev")
+        assert rows["content_early_in_rev"] == relations(
+            provenance.cursor, "content", "revision"
+        ), synth_rev["msg"]
 
         # check directories
-        rows["directory"] |= set(x["dst"] for x in synth_rev["R_D"])
-        assert len(rows["directory"]) == db_count("directory")
+        rows["directory"] |= set(x["dst"].hex() for x in synth_rev["R_D"])
+        assert rows["directory"] == sha1s(provenance.cursor, "directory"), synth_rev[
+            "msg"
+        ]
 
         # check for R-D entries
         rows["directory_in_rev"] |= set(
-            (x["src"], x["dst"], x["path"]) for x in synth_rev["R_D"]
+            (x["dst"].hex(), x["src"].hex(), x["path"]) for x in synth_rev["R_D"]
         )
-        assert len(rows["directory_in_rev"]) == db_count("directory_in_rev")
+        assert rows["directory_in_rev"] == relations(
+            provenance.cursor, "directory", "revision"
+        ), synth_rev["msg"]
 
         # check for D-C entries
         rows["content_in_dir"] |= set(
-            (x["src"], x["dst"], x["path"]) for x in synth_rev["D_C"]
+            (x["dst"].hex(), x["src"].hex(), x["path"]) for x in synth_rev["D_C"]
         )
-        assert len(rows["content_in_dir"]) == db_count("content_in_dir")
+        assert rows["content_in_dir"] == relations(
+            provenance.cursor, "content", "directory"
+        ), synth_rev["msg"]
 
         # check for location entries
         rows["location"] |= set(x["path"] for x in synth_rev["R_C"])
         rows["location"] |= set(x["path"] for x in synth_rev["D_C"])
         rows["location"] |= set(x["path"] for x in synth_rev["R_D"])
-        assert len(rows["location"]) == db_count("location")
+        assert rows["location"] == locations(provenance.cursor), synth_rev["msg"]

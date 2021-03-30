@@ -77,7 +77,8 @@ def archive_api(swh_storage_with_objects):
 
 
 @pytest.fixture
-def archive_pg(swh_storage_with_objects):
+def archive(swh_storage_with_objects):
+    """Return a ArchivePostgreSQL based StorageInterface object"""
     # this is a workaround to prevent tests from hanging because of an unclosed
     # transaction.
     # TODO: refactor the ArchivePostgreSQL to properly deal with

@@ -31,7 +31,7 @@ def test_provenance_origin_add(provenance, swh_storage_with_objects):
     # TODO: check some facts here
 
 
-def test_provenance_add_revision(provenance, storage_and_CMDBTS, archive_pg):
+def test_provenance_add_revision(provenance, storage_and_CMDBTS, archive):
 
     storage, data = storage_and_CMDBTS
     for i in range(2):
@@ -42,7 +42,7 @@ def test_provenance_add_revision(provenance, storage_and_CMDBTS, archive_pg):
                 date=ts2dt(revision["date"]),
                 root=revision["directory"],
             )
-            revision_add(provenance, archive_pg, entry)
+            revision_add(provenance, archive, entry)
 
         # there should be as many entries in 'revision' as revisions from the
         # test dataset
@@ -78,13 +78,13 @@ def test_provenance_add_revision(provenance, storage_and_CMDBTS, archive_pg):
         assert provenance.cursor.fetchone()[0] == 13
 
 
-def test_provenance_content_find_first(provenance, storage_and_CMDBTS, archive_pg):
+def test_provenance_content_find_first(provenance, storage_and_CMDBTS, archive):
     storage, data = storage_and_CMDBTS
     for revision in data["revision"]:
         entry = RevisionEntry(
             id=revision["id"], date=ts2dt(revision["date"]), root=revision["directory"],
         )
-        revision_add(provenance, archive_pg, entry)
+        revision_add(provenance, archive, entry)
 
     first_expected_content = [
         {
@@ -168,7 +168,7 @@ def test_provenance_content_find_first(provenance, storage_and_CMDBTS, archive_p
         ("synthetic_noroot_upper.txt", {"lower": False, "mindepth": 1}),
     ),
 )
-def test_provenance_db(provenance, storage_and_CMDBTS, archive_pg, syntheticfile, args):
+def test_provenance_db(provenance, storage_and_CMDBTS, archive, syntheticfile, args):
     storage, data = storage_and_CMDBTS
 
     revisions = {rev["id"]: rev for rev in data["revision"]}
@@ -192,7 +192,7 @@ def test_provenance_db(provenance, storage_and_CMDBTS, archive_pg, syntheticfile
         entry = RevisionEntry(
             id=revision["id"], date=ts2dt(revision["date"]), root=revision["directory"],
         )
-        revision_add(provenance, archive_pg, entry, **args)
+        revision_add(provenance, archive, entry, **args)
 
         # import pdb; pdb.set_trace()
         # each "entry" in the synth file is one new revision

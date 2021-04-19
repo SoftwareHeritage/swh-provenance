@@ -82,7 +82,9 @@ def test_provenance_content_find_first(provenance, storage_and_CMDBTS, archive):
     storage, data = storage_and_CMDBTS
     for revision in data["revision"]:
         entry = RevisionEntry(
-            id=revision["id"], date=ts2dt(revision["date"]), root=revision["directory"],
+            id=revision["id"],
+            date=ts2dt(revision["date"]),
+            root=revision["directory"],
         )
         revision_add(provenance, archive, entry)
 
@@ -236,7 +238,9 @@ def test_provenance_heuristics(
     for synth_rev in synthetic_result(syntheticfile):
         revision = revisions[synth_rev["sha1"]]
         entry = RevisionEntry(
-            id=revision["id"], date=ts2dt(revision["date"]), root=revision["directory"],
+            id=revision["id"],
+            date=ts2dt(revision["date"]),
+            root=revision["directory"],
         )
         revision_add(provenance, archive, entry, **args)
 

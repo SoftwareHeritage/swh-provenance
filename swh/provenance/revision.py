@@ -50,7 +50,9 @@ class CSVRevisionIterator:
             if date.tzinfo is None:
                 date = date.replace(tzinfo=timezone.utc)
             return RevisionEntry(
-                hash_to_bytes(id), date=date, root=hash_to_bytes(root),
+                hash_to_bytes(id),
+                date=date,
+                root=hash_to_bytes(root),
             )
 
 

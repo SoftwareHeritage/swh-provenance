@@ -150,7 +150,8 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
         src0_sha1s = tuple(set(sha1 for (sha1, _, _) in self.insert_cache[dst_table]))
         fmt = ",".join(["%s"] * len(src0_sha1s))
         self.cursor.execute(
-            f"""SELECT sha1, id FROM {src0_table} WHERE sha1 IN ({fmt})""", src0_sha1s,
+            f"""SELECT sha1, id FROM {src0_table} WHERE sha1 IN ({fmt})""",
+            src0_sha1s,
         )
         src0_values = dict(self.cursor.fetchall())
 
@@ -158,7 +159,8 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
         src1_sha1s = tuple(set(sha1 for (_, sha1, _) in self.insert_cache[dst_table]))
         fmt = ",".join(["%s"] * len(src1_sha1s))
         self.cursor.execute(
-            f"""SELECT sha1, id FROM {src1_table} WHERE sha1 IN ({fmt})""", src1_sha1s,
+            f"""SELECT sha1, id FROM {src1_table} WHERE sha1 IN ({fmt})""",
+            src1_sha1s,
         )
         src1_values = dict(self.cursor.fetchall())
 
@@ -175,7 +177,8 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
         # fetch location ids
         fmt = ",".join(["%s"] * len(locations))
         self.cursor.execute(
-            f"SELECT path, id FROM location WHERE path IN ({fmt})", locations,
+            f"SELECT path, id FROM location WHERE path IN ({fmt})",
+            locations,
         )
         loc_ids = dict(self.cursor.fetchall())
 

@@ -32,10 +32,7 @@ def test_cli_swh_db_help():
 def test_cli_create_deprecated(provenance_db, tmp_path):
     conffile = tmp_path / "config.yml"
     conf = {
-        "provenance": {
-            "cls": "local",
-            "with_path": True,
-        },
+        "provenance": {"cls": "local", "with_path": True,},
     }
     yaml.dump(conf, conffile.open("w"))
     result = CliRunner().invoke(

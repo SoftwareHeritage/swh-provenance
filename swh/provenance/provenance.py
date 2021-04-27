@@ -104,19 +104,18 @@ class ProvenanceInterface(Protocol):
         ...
 
 
-def directory_process_content(
+def flatten_directory(
     archive: ArchiveInterface,
     provenance: ProvenanceInterface,
     directory: DirectoryEntry,
-    relative: DirectoryEntry,
 ) -> None:
     stack = [(directory, b"")]
     while stack:
         current, prefix = stack.pop()
         for child in current.ls(archive):
             if isinstance(child, FileEntry):
-                # Add content to the relative directory with the computed prefix.
-                provenance.content_add_to_directory(relative, child, prefix)
+                # Add content to the directory with the computed prefix.
+                provenance.content_add_to_directory(directory, child, prefix)
             elif isinstance(child, DirectoryEntry):
                 # Recursively walk the child directory.
                 stack.append((child, os.path.join(prefix, child.name)))
@@ -283,6 +282,7 @@ def build_isochrone_graph(
                     node = current.add_child(child, dates=ddates)
                     stack.append(node)
                 else:
+                    # WARNING: there is a type checking issue here!
                     current.add_child(child, dates=fdates)
     # Precalculate max known date for each node in the graph (only directory nodes are
     # pushed to the stack).
@@ -353,12 +353,7 @@ def revision_process_content(
                     current.entry, current.maxdate
                 )
                 provenance.directory_add_to_revision(revision, current.entry, path)
-                directory_process_content(
-                    archive,
-                    provenance,
-                    directory=current.entry,
-                    relative=current.entry,
-                )
+                flatten_directory(archive, provenance, current.entry)
             else:
                 # No point moving the frontier here. Either there are no files or they
                 # are being seen for the first time here. Add all blobs to current
@@ -378,11 +373,11 @@ def is_new_frontier(
     node: IsochroneNode, revision: RevisionEntry, lower: bool = True, mindepth: int = 1
 ) -> bool:
     assert node.maxdate is not None and revision.date is not None
-    # The only real condition for a directory to be a frontier is that its maxdate is
-    # strictily less than current revision's date. Checking mindepth is meant to skip
-    # root directories (or any arbitrary depth) to improve the result. The option lower
-    # tries to maximize the reusage rate of previously defined frontiers by keeping them
-    # low in the directory tree.
+    # The only real condition for a directory to be a frontier is that its content is
+    # already known and its maxdate is less (or equal) than current revision's date.
+    # Checking mindepth is meant to skip root directories (or any arbitrary depth) to
+    # improve the result. The option lower tries to maximize the reusage rate of
+    # previously defined frontiers by keeping them low in the directory tree.
     return (
         node.known  # all content in node was already seen before
         and node.maxdate <= revision.date  # all content is earlier than revision

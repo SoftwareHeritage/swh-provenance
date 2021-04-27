@@ -224,6 +224,7 @@ class IsochroneNode:
         self.entry = entry
         self.depth = depth
         self.date = dates.get(self.entry.id, None)
+        self.known = self.date is not None
         self.children: List[IsochroneNode] = []
         self.maxdate: Optional[datetime] = None
 
@@ -256,7 +257,7 @@ def build_isochrone_graph(
             # If current directory has an associated date in the isochrone frontier that
             # is greater or equal to the current revision's one, it should be ignored as
             # the revision is being processed out of order.
-            if current.date is not None and current.date >= revision.date:
+            if current.date is not None and current.date > revision.date:
                 provenance.directory_invalidate_in_isochrone_frontier(current.entry)
                 current.date = None
             # Pre-query all known dates for content/directories in the current directory
@@ -283,23 +284,26 @@ def build_isochrone_graph(
                     stack.append(node)
                 else:
                     current.add_child(child, dates=fdates)
-    # Precalculate max known date for each node in the graph.
+    # Precalculate max known date for each node in the graph (only directory nodes are
+    # pushed to the stack).
     stack = [root]
     while stack:
         current = stack.pop()
-        if current.date is None:
+        # Current directory node is known if it already has an assigned date (ie. it was
+        # already seen as an isochrone frontier).
+        if not current.known:
             if any(map(lambda child: child.maxdate is None, current.children)):
                 # Current node needs to be analysed again after its children.
                 stack.append(current)
                 for child in current.children:
                     if isinstance(child.entry, FileEntry):
-                        if child.date is not None:
-                            # File node that has been seen before, just use its known
-                            # date.
+                        # A file node is known if it already has an assigned date (ie.
+                        # is was processed before)
+                        if child.known:
+                            # Just use its known date.
                             child.maxdate = child.date
                         else:
-                            # File node that has never been seen before, use current
-                            # revision date.
+                            # Use current revision date.
                             child.maxdate = revision.date
                     else:
                         # Recursively analyse directory nodes.
@@ -311,6 +315,8 @@ def build_isochrone_graph(
                     if child.maxdate is not None  # mostly to please mypy
                 ]
                 current.maxdate = max(maxdates) if maxdates else UTCMIN
+                # If all content is already known, update current directory info.
+                current.known = all(map(lambda child: child.known, current.children))
         else:
             # Directory node in the frontier, just use its known date.
             current.maxdate = current.date
@@ -331,7 +337,7 @@ def revision_process_content(
         current, path = stack.pop()
         assert isinstance(current.entry, DirectoryEntry)
         if current.date is not None:
-            assert current.date < revision.date
+            assert current.date <= revision.date
             # Current directory is an outer isochrone frontier for a previously
             # processed revision. It should be reused as is.
             provenance.directory_add_to_revision(revision, current.entry, path)
@@ -378,7 +384,8 @@ def is_new_frontier(
     # tries to maximize the reusage rate of previously defined frontiers by keeping them
     # low in the directory tree.
     return (
-        node.maxdate < revision.date  # all content in node is already known
+        node.known  # all content in node was already seen before
+        and node.maxdate <= revision.date  # all content is earlier than revision
         and node.depth >= mindepth  # current node is deeper than the min allowed depth
         and (has_blobs(node) if lower else True)  # there is at least one blob in it
     )

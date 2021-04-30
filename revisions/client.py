@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
+import iso8601
 import logging
-import subprocess
 import sys
 import time
 import zmq
@@ -10,8 +10,7 @@ from multiprocessing import Process
 from threading import Thread
 
 
-from datetime import datetime
-from swh.model.hashutil import hash_to_bytes, hash_to_hex
+from swh.model.hashutil import hash_to_bytes
 from swh.provenance import get_archive, get_provenance
 from swh.provenance.archive import ArchiveInterface
 from swh.provenance.provenance import revision_add
@@ -97,16 +96,21 @@ class Worker(Thread):
         socket.connect(self.server)
         while True:
             socket.send(b"NEXT")
-            message = socket.recv_json()
+            response = socket.recv_json()
 
-            if message is None:
+            if response is None:
                 break
+
+            # Ensure date has a valid timezone
+            date = iso8601.parse_date(response["date"])
+            if date.tzinfo is None:
+                date = date.replace(tzinfo=timezone.utc)
 
             revision = RevisionEntry(
                 self.archive,
-                hash_to_bytes(message["rev"]),
-                date=datetime.fromisoformat(message["date"]),
-                root=hash_to_bytes(message["root"]),
+                hash_to_bytes(response["rev"]),
+                date=date,
+                root=hash_to_bytes(response["root"]),
             )
             revision_add(
                 self.provenance,

@@ -1,30 +1,16 @@
 #!/usr/bin/env python
 
 import io
-import itertools
 import json
-import logging
-import subprocess
 import sys
 import zmq
 
-from swh.model.hashutil import hash_to_hex
-from swh.provenance import get_archive, get_provenance
+from swh.provenance import get_provenance
 from swh.provenance.provenance import ProvenanceInterface
-from swh.provenance.revision import CSVRevisionIterator
 
 
 # TODO: take this from a configuration file
 conninfo = {
-    "archive": {
-        "cls": "direct",
-        "db": {
-            "host": "somerset.internal.softwareheritage.org",
-            "port": "5433",
-            "dbname": "softwareheritage",
-            "user": "guest",
-        },
-    },
     "provenance": {
         "cls": "local",
         "db": {"host": "/var/run/postgresql", "port": "5436", "dbname": "provenance"},
@@ -101,7 +87,7 @@ def write_stats(filename, count, tables):
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print("usage: server <filename> <port> [limit]")
+        print("usage: server <filename> <port> [stats] [limit]")
         print("where")
         print(
             "    filename     : csv file containing the list of revisions to be iterated (one per"
@@ -111,23 +97,22 @@ if __name__ == "__main__":
         )
         print("    port         : server listening port.")
         print(
-            "    limit        : max number of revisions to be retrieved from the file."
+            "    stats        : number of iteration after which stats should be taken."
         )
         print(
-            "    stats        : number of iteration after which stats should be taken."
+            "    limit        : max number of revisions to be retrieved from the file."
         )
         exit(-1)
 
     filename = sys.argv[1]
     port = int(sys.argv[2])
-    limit = int(sys.argv[3]) if len(sys.argv) > 3 else None
-    stats = int(sys.argv[4]) if len(sys.argv) > 3 else None
+    stats = int(sys.argv[3]) if len(sys.argv) > 3 else None
+    limit = int(sys.argv[4]) if len(sys.argv) > 4 else None
 
     context = zmq.Context()
     socket = context.socket(zmq.REP)
     socket.bind(f"tcp://*:{port}")
 
-    archive = get_archive(**conninfo["archive"])
     provenance = get_provenance(**conninfo["provenance"])
 
     statsfile = f"stats_{conninfo['provenance']['db']['dbname']}.csv"
@@ -138,22 +123,26 @@ if __name__ == "__main__":
         line.strip().split(",") for line in open(filename, "r") if line.strip()
     )
 
-    for idx, revision in enumerate(
-        CSVRevisionIterator(revisions_provider, archive, limit=limit)
-    ):
-        if stats is not None and idx != 0 and idx % stats == 0:
+    for idx, (rev, date, root) in enumerate(revisions_provider):
+        if limit is not None and idx > limit:
+            break
+
+        if stats is not None and idx > 0 and idx % stats == 0:
             write_stats(statsfile, idx, get_tables_stats(provenance))
 
         # Wait for next request from client
-        message = socket.recv()
-        message = {
-            "rev": hash_to_hex(revision.id),
-            "date": str(revision.date),
-            "root": hash_to_hex(revision.root),
+        request = socket.recv()
+        response = {
+            "rev": rev,
+            "date": date,
+            "root": root,
         }
-        socket.send_json(message)
+        socket.send_json(response)
+
+    if stats is not None:
+        write_stats(statsfile, 0, get_tables_stats(provenance))
 
     while True:
         # Force all clients to exit
-        message = socket.recv()
+        request = socket.recv()
         socket.send_json(None)

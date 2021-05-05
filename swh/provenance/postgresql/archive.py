@@ -14,7 +14,7 @@ class ArchivePostgreSQL:
         entries = self.directory_ls_internal(id)
         return entries
 
-    @lru_cache(maxsize=1000000)
+    @lru_cache(maxsize=100000)
     def directory_ls_internal(self, id: bytes) -> List[Dict[str, Any]]:
         # TODO: add file size filtering
         with self.conn.cursor() as cursor:

@@ -10,7 +10,7 @@ class ArchiveStorage:
     def __init__(self, storage: StorageInterface):
         self.storage = storage
 
-    @lru_cache(maxsize=1000000)
+    @lru_cache(maxsize=100000)
     def directory_ls(self, id: bytes) -> List[Dict[str, Any]]:
         # TODO: filter unused fields
         return [entry for entry in self.storage.directory_ls(id)]

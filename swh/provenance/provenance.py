@@ -252,7 +252,7 @@ def build_isochrone_graph(
     while stack:
         current = stack.pop()
         assert isinstance(current.entry, DirectoryEntry)
-        if current.date is None or current.date >= revision.date:
+        if current.date is None or current.date > revision.date:
             # If current directory has an associated date in the isochrone frontier that
             # is greater or equal to the current revision's one, it should be ignored as
             # the revision is being processed out of order.

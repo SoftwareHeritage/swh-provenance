@@ -39,7 +39,7 @@ def adapt_conn(conn):
 
 
 def connect(params: dict):
-    """ Connect to the PostgreSQL database server """
+    """Connect to the PostgreSQL database server"""
     conn = None
 
     try:

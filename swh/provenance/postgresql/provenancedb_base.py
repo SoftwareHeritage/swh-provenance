@@ -15,6 +15,7 @@ class ProvenanceDBBase:
     def __init__(self, conn: psycopg2.extensions.connection):
         # TODO: consider adding a mutex for thread safety
         conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+        conn.set_session(autocommit=True)
         self.conn = conn
         self.cursor = self.conn.cursor()
         self.insert_cache: Dict[str, Any] = {}
@@ -157,10 +158,12 @@ class ProvenanceDBBase:
         if self.insert_cache["content"]:
             psycopg2.extras.execute_values(
                 self.cursor,
-                """LOCK TABLE ONLY content;
-                   INSERT INTO content(sha1, date) VALUES %s
-                     ON CONFLICT (sha1) DO
-                       UPDATE SET date=LEAST(EXCLUDED.date,content.date)""",
+                """
+                LOCK TABLE ONLY content;
+                INSERT INTO content(sha1, date) VALUES %s
+                  ON CONFLICT (sha1) DO
+                    UPDATE SET date=LEAST(EXCLUDED.date,content.date)
+                """,
                 self.insert_cache["content"].items(),
             )
             self.insert_cache["content"].clear()
@@ -168,10 +171,12 @@ class ProvenanceDBBase:
         if self.insert_cache["directory"]:
             psycopg2.extras.execute_values(
                 self.cursor,
-                """LOCK TABLE ONLY directory;
-                   INSERT INTO directory(sha1, date) VALUES %s
-                     ON CONFLICT (sha1) DO
-                       UPDATE SET date=LEAST(EXCLUDED.date,directory.date)""",
+                """
+                LOCK TABLE ONLY directory;
+                INSERT INTO directory(sha1, date) VALUES %s
+                  ON CONFLICT (sha1) DO
+                    UPDATE SET date=LEAST(EXCLUDED.date,directory.date)
+                """,
                 self.insert_cache["directory"].items(),
             )
             self.insert_cache["directory"].clear()
@@ -179,10 +184,12 @@ class ProvenanceDBBase:
         if self.insert_cache["revision"]:
             psycopg2.extras.execute_values(
                 self.cursor,
-                """LOCK TABLE ONLY revision;
-                   INSERT INTO revision(sha1, date) VALUES %s
-                     ON CONFLICT (sha1) DO
-                       UPDATE SET date=LEAST(EXCLUDED.date,revision.date)""",
+                """
+                LOCK TABLE ONLY revision;
+                INSERT INTO revision(sha1, date) VALUES %s
+                  ON CONFLICT (sha1) DO
+                    UPDATE SET date=LEAST(EXCLUDED.date,revision.date)
+                """,
                 self.insert_cache["revision"].items(),
             )
             self.insert_cache["revision"].clear()
@@ -200,8 +207,11 @@ class ProvenanceDBBase:
         # if self.insert_cache["revision_before_rev"]:
         #     psycopg2.extras.execute_values(
         #         self.cursor,
-        #         """INSERT INTO revision_before_rev VALUES %s
-        #            ON CONFLICT DO NOTHING""",
+        #         """
+        #         LOCK TABLE ONLY revision_before_rev;
+        #         INSERT INTO revision_before_rev VALUES %s
+        #           ON CONFLICT DO NOTHING
+        #         """,
         #         self.insert_cache["revision_before_rev"],
         #     )
         #     self.insert_cache["revision_before_rev"].clear()
@@ -209,8 +219,11 @@ class ProvenanceDBBase:
         # if self.insert_cache["revision_in_org"]:
         #     psycopg2.extras.execute_values(
         #         self.cursor,
-        #         """INSERT INTO revision_in_org VALUES %s
-        #            ON CONFLICT DO NOTHING""",
+        #         """
+        #         LOCK TABLE ONLY revision_in_org;
+        #         INSERT INTO revision_in_org VALUES %s
+        #           ON CONFLICT DO NOTHING
+        #         """,
         #         self.insert_cache["revision_in_org"],
         #     )
         #     self.insert_cache["revision_in_org"].clear()
@@ -219,9 +232,12 @@ class ProvenanceDBBase:
         if origin.id is None:
             # Insert origin in the DB and return the assigned id
             self.cursor.execute(
-                """INSERT INTO origin (url) VALUES (%s)
-                     ON CONFLICT DO NOTHING
-                     RETURNING id""",
+                """
+                LOCK TABLE ONLY origin;
+                INSERT INTO origin(url) VALUES (%s)
+                  ON CONFLICT DO NOTHING
+                  RETURNING id
+                """,
                 (origin.url,),
             )
             return self.cursor.fetchone()[0]
@@ -268,11 +284,13 @@ class ProvenanceDBBase:
     def revision_in_history(self, revision: RevisionEntry) -> bool:
         # TODO: adapt this method to consider cached values
         self.cursor.execute(
-            """SELECT 1
-                 FROM revision_before_rev
-                 JOIN revision
-                   ON revision.id=revision_before_rev.prev
-                 WHERE revision.sha1=%s""",
+            """
+            SELECT 1
+              FROM revision_before_rev
+              JOIN revision
+                ON revision.id=revision_before_rev.prev
+              WHERE revision.sha1=%s
+            """,
             (revision.id,),
         )
         return self.cursor.fetchone() is not None
@@ -288,11 +306,13 @@ class ProvenanceDBBase:
     def revision_visited(self, revision: RevisionEntry) -> bool:
         # TODO: adapt this method to consider cached values
         self.cursor.execute(
-            """SELECT 1
-                 FROM revision_in_org
-                 JOIN revision
-                   ON revision.id=revision_in_org.rev
-                 WHERE revision.sha1=%s""",
+            """
+            SELECT 1
+              FROM revision_in_org
+              JOIN revision
+                ON revision.id=revision_in_org.rev
+              WHERE revision.sha1=%s
+            """,
             (revision.id,),
         )
         return self.cursor.fetchone() is not None

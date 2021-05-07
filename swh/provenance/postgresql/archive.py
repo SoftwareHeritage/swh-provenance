@@ -3,6 +3,8 @@ from typing import Any, Dict, Iterable, List
 from methodtools import lru_cache
 import psycopg2
 
+from swh.model.model import Revision
+
 
 class ArchivePostgreSQL:
     def __init__(self, conn: psycopg2.extensions.connection):
@@ -71,7 +73,38 @@ class ArchivePostgreSQL:
         raise NotImplementedError
 
     def revision_get(self, ids: Iterable[bytes]):
-        raise NotImplementedError
+        with self.conn.cursor() as cursor:
+            psycopg2.extras.execute_values(
+                cursor,
+                """
+                SELECT t.id, revision.date, revision.directory,
+                    ARRAY(
+                        SELECT rh.parent_id::bytea
+                            FROM revision_history rh
+                            WHERE rh.id = t.id
+                            ORDER BY rh.parent_rank
+                    )
+                    FROM (VALUES %s) as t(sortkey, id)
+                    LEFT JOIN revision ON t.id = revision.id
+                    LEFT JOIN person author ON revision.author = author.id
+                    LEFT JOIN person committer ON revision.committer = committer.id
+                    ORDER BY sortkey
+                """,
+                ((sortkey, id) for sortkey, id in enumerate(ids)),
+            )
+            for row in cursor.fetchall():
+                parents = []
+                for parent in row[3]:
+                    if parent:
+                        parents.append(parent)
+                yield Revision.from_dict(
+                    {
+                        "id": row[0],
+                        "date": row[1],
+                        "directory": row[2],
+                        "parents": tuple(parents),
+                    }
+                )
 
     def snapshot_get_all_branches(self, snapshot: bytes):
         raise NotImplementedError

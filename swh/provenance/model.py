@@ -33,20 +33,20 @@ class RevisionEntry:
 
     def parents(self, archive: ArchiveInterface):
         if self._parents is None:
-            # XXX: no check is done to ensure node.id is a known revision in
-            # the SWH archive
-            self._parents = archive.revision_get([self.id])[0].parents
-            if self._parents:
-                self._nodes = [
-                    RevisionEntry(
-                        id=rev.id,
-                        root=rev.directory,
-                        date=rev.date,
-                        parents=rev.parents,
-                    )
-                    for rev in archive.revision_get(self._parents)
-                    if rev
-                ]
+            revision = archive.revision_get([self.id])
+            if revision:
+                self._parents = revision[0].parents
+        if self._parents and not self._nodes:
+            self._nodes = [
+                RevisionEntry(
+                    id=rev.id,
+                    root=rev.directory,
+                    date=rev.date,
+                    parents=rev.parents,
+                )
+                for rev in archive.revision_get(self._parents)
+                if rev
+            ]
         yield from self._nodes
 
 

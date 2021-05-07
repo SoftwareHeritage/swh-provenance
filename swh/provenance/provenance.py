@@ -1,8 +1,9 @@
 from datetime import datetime, timezone
+import logging
 import os
 from typing import Dict, Generator, List, Optional, Tuple
-
 from typing_extensions import Protocol, runtime_checkable
+from swh.model.hashutil import hash_to_hex
 
 from .archive import ArchiveInterface
 from .model import DirectoryEntry, FileEntry, OriginEntry, RevisionEntry
@@ -197,6 +198,7 @@ def revision_add(
 ) -> None:
     assert revision.date is not None
     assert revision.root is not None
+    logging.debug(f"Processing revision {hash_to_hex(revision.id)}...")
     # Processed content starting from the revision's root directory.
     date = provenance.revision_get_early_date(revision)
     if date is None or revision.date < date:
@@ -212,8 +214,12 @@ def revision_add(
         )
     # TODO: improve this! Maybe using a max attempt counter?
     # Ideally Provenance class should guarantee that a commit never fails.
+    logging.debug(f"Attempt to commit revision {hash_to_hex(revision.id)}...")
     while not provenance.commit():
-        continue
+        logging.warning(
+            f"Could not commit revision {hash_to_hex(revision.id)}. Retrying..."
+        )
+    logging.debug(f"Revision {hash_to_hex(revision.id)} successfully committed!")
 
 
 class IsochroneNode:
@@ -248,7 +254,11 @@ def build_isochrone_graph(
     # Build the nodes structure
     root = IsochroneNode(directory)
     root.date = provenance.directory_get_date_in_isochrone_frontier(directory)
+    root.known = root.date is not None
     stack = [root]
+    logging.debug(
+        f"Recursively creating graph for revision {hash_to_hex(revision.id)}..."
+    )
     while stack:
         current = stack.pop()
         assert isinstance(current.entry, DirectoryEntry)
@@ -259,6 +269,7 @@ def build_isochrone_graph(
             if current.date is not None and current.date > revision.date:
                 provenance.directory_invalidate_in_isochrone_frontier(current.entry)
                 current.date = None
+                current.known = False
             # Pre-query all known dates for content/directories in the current directory
             # for the provenance object to have them cached and (potentially) improve
             # performance.
@@ -284,9 +295,13 @@ def build_isochrone_graph(
                 else:
                     # WARNING: there is a type checking issue here!
                     current.add_child(child, dates=fdates)
+    logging.debug(
+        f"Isochrone graph for revision {hash_to_hex(revision.id)} successfully created!"
+    )
     # Precalculate max known date for each node in the graph (only directory nodes are
     # pushed to the stack).
     stack = [root]
+    logging.debug(f"Computing maxdates for revision {hash_to_hex(revision.id)}...")
     while stack:
         current = stack.pop()
         # Current directory node is known if it already has an assigned date (ie. it was
@@ -300,13 +315,13 @@ def build_isochrone_graph(
                         # A file node is known if it already has an assigned date (ie.
                         # is was processed before)
                         if child.known:
+                            assert child.date is not None
                             # Just use its known date.
                             child.maxdate = child.date
                         else:
                             # Use current revision date.
                             child.maxdate = revision.date
                     else:
-                        # Recursively analyse directory nodes.
                         stack.append(child)
             else:
                 maxdates = [
@@ -320,6 +335,9 @@ def build_isochrone_graph(
         else:
             # Directory node in the frontier, just use its known date.
             current.maxdate = current.date
+    logging.debug(
+        f"Maxdates for revision {hash_to_hex(revision.id)} successfully computed!"
+    )
     return root
 
 
@@ -332,7 +350,13 @@ def revision_process_content(
     mindepth: int = 1,
 ):
     assert revision.date is not None
+    logging.debug(
+        f"Building isochrone graph for revision {hash_to_hex(revision.id)}..."
+    )
     stack = [(build_isochrone_graph(archive, provenance, revision, root), root.name)]
+    logging.debug(
+        f"Isochrone graph for revision {hash_to_hex(revision.id)} successfully built!"
+    )
     while stack:
         current, path = stack.pop()
         assert isinstance(current.entry, DirectoryEntry)

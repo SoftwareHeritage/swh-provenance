@@ -3,7 +3,9 @@ import logging
 import os
 import time
 from typing import Dict, Generator, List, Optional, Tuple
+
 from typing_extensions import Protocol, runtime_checkable
+
 from swh.model.hashutil import hash_to_hex
 
 from .archive import ArchiveInterface
@@ -249,23 +251,28 @@ class IsochroneNode:
     def __init__(
         self,
         entry: DirectoryEntry,
-        dates: Dict[bytes, datetime] = {},
+        date: Optional[datetime] = None,
         depth: int = 0,
         prefix: bytes = b"",
     ):
         self.entry = entry
         self.depth = depth
-        self.path = os.path.join(prefix, self.entry.name) if prefix else self.entry.name
-        self.date = dates.get(self.entry.id, None)
+        self.date = date
         self.known = self.date is not None
         self.children: List[IsochroneNode] = []
         self.maxdate: Optional[datetime] = None
+        self.path = os.path.join(prefix, self.entry.name) if prefix else self.entry.name
 
     def add_child(
-        self, child: DirectoryEntry, dates: Dict[bytes, datetime] = {}
+        self, child: DirectoryEntry, date: Optional[datetime] = None
     ) -> "IsochroneNode":
         assert isinstance(self.entry, DirectoryEntry) and self.date is None
-        node = IsochroneNode(child, dates=dates, depth=self.depth + 1, prefix=self.path)
+        node = IsochroneNode(
+            child,
+            date=date,
+            depth=self.depth + 1,
+            prefix=self.path,
+        )
         self.children.append(node)
         return node
 
@@ -280,9 +287,8 @@ def build_isochrone_graph(
     assert revision.root == directory.id
 
     # Build the nodes structure
-    root = IsochroneNode(directory)
-    root.date = provenance.directory_get_date_in_isochrone_frontier(directory)
-    root.known = root.date is not None
+    root_date = provenance.directory_get_date_in_isochrone_frontier(directory)
+    root = IsochroneNode(directory, date=root_date)
     stack = [root]
     logging.debug(
         f"Recursively creating graph for revision {hash_to_hex(revision.id)}..."
@@ -324,11 +330,11 @@ def build_isochrone_graph(
             for child in current.entry.ls(archive):
                 # Recursively analyse directory nodes.
                 if isinstance(child, DirectoryEntry):
-                    node = current.add_child(child, dates=ddates)
+                    node = current.add_child(child, date=ddates.get(child.id))
                     stack.append(node)
                 else:
                     # WARNING: there is a type checking issue here!
-                    current.add_child(child, dates=fdates)
+                    current.add_child(child, date=fdates.get(child.id))
     logging.debug(
         f"Isochrone graph for revision {hash_to_hex(revision.id)} successfully created!"
     )

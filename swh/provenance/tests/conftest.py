@@ -29,7 +29,7 @@ SQL_FILES = [
 ]
 
 provenance_db = postgresql_fact(
-    "postgresql_proc", db_name="provenance", dump_files=SQL_FILES
+    "postgresql_proc", dbname="provenance", dump_files=SQL_FILES
 )
 
 

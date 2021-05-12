@@ -93,9 +93,9 @@ class ProvenanceDBBase:
                 f"""SELECT sha1, date FROM content WHERE sha1 IN ({values})""",
                 tuple(pending),
             )
-            for row in self.cursor.fetchall():
-                dates[row[0]] = row[1]
-                self.select_cache["content"][row[0]] = row[1]
+            for sha1, date in self.cursor.fetchall():
+                dates[sha1] = date
+                self.select_cache["content"][sha1] = date
         return dates
 
     def content_set_early_date(self, blob: FileEntry, date: datetime):
@@ -143,9 +143,9 @@ class ProvenanceDBBase:
                 f"""SELECT sha1, date FROM directory WHERE sha1 IN ({values})""",
                 tuple(pending),
             )
-            for row in self.cursor.fetchall():
-                dates[row[0]] = row[1]
-                self.select_cache["directory"][row[0]] = row[1]
+            for sha1, date in self.cursor.fetchall():
+                dates[sha1] = date
+                self.select_cache["directory"][sha1] = date
         return dates
 
     def directory_invalidate_in_isochrone_frontier(self, directory: DirectoryEntry):

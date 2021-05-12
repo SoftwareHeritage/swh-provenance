@@ -198,10 +198,13 @@ def revision_add(
 ) -> None:
     assert revision.date is not None
     assert revision.root is not None
-    logging.debug(f"Processing revision {hash_to_hex(revision.id)}...")
     # Processed content starting from the revision's root directory.
     date = provenance.revision_get_early_date(revision)
     if date is None or revision.date < date:
+        logging.debug(
+            f"Processing revision {hash_to_hex(revision.id)}"
+            f" (known date {date} / revision date {revision.date})..."
+        )
         provenance.revision_add(revision)
         # TODO: add file size filtering
         revision_process_content(
@@ -212,14 +215,14 @@ def revision_add(
             lower=lower,
             mindepth=mindepth,
         )
-    # TODO: improve this! Maybe using a max attempt counter?
-    # Ideally Provenance class should guarantee that a commit never fails.
-    logging.debug(f"Attempt to commit revision {hash_to_hex(revision.id)}...")
-    while not provenance.commit():
-        logging.warning(
-            f"Could not commit revision {hash_to_hex(revision.id)}. Retrying..."
-        )
-    logging.debug(f"Revision {hash_to_hex(revision.id)} successfully committed!")
+        # TODO: improve this! Maybe using a max attempt counter?
+        # Ideally Provenance class should guarantee that a commit never fails.
+        logging.debug(f"Attempt to commit revision {hash_to_hex(revision.id)}...")
+        while not provenance.commit():
+            logging.warning(
+                f"Could not commit revision {hash_to_hex(revision.id)}. Retrying..."
+            )
+        logging.debug(f"Revision {hash_to_hex(revision.id)} successfully committed!")
 
 
 class IsochroneNode:

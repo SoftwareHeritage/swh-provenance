@@ -18,6 +18,8 @@ class ProvenanceDBBase:
         conn.set_session(autocommit=True)
         self.conn = conn
         self.cursor = self.conn.cursor()
+        # XXX: not sure this is the best place to do it!
+        self.cursor.execute("SET timezone TO 'UTC'")
         self.insert_cache: Dict[str, Any] = {}
         self.remove_cache: Dict[str, Any] = {}
         self.select_cache: Dict[str, Any] = {}

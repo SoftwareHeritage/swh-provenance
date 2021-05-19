@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 import logging
 import os
 import time
-from typing import Dict, Generator, List, Optional, Tuple
+from typing import Dict, Generator, Iterable, List, Optional, Tuple, Union
 
 from typing_extensions import Protocol, runtime_checkable
 
@@ -45,7 +45,9 @@ class ProvenanceInterface(Protocol):
     def content_get_early_date(self, blob: FileEntry) -> Optional[datetime]:
         ...
 
-    def content_get_early_dates(self, blobs: List[FileEntry]) -> Dict[bytes, datetime]:
+    def content_get_early_dates(
+        self, blobs: Iterable[FileEntry]
+    ) -> Dict[bytes, datetime]:
         ...
 
     def content_set_early_date(self, blob: FileEntry, date: datetime) -> None:
@@ -62,7 +64,7 @@ class ProvenanceInterface(Protocol):
         ...
 
     def directory_get_dates_in_isochrone_frontier(
-        self, dirs: List[DirectoryEntry]
+        self, dirs: Iterable[DirectoryEntry]
     ) -> Dict[bytes, datetime]:
         ...
 
@@ -118,13 +120,13 @@ def flatten_directory(
     stack = [(directory, b"")]
     while stack:
         current, prefix = stack.pop()
-        for child in current.ls(archive):
-            if isinstance(child, FileEntry):
-                # Add content to the directory with the computed prefix.
-                provenance.content_add_to_directory(directory, child, prefix)
-            elif isinstance(child, DirectoryEntry):
-                # Recursively walk the child directory.
-                stack.append((child, os.path.join(prefix, child.name)))
+        current.retrieve_children(archive)
+        for f_child in current.files:
+            # Add content to the directory with the computed prefix.
+            provenance.content_add_to_directory(directory, f_child, prefix)
+        for d_child in current.dirs:
+            # Recursively walk the child directory.
+            stack.append((d_child, os.path.join(prefix, d_child.name)))
 
 
 def origin_add(
@@ -252,7 +254,7 @@ def revision_add(
 class IsochroneNode:
     def __init__(
         self,
-        entry: DirectoryEntry,
+        entry: Union[DirectoryEntry, FileEntry],
         date: Optional[datetime] = None,
         depth: int = 0,
         prefix: bytes = b"",
@@ -266,7 +268,7 @@ class IsochroneNode:
         self.path = os.path.join(prefix, self.entry.name) if prefix else self.entry.name
 
     def add_child(
-        self, child: DirectoryEntry, date: Optional[datetime] = None
+        self, child: Union[FileEntry, DirectoryEntry], date: Optional[datetime] = None
     ) -> "IsochroneNode":
         assert isinstance(self.entry, DirectoryEntry) and self.date is None
         node = IsochroneNode(
@@ -315,28 +317,18 @@ def build_isochrone_graph(
             # Pre-query all known dates for content/directories in the current directory
             # for the provenance object to have them cached and (potentially) improve
             # performance.
+            current.entry.retrieve_children(archive)
             ddates = provenance.directory_get_dates_in_isochrone_frontier(
-                [
-                    child
-                    for child in current.entry.ls(archive)
-                    if isinstance(child, DirectoryEntry)
-                ]
+                current.entry.dirs
             )
-            fdates = provenance.content_get_early_dates(
-                [
-                    child
-                    for child in current.entry.ls(archive)
-                    if isinstance(child, FileEntry)
-                ]
-            )
-            for child in current.entry.ls(archive):
+            fdates = provenance.content_get_early_dates(current.entry.files)
+            for d_child in current.entry.dirs:
                 # Recursively analyse directory nodes.
-                if isinstance(child, DirectoryEntry):
-                    node = current.add_child(child, date=ddates.get(child.id))
-                    stack.append(node)
-                else:
-                    # WARNING: there is a type checking issue here!
-                    current.add_child(child, date=fdates.get(child.id))
+                node = current.add_child(d_child, date=ddates.get(d_child.id))
+                stack.append(node)
+            for f_child in current.entry.files:
+                # WARNING: there is a type checking issue here!
+                current.add_child(f_child, date=fdates.get(f_child.id))
     logging.debug(
         f"Isochrone graph for revision {hash_to_hex(revision.id)} successfully created!"
     )

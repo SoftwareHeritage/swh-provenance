@@ -4,7 +4,7 @@
 # See top-level LICENSE file for more information
 
 from datetime import datetime
-from typing import Iterable, List, Optional, Union
+from typing import Iterable, Iterator, List, Optional
 
 from .archive import ArchiveInterface
 
@@ -57,19 +57,38 @@ class DirectoryEntry:
     def __init__(self, id: bytes, name: bytes = b""):
         self.id = id
         self.name = name
-        self._children: Optional[List[Union[DirectoryEntry, FileEntry]]] = None
+        self._files: Optional[List[FileEntry]] = None
+        self._dirs: Optional[List[DirectoryEntry]] = None
 
-    def ls(self, archive: ArchiveInterface):
-        if self._children is None:
-            self._children = []
+    def retrieve_children(self, archive: ArchiveInterface):
+        if self._files is None and self._dirs is None:
+            self._files = []
+            self._dirs = []
             for child in archive.directory_ls(self.id):
                 if child["type"] == "dir":
-                    self._children.append(
+                    self._dirs.append(
                         DirectoryEntry(child["target"], name=child["name"])
                     )
                 elif child["type"] == "file":
-                    self._children.append(FileEntry(child["target"], child["name"]))
-        yield from self._children
+                    self._files.append(FileEntry(child["target"], child["name"]))
+
+    @property
+    def files(self) -> Iterator["FileEntry"]:
+        if self._files is None:
+            raise RuntimeError(
+                "Children of this node has not yet been retrieved. "
+                "Please call retrieve_children() before using this property."
+            )
+        return (x for x in self._files)
+
+    @property
+    def dirs(self) -> Iterator["DirectoryEntry"]:
+        if self._dirs is None:
+            raise RuntimeError(
+                "Children of this node has not yet been retrieved. "
+                "Please call retrieve_children() before using this property."
+            )
+        return (x for x in self._dirs)
 
     def __str__(self):
         return f"<MDirectory[{self.id.hex()}] {self.name}>"

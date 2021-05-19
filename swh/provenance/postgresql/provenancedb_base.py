@@ -1,7 +1,7 @@
 from datetime import datetime
 import itertools
 import logging
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, Iterable, Optional, Set
 
 import psycopg2
 import psycopg2.extras
@@ -71,7 +71,9 @@ class ProvenanceDBBase:
                 self.select_cache["content"][blob.id] = date
         return date
 
-    def content_get_early_dates(self, blobs: List[FileEntry]) -> Dict[bytes, datetime]:
+    def content_get_early_dates(
+        self, blobs: Iterable[FileEntry]
+    ) -> Dict[bytes, datetime]:
         dates = {}
         pending = []
         for blob in blobs:
@@ -120,7 +122,7 @@ class ProvenanceDBBase:
         return date
 
     def directory_get_dates_in_isochrone_frontier(
-        self, dirs: List[DirectoryEntry]
+        self, dirs: Iterable[DirectoryEntry]
     ) -> Dict[bytes, datetime]:
         dates = {}
         pending = []

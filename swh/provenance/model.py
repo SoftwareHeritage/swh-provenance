@@ -49,6 +49,9 @@ class RevisionEntry:
             ]
         yield from self._nodes
 
+    def __str__(self):
+        return f"<MRevision[{self.id.hex()}] {self.date.isoformat()}>"
+
 
 class DirectoryEntry:
     def __init__(self, id: bytes, name: bytes = b""):
@@ -68,8 +71,14 @@ class DirectoryEntry:
                     self._children.append(FileEntry(child["target"], child["name"]))
         yield from self._children
 
+    def __str__(self):
+        return f"<MDirectory[{self.id.hex()}] {self.name}>"
+
 
 class FileEntry:
     def __init__(self, id: bytes, name: bytes):
         self.id = id
         self.name = name
+
+    def __str__(self):
+        return f"<MFile[{self.id.hex()}] {self.name}>"

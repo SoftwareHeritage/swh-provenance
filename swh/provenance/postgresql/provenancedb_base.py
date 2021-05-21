@@ -1,7 +1,7 @@
 from datetime import datetime
 import itertools
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 import psycopg2
 import psycopg2.extras
@@ -21,7 +21,7 @@ class ProvenanceDBBase:
         # XXX: not sure this is the best place to do it!
         self.cursor.execute("SET timezone TO 'UTC'")
         self.insert_cache: Dict[str, Any] = {}
-        self.remove_cache: Dict[str, Any] = {}
+        self.remove_cache: Dict[str, Set[bytes]] = {}
         self.select_cache: Dict[str, Any] = {}
         self.clear_caches()
 
@@ -36,7 +36,7 @@ class ProvenanceDBBase:
             "revision_before_rev": list(),
             "revision_in_org": list(),
         }
-        self.remove_cache = {"directory": dict()}
+        self.remove_cache = {"directory": set()}
         self.select_cache = {"content": dict(), "directory": dict(), "revision": dict()}
 
     def commit(self):
@@ -146,14 +146,14 @@ class ProvenanceDBBase:
         return dates
 
     def directory_invalidate_in_isochrone_frontier(self, directory: DirectoryEntry):
-        self.remove_cache["directory"][directory.id] = None
+        self.remove_cache["directory"].add(directory.id)
         self.insert_cache["directory"].pop(directory.id, None)
 
     def directory_set_date_in_isochrone_frontier(
         self, directory: DirectoryEntry, date: datetime
     ):
         self.insert_cache["directory"][directory.id] = date
-        self.remove_cache["directory"].pop(directory.id, None)
+        self.remove_cache["directory"].discard(directory.id)
 
     def insert_all(self):
         # Performe insertions with cached information

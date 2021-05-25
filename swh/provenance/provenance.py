@@ -454,9 +454,9 @@ def is_new_frontier(
             and (has_blobs(node) if lower else True)  # there is at least one blob
         )
     else:
-        # If we are only tracking first occurrences, we want ot ensure that all first
+        # If we are only tracking first occurrences, we want to ensure that all first
         # occurrences end up in the content_early_in_rev relation. Thus, we force for
-        # every blob outside a frontier to have an extrictly ealier date.
+        # every blob outside a frontier to have an extrictly earlier date.
         return (
             node.maxdate < revision.date  # all content is earlier than revision
             and node.depth >= mindepth  # deeper than the min allowed depth

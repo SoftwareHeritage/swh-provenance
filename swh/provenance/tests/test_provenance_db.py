@@ -42,7 +42,7 @@ def test_provenance_add_revision(provenance, storage_and_CMDBTS, archive):
                 date=ts2dt(revision["date"]),
                 root=revision["directory"],
             )
-            revision_add(provenance, archive, entry)
+            revision_add(provenance, archive, [entry])
 
         # there should be as many entries in 'revision' as revisions from the
         # test dataset
@@ -86,7 +86,7 @@ def test_provenance_content_find_first(provenance, storage_and_CMDBTS, archive):
             date=ts2dt(revision["date"]),
             root=revision["directory"],
         )
-        revision_add(provenance, archive, entry)
+        revision_add(provenance, archive, [entry])
 
     first_expected_content = [
         {
@@ -242,7 +242,7 @@ def test_provenance_heuristics(
             date=ts2dt(revision["date"]),
             root=revision["directory"],
         )
-        revision_add(provenance, archive, entry, **args)
+        revision_add(provenance, archive, [entry], **args)
 
         # each "entry" in the synth file is one new revision
         rows["revision"].add(synth_rev["sha1"].hex())

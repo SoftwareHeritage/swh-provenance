@@ -51,7 +51,7 @@ class RevisionEntry:
 
 
 class DirectoryEntry:
-    def __init__(self, id: bytes, name: bytes):
+    def __init__(self, id: bytes, name: bytes = b""):
         self.id = id
         self.name = name
         self._children: Optional[List[Union[DirectoryEntry, FileEntry]]] = None
@@ -62,7 +62,7 @@ class DirectoryEntry:
             for child in archive.directory_ls(self.id):
                 if child["type"] == "dir":
                     self._children.append(
-                        DirectoryEntry(child["target"], child["name"])
+                        DirectoryEntry(child["target"], name=child["name"])
                     )
                 elif child["type"] == "file":
                     self._children.append(FileEntry(child["target"], child["name"]))

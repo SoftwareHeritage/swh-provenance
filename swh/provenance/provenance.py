@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 import logging
 import os
+import time
 from typing import Dict, Generator, List, Optional, Tuple
 from typing_extensions import Protocol, runtime_checkable
 from swh.model.hashutil import hash_to_hex
@@ -192,45 +193,69 @@ def origin_add_revision(
 def revision_add(
     provenance: ProvenanceInterface,
     archive: ArchiveInterface,
-    revision: RevisionEntry,
+    revisions: List[RevisionEntry],
+    trackall: bool = True,
     lower: bool = True,
     mindepth: int = 1,
 ) -> None:
-    assert revision.date is not None
-    assert revision.root is not None
-    # Processed content starting from the revision's root directory.
-    date = provenance.revision_get_early_date(revision)
-    if date is None or revision.date < date:
-        logging.debug(
-            f"Processing revision {hash_to_hex(revision.id)}"
-            f" (known date {date} / revision date {revision.date})..."
-        )
-        provenance.revision_add(revision)
-        # TODO: add file size filtering
-        revision_process_content(
-            archive,
-            provenance,
-            revision,
-            DirectoryEntry(revision.root, b""),
-            lower=lower,
-            mindepth=mindepth,
-        )
-        # TODO: improve this! Maybe using a max attempt counter?
-        # Ideally Provenance class should guarantee that a commit never fails.
-        logging.debug(f"Attempt to commit revision {hash_to_hex(revision.id)}...")
-        while not provenance.commit():
-            logging.warning(
-                f"Could not commit revision {hash_to_hex(revision.id)}. Retrying..."
+    start = time.time()
+    for revision in revisions:
+        assert revision.date is not None
+        assert revision.root is not None
+        # Processed content starting from the revision's root directory.
+        date = provenance.revision_get_early_date(revision)
+        if date is None or revision.date < date:
+            logging.debug(
+                f"Processing revisions {hash_to_hex(revision.id)}"
+                f" (known date {date} / revision date {revision.date})..."
             )
-        logging.debug(f"Revision {hash_to_hex(revision.id)} successfully committed!")
+            graph = build_isochrone_graph(
+                archive,
+                provenance,
+                revision,
+                DirectoryEntry(revision.root),
+            )
+            # TODO: add file size filtering
+            revision_process_content(
+                archive,
+                provenance,
+                revision,
+                graph,
+                trackall=trackall,
+                lower=lower,
+                mindepth=mindepth,
+            )
+    done = time.time()
+    # TODO: improve this! Maybe using a max attempt counter?
+    # Ideally Provenance class should guarantee that a commit never fails.
+    while not provenance.commit():
+        logging.warning(
+            "Could not commit revisions "
+            + ";".join([hash_to_hex(revision.id) for revision in revisions])
+            + ". Retrying..."
+        )
+    stop = time.time()
+    logging.debug(
+        f"Revisions {';'.join([hash_to_hex(revision.id) for revision in revisions])} "
+        f" were processed in {stop - start} secs (commit took {stop - done} secs)!"
+    )
+    # logging.critical(
+    #     ";".join([hash_to_hex(revision.id) for revision in revisions])
+    #     + f",{stop - start},{stop - done}"
+    # )
 
 
 class IsochroneNode:
     def __init__(
-        self, entry: DirectoryEntry, dates: Dict[bytes, datetime] = {}, depth: int = 0
+        self,
+        entry: DirectoryEntry,
+        dates: Dict[bytes, datetime] = {},
+        depth: int = 0,
+        prefix: bytes = b"",
     ):
         self.entry = entry
         self.depth = depth
+        self.path = os.path.join(prefix, self.entry.name) if prefix else self.entry.name
         self.date = dates.get(self.entry.id, None)
         self.known = self.date is not None
         self.children: List[IsochroneNode] = []
@@ -240,7 +265,7 @@ class IsochroneNode:
         self, child: DirectoryEntry, dates: Dict[bytes, datetime] = {}
     ) -> "IsochroneNode":
         assert isinstance(self.entry, DirectoryEntry) and self.date is None
-        node = IsochroneNode(child, dates=dates, depth=self.depth + 1)
+        node = IsochroneNode(child, dates=dates, depth=self.depth + 1, prefix=self.path)
         self.children.append(node)
         return node
 
@@ -270,6 +295,12 @@ def build_isochrone_graph(
             # is greater or equal to the current revision's one, it should be ignored as
             # the revision is being processed out of order.
             if current.date is not None and current.date > revision.date:
+                logging.debug(
+                    f"Invalidating frontier on {hash_to_hex(current.entry.id)}"
+                    f" (date {current.date})"
+                    f" when processing revision {hash_to_hex(revision.id)}"
+                    f" (date {revision.date})"
+                )
                 provenance.directory_invalidate_in_isochrone_frontier(current.entry)
                 current.date = None
                 current.known = False
@@ -348,30 +379,32 @@ def revision_process_content(
     archive: ArchiveInterface,
     provenance: ProvenanceInterface,
     revision: RevisionEntry,
-    root: DirectoryEntry,
+    graph: IsochroneNode,
+    trackall: bool = True,
     lower: bool = True,
     mindepth: int = 1,
 ):
     assert revision.date is not None
-    logging.debug(
-        f"Building isochrone graph for revision {hash_to_hex(revision.id)}..."
-    )
-    stack = [(build_isochrone_graph(archive, provenance, revision, root), root.name)]
-    logging.debug(
-        f"Isochrone graph for revision {hash_to_hex(revision.id)} successfully built!"
-    )
+    provenance.revision_add(revision)
+
+    stack = [graph]
     while stack:
-        current, path = stack.pop()
+        current = stack.pop()
         assert isinstance(current.entry, DirectoryEntry)
         if current.date is not None:
             assert current.date <= revision.date
-            # Current directory is an outer isochrone frontier for a previously
-            # processed revision. It should be reused as is.
-            provenance.directory_add_to_revision(revision, current.entry, path)
+            if trackall:
+                # Current directory is an outer isochrone frontier for a previously
+                # processed revision. It should be reused as is.
+                provenance.directory_add_to_revision(
+                    revision, current.entry, current.path
+                )
         else:
             # Current directory is not an outer isochrone frontier for any previous
             # revision. It might be eligible for this one.
-            if is_new_frontier(current, revision, lower=lower, mindepth=mindepth):
+            if is_new_frontier(
+                current, revision, trackall=trackall, lower=lower, mindepth=mindepth
+            ):
                 assert current.maxdate is not None
                 # Outer frontier should be moved to current position in the isochrone
                 # graph. This is the first time this directory is found in the isochrone
@@ -379,8 +412,11 @@ def revision_process_content(
                 provenance.directory_set_date_in_isochrone_frontier(
                     current.entry, current.maxdate
                 )
-                provenance.directory_add_to_revision(revision, current.entry, path)
-                flatten_directory(archive, provenance, current.entry)
+                if trackall:
+                    provenance.directory_add_to_revision(
+                        revision, current.entry, current.path
+                    )
+                    flatten_directory(archive, provenance, current.entry)
             else:
                 # No point moving the frontier here. Either there are no files or they
                 # are being seen for the first time here. Add all blobs to current
@@ -391,26 +427,41 @@ def revision_process_content(
                         blob = child.entry
                         if child.date is None or revision.date < child.date:
                             provenance.content_set_early_date(blob, revision.date)
-                        provenance.content_add_to_revision(revision, blob, path)
+                        provenance.content_add_to_revision(revision, blob, current.path)
                     else:
-                        stack.append((child, os.path.join(path, child.entry.name)))
+                        stack.append(child)
 
 
 def is_new_frontier(
-    node: IsochroneNode, revision: RevisionEntry, lower: bool = True, mindepth: int = 1
+    node: IsochroneNode,
+    revision: RevisionEntry,
+    trackall: bool = True,
+    lower: bool = True,
+    mindepth: int = 1,
 ) -> bool:
     assert node.maxdate is not None and revision.date is not None
-    # The only real condition for a directory to be a frontier is that its content is
-    # already known and its maxdate is less (or equal) than current revision's date.
-    # Checking mindepth is meant to skip root directories (or any arbitrary depth) to
-    # improve the result. The option lower tries to maximize the reusage rate of
-    # previously defined frontiers by keeping them low in the directory tree.
-    return (
-        node.known  # all content in node was already seen before
-        and node.maxdate <= revision.date  # all content is earlier than revision
-        and node.depth >= mindepth  # current node is deeper than the min allowed depth
-        and (has_blobs(node) if lower else True)  # there is at least one blob in it
-    )
+    if trackall:
+        # The only real condition for a directory to be a frontier is that its content
+        # is already known and its maxdate is less (or equal) than current revision's
+        # date. Checking mindepth is meant to skip root directories (or any arbitrary
+        # depth) to improve the result. The option lower tries to maximize the reusage
+        # rate of previously defined frontiers by keeping them low in the directory
+        # tree.
+        return (
+            node.known  # all content in node was already seen before
+            and node.maxdate <= revision.date  # all content is earlier than revision
+            and node.depth >= mindepth  # deeper than the min allowed depth
+            and (has_blobs(node) if lower else True)  # there is at least one blob
+        )
+    else:
+        # If we are only tracking first occurrences, we want ot ensure that all first
+        # occurrences end up in the content_early_in_rev relation. Thus, we force for
+        # every blob outside a frontier to have an extrictly ealier date.
+        return (
+            node.maxdate < revision.date  # all content is earlier than revision
+            and node.depth >= mindepth  # deeper than the min allowed depth
+            and (has_blobs(node) if lower else True)  # there is at least one blob
+        )
 
 
 def has_blobs(node: IsochroneNode) -> bool:

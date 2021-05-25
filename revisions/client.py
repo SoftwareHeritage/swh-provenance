@@ -2,6 +2,7 @@
 
 import iso8601
 import logging
+import logging.handlers
 import sys
 import time
 import zmq
@@ -14,7 +15,7 @@ from swh.model.hashutil import hash_to_bytes
 from swh.provenance import get_archive, get_provenance
 from swh.provenance.archive import ArchiveInterface
 from swh.provenance.provenance import revision_add
-from swh.provenance.revision import RevisionEntry
+from swh.provenance.model import RevisionEntry
 from typing import Any, Dict
 
 
@@ -31,7 +32,11 @@ conninfo = {
     },
     "provenance": {
         "cls": "local",
-        "db": {"host": "/var/run/postgresql", "port": "5436", "dbname": "provenance"},
+        "db": {
+            "host": "/var/run/postgresql",
+            "port": "5436",
+            "dbname": "provenance",
+        },
     },
 }
 
@@ -42,6 +47,7 @@ class Client(Process):
         idx: int,
         threads: int,
         conninfo: Dict[str, Any],
+        trackall: bool,
         lower: bool,
         mindepth: int,
     ):
@@ -49,6 +55,7 @@ class Client(Process):
         self.idx = idx
         self.threads = threads
         self.conninfo = conninfo
+        self.trackall = trackall
         self.lower = lower
         self.mindepth = mindepth
 
@@ -60,7 +67,9 @@ class Client(Process):
         workers = []
         for idx in range(self.threads):
             logging.info(f"Process {self.idx}: launching thread {idx}")
-            worker = Worker(idx, archive, self.conninfo, self.lower, self.mindepth)
+            worker = Worker(
+                idx, archive, self.conninfo, self.trackall, self.lower, self.mindepth
+            )
             worker.start()
             workers.append(worker)
 
@@ -77,6 +86,7 @@ class Worker(Thread):
         idx: int,
         archive: ArchiveInterface,
         conninfo: Dict[str, Any],
+        trackall: bool,
         lower: bool,
         mindepth: int,
     ):
@@ -87,8 +97,10 @@ class Worker(Thread):
         # Each worker has its own provenance object to isolate
         # the processing of each revision.
         self.provenance = get_provenance(**conninfo["provenance"])
+        self.trackall = trackall
         self.lower = lower
         self.mindepth = mindepth
+        logging.info(f"Worker {self.idx} created ({self.trackall}, {self.lower}, {self.mindepth})")
 
     def run(self):
         context = zmq.Context()
@@ -107,7 +119,6 @@ class Worker(Thread):
                 date = date.replace(tzinfo=timezone.utc)
 
             revision = RevisionEntry(
-                self.archive,
                 hash_to_bytes(response["rev"]),
                 date=date,
                 root=hash_to_bytes(response["root"]),
@@ -115,7 +126,8 @@ class Worker(Thread):
             revision_add(
                 self.provenance,
                 self.archive,
-                revision,
+                [revision],
+                trackall=self.trackall,
                 lower=self.lower,
                 mindepth=self.mindepth,
             )
@@ -123,20 +135,27 @@ class Worker(Thread):
 
 if __name__ == "__main__":
     # Check parameters
-    if len(sys.argv) != 5:
-        print("usage: client <processes> <port> <lower> <mindepth>")
+    if len(sys.argv) != 6:
+        print("usage: client <processes> <port> <trackall> <lower> <mindepth>")
         exit(-1)
 
     processes = int(sys.argv[1])
     port = int(sys.argv[2])
     threads = 1  # int(sys.argv[2])
-    lower = bool(sys.argv[3])
-    mindepth = int(sys.argv[4])
+    trackall = sys.argv[3].lower() != "false"
+    lower = sys.argv[4].lower() != "false"
+    mindepth = int(sys.argv[5])
     dbname = conninfo["provenance"]["db"]["dbname"]
     conninfo["server"] = f"tcp://localhost:{port}"
+    # conninfo["server"] = f"tcp://128.93.73.182:{port}" # petit-palais
 
     # Set logging level
-    # logging.getLogger().setLevel(logging.INFO)
+    logging.getLogger().setLevel(logging.INFO)
+    handler = logging.handlers.RotatingFileHandler(
+        conninfo["provenance"]["db"]["dbname"] + ".log",
+        maxBytes=1024 * 1024 * 10
+    )
+    logging.getLogger().addHandler(handler)
 
     # Start counter
     start = time.time()
@@ -145,7 +164,7 @@ if __name__ == "__main__":
     clients = []
     for idx in range(processes):
         logging.info(f"MAIN: launching process {idx}")
-        client = Client(idx, threads, conninfo, lower, mindepth)
+        client = Client(idx, threads, conninfo, trackall, lower, mindepth)
         client.start()
         clients.append(client)
 

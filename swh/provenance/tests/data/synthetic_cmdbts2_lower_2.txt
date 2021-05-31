@@ -1,0 +1,91 @@
+1000000000 c0d8929936631ecbcf9147be6b8aa13b13b014e4 R00
+R00   |       |                      | R c0d8929936631ecbcf9147be6b8aa13b13b014e4 | 1000000000
+      | R---C | A/B/C/a              | C 20329687bb9c1231a7e05afe86160343ad49b494 | 0
+
+1000000010 1444db96cbd8cd791abe83527becee73d3c64e86 R01
+R01   |       |                      | R 1444db96cbd8cd791abe83527becee73d3c64e86 | 1000000010
+      | R---C | A/B/C/a              | C 20329687bb9c1231a7e05afe86160343ad49b494 | -10
+      | R---C | A/B/C/b              | C 50e9cdb03f9719261dd39d7f2920b906db3711a3 | 0
+
+1000000020 0d45f1ee524db8f6f0b5a267afac4e733b4b2cee R02
+R02   |       |                      | R 0d45f1ee524db8f6f0b5a267afac4e733b4b2cee | 1000000020
+      | R---C | A/B/c                | C fa08654474ae2ddc4f61ee3a43d017ba65a439c3 | 0
+      | R-D   | A/B/C                | D c9cabe7f49012e3fdef6ac6b929efb5654f583cf | -10
+      |   D-C | + a                  | C 20329687bb9c1231a7e05afe86160343ad49b494 | -20
+      |   D-C | + b                  | C 50e9cdb03f9719261dd39d7f2920b906db3711a3 | -10
+
+1000000030 540bd6155a3c50cc47b2e6f43aeaace67a696d1d R03
+R03   |       |                      | R 540bd6155a3c50cc47b2e6f43aeaace67a696d1d | 1000000030
+      | R---C | A/a                  | C 20329687bb9c1231a7e05afe86160343ad49b494 | -30
+      | R-D   | A/C                  | D c9cabe7f49012e3fdef6ac6b929efb5654f583cf | -20
+      |   D-C | + a                  | C 20329687bb9c1231a7e05afe86160343ad49b494 | -30
+      |   D-C | + b                  | C 50e9cdb03f9719261dd39d7f2920b906db3711a3 | -20
+
+1000000040 17ed10db0612c9b46ba340943cb6b48b25431419 R04
+R04   |       |                      | R 17ed10db0612c9b46ba340943cb6b48b25431419 | 1000000040
+      | R-D   | A/B                  | D 0e540a8ebea2f5de3e62b92e2139902cf6f46e92 | -20
+      |   D-C | + c                  | C fa08654474ae2ddc4f61ee3a43d017ba65a439c3 | -20
+      |   D-C | + C/a                | C 20329687bb9c1231a7e05afe86160343ad49b494 | -40
+      |   D-C | + C/b                | C 50e9cdb03f9719261dd39d7f2920b906db3711a3 | -30
+
+1000000050 c8bef45193355db33d64f375b4a4e4f23ac2a4f6 R05
+R05   |       |                      | R c8bef45193355db33d64f375b4a4e4f23ac2a4f6 | 1000000050
+      | R---C | D/d                  | C 86d5e8e8649d6a884e2d3e994f5e99e6435f63e1 | 0
+
+1000000060 f5c16cb16dc29d9e5b25bd3d4d1e252ac7d5493c R06
+R06   |       |                      | R f5c16cb16dc29d9e5b25bd3d4d1e252ac7d5493c | 1000000060
+      | R-D   | D/E/D                | D 12f1bc8ca9678ecc055bc65efd7fb4dd1f13457e | -10
+      |   D-C | + d                  | C 86d5e8e8649d6a884e2d3e994f5e99e6435f63e1 | -10
+
+1000000070 91ed6a03c80b61e0d63d328f7a4325230e7a0237 R07
+R07   |       |                      | R 91ed6a03c80b61e0d63d328f7a4325230e7a0237 | 1000000070
+      | R---C | F/d                  | C 86d5e8e8649d6a884e2d3e994f5e99e6435f63e1 | -20
+      | R-D   | F/E/D                | D 12f1bc8ca9678ecc055bc65efd7fb4dd1f13457e | -20
+      |   D-C | + d                  | C 86d5e8e8649d6a884e2d3e994f5e99e6435f63e1 | -20
+
+1000000080 a97e5c8a626510eefaa637091924cf800b1e8b06 R08
+R08   |       |                      | R a97e5c8a626510eefaa637091924cf800b1e8b06 | 1000000080
+      | R---C | F/a                  | C 20329687bb9c1231a7e05afe86160343ad49b494 | -80
+      | R-D   | F/E/D                | D cb211f2d9dfee6c3968837a07960afd6ab09506c | -30
+      |   D-C | + d                  | C 86d5e8e8649d6a884e2d3e994f5e99e6435f63e1 | -30
+      |   D-C | + e                  | C 86d5e8e8649d6a884e2d3e994f5e99e6435f63e1 | -30
+
+1000000090 3c5ad6be812b182ee2a01e84884b8ab7d384a4a0 R09
+R09   |       |                      | R 3c5ad6be812b182ee2a01e84884b8ab7d384a4a0 | 1000000090
+      | R---C | F/g                  | C f82e92602fc443956f77811e1929cb7b5a9c500b | 0
+      | R---C | F/E/D/g              | C f82e92602fc443956f77811e1929cb7b5a9c500b | 0
+      | R---C | F/E/D/f              | C f82e92602fc443956f77811e1929cb7b5a9c500b | 0
+
+1000000100 b7c52e28d441ca0cb736fdbe49e39eae3847ad0f R10
+R10   |       |                      | R b7c52e28d441ca0cb736fdbe49e39eae3847ad0f | 1000000100
+      | R---C | F/h                  | C 920fc6de626e6f51027590557ac8e11cccd5dbc2 | 0
+      | R-D   | F/E/D                | D 2cb3ae467165716d1d0e7fa85190d753c3b76d78 | -10
+      |   D-C | + g                  | C f82e92602fc443956f77811e1929cb7b5a9c500b | -10
+      |   D-C | + f                  | C f82e92602fc443956f77811e1929cb7b5a9c500b | -10
+
+1000000110 f4b2d6d273a6f0d9f2b1299c668b7b7ea095a6a2 R11
+R11   |       |                      | R f4b2d6d273a6f0d9f2b1299c668b7b7ea095a6a2 | 1000000110
+      | R---C | G/i                  | C 388d789b624db360ede4c1b5a317da3f07b98e9c | 0
+      | R-D   | G/E/D                | D 2cb3ae467165716d1d0e7fa85190d753c3b76d78 | -20
+      |   D-C | + g                  | C f82e92602fc443956f77811e1929cb7b5a9c500b | -20
+      |   D-C | + f                  | C f82e92602fc443956f77811e1929cb7b5a9c500b | -20
+
+1000000120 99bd98e1803343ecfabe4b05d0218475c2b1bf74 R12
+R12   |       |                      | R 99bd98e1803343ecfabe4b05d0218475c2b1bf74 | 1000000120
+      | R---C | G/j                  | C ab0d07c4e8650fade0f87c7380f3462c89ecfc90 | 0
+      | R-D   | G/H/D                | D 2cb3ae467165716d1d0e7fa85190d753c3b76d78 | -30
+      |   D-C | + g                  | C f82e92602fc443956f77811e1929cb7b5a9c500b | -30
+      |   D-C | + f                  | C f82e92602fc443956f77811e1929cb7b5a9c500b | -30
+
+1000000130 10287882c7ed1b7c96f43da269e6a868b98291ff R13
+R13   |       |                      | R 10287882c7ed1b7c96f43da269e6a868b98291ff | 1000000130
+      | R---C | G/k                  | C 5d322b152c491c915079caa3d8af22ab4d02d5cb | 0
+      | R-D   | G/I/D                | D 2cb3ae467165716d1d0e7fa85190d753c3b76d78 | -40
+      |   D-C | + g                  | C f82e92602fc443956f77811e1929cb7b5a9c500b | -40
+      |   D-C | + f                  | C f82e92602fc443956f77811e1929cb7b5a9c500b | -40
+      | R-D   | G/D                  | D 2cb3ae467165716d1d0e7fa85190d753c3b76d78 | -40
+      |   D-C | + g                  | C f82e92602fc443956f77811e1929cb7b5a9c500b | -40
+      |   D-C | + f                  | C f82e92602fc443956f77811e1929cb7b5a9c500b | -40
+      | R-D   | G/H/D                | D 2cb3ae467165716d1d0e7fa85190d753c3b76d78 | -40
+      |   D-C | + g                  | C f82e92602fc443956f77811e1929cb7b5a9c500b | -40
+      |   D-C | + f                  | C f82e92602fc443956f77811e1929cb7b5a9c500b | -40

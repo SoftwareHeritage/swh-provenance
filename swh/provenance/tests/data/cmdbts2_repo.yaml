@@ -1,0 +1,80 @@
+- msg: R00
+  date: 1000000000
+  content:
+    A/B/C/a: "content a"
+- msg: R01
+  date: 1000000010
+  content:
+    A/B/C/a: "content a"
+    A/B/C/b: "content b"
+- msg: R02
+  date: 1000000020
+  content:
+    A/B/C/a: "content a"
+    A/B/C/b: "content b"
+    A/B/c: "content c"
+- msg: R03
+  date: 1000000030
+  content:
+    A/C/a: "content a"
+    A/C/b: "content b"
+    A/a: "content a"
+- msg: R04
+  date: 1000000040
+  content:
+    A/B/C/a: "content a"
+    A/B/C/b: "content b"
+    A/B/c: "content c"
+- msg: R05
+  date: 1000000050
+  content:
+    D/d: "content d"
+- msg: R06
+  date: 1000000060
+  content:
+    D/E/D/d: "content d"
+- msg: R07
+  date: 1000000070
+  content:
+    F/E/D/d: "content d"
+    F/d: "content d"
+- msg: R08
+  date: 1000000080
+  content:
+    F/E/D/d: "content d"
+    F/E/D/e: "content d"  # /!\ same content as d
+    F/a: "content a"
+- msg: R09
+  date: 1000000090
+  content:
+    F/E/D/f: "content f"
+    F/E/D/g: "content f"  # /!\ same content as f
+    F/g: "content f"
+- msg: R10
+  date: 1000000100
+  content:
+    F/E/D/f: "content f"
+    F/E/D/g: "content f"  # /!\
+    F/h: "content h"
+- msg: R11
+  date: 1000000110
+  content:
+    G/E/D/f: "content f"
+    G/E/D/g: "content f"  # /!\
+    G/i: "content i"
+- msg: R12
+  date: 1000000120
+  content:
+    G/H/D/f: "content f"
+    G/H/D/g: "content f"  # /!\
+    G/j: "content j"
+- msg: R13
+  date: 1000000130
+  content:
+    G/H/D/f: "content f"
+    G/H/D/g: "content f"
+    G/I/D/f: "content f"
+    G/I/D/g: "content f"
+    G/D/f: "content f"
+    G/D/g: "content f"
+    G/k: "content k"

@@ -155,8 +155,12 @@ def CMDBTS_data():
     #      |- Paris/Purple/f                   94ba40161084e8b80943accd9d24e1f9dd47189b
     #      |- Paris/Purple/g                   94ba40161084e8b80943accd9d24e1f9dd47189b
     #      `- Paris/k                        * cb79b39935c9392fa5193d9f84a6c35dc9c22c75
+    return load_repo_data("CMDBTS")
+
+
+def load_repo_data(repo):
     data = {"revision": [], "directory": [], "content": []}
-    with open(get_datafile("CMDBTS.msgpack"), "rb") as fobj:
+    with open(get_datafile(f"{repo}.msgpack"), "rb") as fobj:
         for etype, value in msgpack_loads(fobj.read()):
             data[etype].append(value)
     return data
@@ -168,10 +172,15 @@ def filter_dict(d, keys):
 
 @pytest.fixture
 def storage_and_CMDBTS(swh_storage, CMDBTS_data):
-    swh_storage.content_add_metadata(
-        Content.from_dict(content) for content in CMDBTS_data["content"]
+    fill_storage(swh_storage, CMDBTS_data)
+    return swh_storage, CMDBTS_data
+
+
+def fill_storage(storage, data):
+    storage.content_add_metadata(
+        Content.from_dict(content) for content in data["content"]
     )
-    swh_storage.directory_add(
+    storage.directory_add(
         [
             Directory(
                 entries=tuple(
@@ -183,13 +192,10 @@ def storage_and_CMDBTS(swh_storage, CMDBTS_data):
                     ]
                 )
             )
-            for dir in CMDBTS_data["directory"]
+            for dir in data["directory"]
         ]
     )
-    swh_storage.revision_add(
-        Revision.from_dict(revision) for revision in CMDBTS_data["revision"]
-    )
-    return swh_storage, CMDBTS_data
+    storage.revision_add(Revision.from_dict(revision) for revision in data["revision"])
 
 
 class SynthRelation(TypedDict):
@@ -240,13 +246,13 @@ def _parse_synthetic_file(fobj: Iterable[str]) -> Iterator[SynthRevision]:
     revision for each revision listed in the synthetic file.
     """
     regs = [
-        "(?P<revname>R[0-9]{4})?",
+        "(?P<revname>R[0-9]{2,4})?",
         "(?P<reltype>[^| ]*)",
         "([+] )?(?P<path>[^| +]*?)[/]?",
         "(?P<type>[RDC]) (?P<sha1>[0-9a-z]{40})",
         "(?P<ts>-?[0-9]+(.[0-9]+)?)",
     ]
-    regex = re.compile("^ *" + r" *[|] *".join(regs) + r" *$")
+    regex = re.compile("^ *" + r" *[|] *".join(regs) + r" *(#.*)?$")
     current_rev: List[dict] = []
     for m in (regex.match(line) for line in fobj):
         if m:

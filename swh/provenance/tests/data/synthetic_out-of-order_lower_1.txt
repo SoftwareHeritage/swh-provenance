@@ -1,0 +1,42 @@
+1000000000 c0d8929936631ecbcf9147be6b8aa13b13b014e4 R00
+R00   |       |                      | R c0d8929936631ecbcf9147be6b8aa13b13b014e4 | 1000000000
+      | R---C | A/B/C/a              | C 20329687bb9c1231a7e05afe86160343ad49b494 | 0
+
+1000000010 1444db96cbd8cd791abe83527becee73d3c64e86 R01
+R01   |       |                      | R 1444db96cbd8cd791abe83527becee73d3c64e86 | 1000000010
+      | R---C | A/B/C/a              | C 20329687bb9c1231a7e05afe86160343ad49b494 | -10
+      | R---C | A/B/C/b              | C 50e9cdb03f9719261dd39d7f2920b906db3711a3 | 0
+
+1000000020 1c533587277731236616cac0d44f3b46c1da0f8a R02
+R02   |       |                      | R 1c533587277731236616cac0d44f3b46c1da0f8a | 1000000020
+      | R-D   | A/C                  | D c9cabe7f49012e3fdef6ac6b929efb5654f583cf | -10
+      |   D-C | + a                  | C 20329687bb9c1231a7e05afe86160343ad49b494 | -20
+      |   D-C | + b                  | C 50e9cdb03f9719261dd39d7f2920b906db3711a3 | -10
+
+1000000030 20f4da0f48609d9f7f908ebbcac3b3741a0f25cb R03
+R03   |       |                      | R 20f4da0f48609d9f7f908ebbcac3b3741a0f25cb | 1000000030
+      | R-D   | A/B/C                | D c9cabe7f49012e3fdef6ac6b929efb5654f583cf | -20
+      |   D-C | + a                  | C 20329687bb9c1231a7e05afe86160343ad49b494 | -30
+      |   D-C | + b                  | C 50e9cdb03f9719261dd39d7f2920b906db3711a3 | -20
+
+1000000040 0d66eadcc15e0d7f6cfd4289329a7749a1309982 R04
+R04   |       |                      | R 0d66eadcc15e0d7f6cfd4289329a7749a1309982 | 1000000040
+      | R-D   | A/C                  | D c9cabe7f49012e3fdef6ac6b929efb5654f583cf | -30
+      |   D-C | + a                  | C 20329687bb9c1231a7e05afe86160343ad49b494 | -40
+      |   D-C | + b                  | C 50e9cdb03f9719261dd39d7f2920b906db3711a3 | -30
+
+1000000005 1dfac0491892096948d6a02bf12a2fed4bf75743 R05
+R05   |       |                      | R 1dfac0491892096948d6a02bf12a2fed4bf75743 | 1000000005
+      | R---C | A/B/C/a              | C 20329687bb9c1231a7e05afe86160343ad49b494 | -5
+      | R---C | A/B/C/b              | C 50e9cdb03f9719261dd39d7f2920b906db3711a3 | 0
+
+1000000050 53519b5a5e8cf12a4f81f82e489f95c1d04d5314 R06
+R06   |       |                      | R 53519b5a5e8cf12a4f81f82e489f95c1d04d5314 | 1000000050
+      | R---C | A/B/c                | C fa08654474ae2ddc4f61ee3a43d017ba65a439c3 | 0
+# Note the ts below (-40) is NOT the same as the maxdate of its content (-45)!
+# This is because the ts of the existing frontier (the R-D below) has not been updated by the
+# "new" version of the b file (aka older ts) of R05.
+# /!\ This is true only when ingesting revisions one at a time!
+      | R-D   | A/B/C                | D c9cabe7f49012e3fdef6ac6b929efb5654f583cf | -40
+      |   D-C | + a                  | C 20329687bb9c1231a7e05afe86160343ad49b494 | -50
+      |   D-C | + b                  | C 50e9cdb03f9719261dd39d7f2920b906db3711a3 | -45

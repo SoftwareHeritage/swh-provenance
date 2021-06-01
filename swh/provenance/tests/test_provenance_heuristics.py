@@ -80,6 +80,7 @@ def get_timestamp(cur, table, sha1):
         ("cmdbts2", False, 1),
         ("cmdbts2", True, 2),
         ("cmdbts2", False, 2),
+        ("out-of-order", True, 1),
     ),
 )
 def test_provenance_heuristics(provenance, swh_storage, archive, repo, lower, mindepth):

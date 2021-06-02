@@ -16,6 +16,8 @@ UTCMIN = datetime.min.replace(tzinfo=timezone.utc)
 
 @runtime_checkable
 class ProvenanceInterface(Protocol):
+    raise_on_commit: bool = False
+
     def commit(self):
         """Commit currently ongoing transactions in the backend DB"""
         ...

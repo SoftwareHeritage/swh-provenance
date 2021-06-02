@@ -12,6 +12,8 @@ from ..revision import RevisionEntry
 
 
 class ProvenanceDBBase:
+    raise_on_commit: bool = False
+
     def __init__(self, conn: psycopg2.extensions.connection):
         # TODO: consider adding a mutex for thread safety
         conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
@@ -40,17 +42,18 @@ class ProvenanceDBBase:
         self.select_cache = {"content": dict(), "directory": dict(), "revision": dict()}
 
     def commit(self):
-        result = False
         try:
             self.insert_all()
             self.clear_caches()
-            result = True
+            return True
 
-        except Exception as error:
+        except:  # noqa: E722
             # Unexpected error occurred, rollback all changes and log message
-            logging.error(f"Unexpected error: {error}")
+            logging.exception("Unexpected error")
+            if self.raise_on_commit:
+                raise
 
-        return result
+        return False
 
     def content_get_early_date(self, blob: FileEntry) -> Optional[datetime]:
         # First check if the date is being modified by current transection.

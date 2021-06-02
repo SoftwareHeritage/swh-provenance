@@ -41,7 +41,10 @@ def provenance(provenance_db):
     )
 
     BaseDb.adapt_conn(provenance_db)
-    return ProvenanceDB(provenance_db)
+    prov = ProvenanceDB(provenance_db)
+    # in test sessions, we DO want to raise any exception occurring at commit time
+    prov.raise_on_commit = True
+    return prov
 
 
 @pytest.fixture

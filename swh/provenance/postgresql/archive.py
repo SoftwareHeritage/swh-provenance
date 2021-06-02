@@ -4,11 +4,13 @@ from methodtools import lru_cache
 import psycopg2
 
 from swh.model.model import Revision
+from swh.storage.postgresql.storage import Storage
 
 
 class ArchivePostgreSQL:
     def __init__(self, conn: psycopg2.extensions.connection):
         self.conn = conn
+        self.storage = Storage(conn, objstorage={"cls": "memory"})
 
     def directory_ls(self, id: bytes) -> List[Dict[str, Any]]:
         # TODO: only call directory_ls_internal if the id is not being queried by
@@ -61,16 +63,25 @@ class ArchivePostgreSQL:
             ]
 
     def iter_origins(self):
-        raise NotImplementedError
+        from swh.storage.algos.origin import iter_origins
+
+        yield from iter_origins(self.storage)
 
     def iter_origin_visits(self, origin: str):
-        raise NotImplementedError
+        from swh.storage.algos.origin import iter_origin_visits
+
+        # TODO: filter unused fields
+        yield from iter_origin_visits(self.storage, origin)
 
     def iter_origin_visit_statuses(self, origin: str, visit: int):
-        raise NotImplementedError
+        from swh.storage.algos.origin import iter_origin_visit_statuses
+
+        # TODO: filter unused fields
+        yield from iter_origin_visit_statuses(self.storage, origin, visit)
 
     def release_get(self, ids: Iterable[bytes]):
-        raise NotImplementedError
+        # TODO: filter unused fields
+        yield from self.storage.release_get(list(ids))
 
     def revision_get(self, ids: Iterable[bytes]):
         with self.conn.cursor() as cursor:
@@ -107,4 +118,7 @@ class ArchivePostgreSQL:
                 )
 
     def snapshot_get_all_branches(self, snapshot: bytes):
-        raise NotImplementedError
+        from swh.storage.algos.snapshot import snapshot_get_all_branches
+
+        # TODO: filter unused fields
+        return snapshot_get_all_branches(self.storage, snapshot)

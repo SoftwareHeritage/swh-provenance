@@ -184,3 +184,64 @@ def test_provenance_heuristics(provenance, swh_storage, archive, repo, lower, mi
         rows["location"] |= set(x["path"] for x in synth_rev["D_C"])
         rows["location"] |= set(x["path"] for x in synth_rev["R_D"])
         assert rows["location"] == locations(provenance.cursor), synth_rev["msg"]
+
+
+@pytest.mark.parametrize(
+    "repo, lower, mindepth",
+    (
+        ("cmdbts2", True, 1),
+        ("cmdbts2", False, 1),
+        ("cmdbts2", True, 2),
+        ("cmdbts2", False, 2),
+        ("out-of-order", True, 1),
+    ),
+)
+def test_provenance_heuristics_content_find_all(
+    provenance, swh_storage, archive, repo, lower, mindepth
+):
+    # read data/README.md for more details on how these datasets are generated
+    data = load_repo_data(repo)
+    fill_storage(swh_storage, data)
+    revisions = [
+        RevisionEntry(
+            id=revision["id"],
+            date=ts2dt(revision["date"]),
+            root=revision["directory"],
+        )
+        for revision in data["revision"]
+    ]
+
+    # XXX adding all revisions at once should be working just fine, but it does not...
+    # revision_add(provenance, archive, revisions, lower=lower, mindepth=mindepth)
+    # ...so add revisions one at a time for now
+    for revision in revisions:
+        revision_add(provenance, archive, [revision], lower=lower, mindepth=mindepth)
+
+    syntheticfile = get_datafile(
+        f"synthetic_{repo}_{'lower' if lower else 'upper'}_{mindepth}.txt"
+    )
+    expected_occurrences = {}
+    for synth_rev in synthetic_result(syntheticfile):
+        rev_id = synth_rev["sha1"].hex()
+        rev_ts = synth_rev["date"]
+
+        for rc in synth_rev["R_C"]:
+            expected_occurrences.setdefault(rc["dst"].hex(), []).append(
+                (rev_id, rev_ts, rc["path"])
+            )
+        for dc in synth_rev["D_C"]:
+            assert dc["prefix"] is not None  # to please mypy
+            expected_occurrences.setdefault(dc["dst"].hex(), []).append(
+                (rev_id, rev_ts, dc["prefix"] + "/" + dc["path"])
+            )
+
+    for content_id, results in expected_occurrences.items():
+        expected = [(content_id, *result) for result in results]
+        db_occurrences = [
+            (blob.hex(), rev.hex(), date.timestamp(), path.decode())
+            for blob, rev, date, path in provenance.content_find_all(
+                bytes.fromhex(content_id)
+            )
+        ]
+        assert len(db_occurrences) == len(expected)
+        assert set(db_occurrences) == set(expected)

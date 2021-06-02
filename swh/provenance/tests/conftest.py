@@ -6,7 +6,7 @@
 import glob
 from os import path
 import re
-from typing import Iterable, Iterator, List
+from typing import Iterable, Iterator, List, Optional
 
 import pytest
 from typing_extensions import TypedDict
@@ -199,6 +199,7 @@ def fill_storage(storage, data):
 
 
 class SynthRelation(TypedDict):
+    prefix: Optional[str]
     path: str
     src: bytes
     dst: bytes
@@ -276,31 +277,40 @@ def _mk_synth_rev(synth_rev) -> SynthRevision:
         R_D=[],
         D_C=[],
     )
+    current_path = None
+    # path of the last R-D relation we parsed, used a prefix for next D-C
+    # relations
+
     for row in synth_rev[1:]:
         if row["reltype"] == "R---C":
             assert row["type"] == "C"
             rev["R_C"].append(
                 SynthRelation(
+                    prefix=None,
                     path=row["path"],
                     src=rev["sha1"],
                     dst=bytes.fromhex(row["sha1"]),
                     rel_ts=float(row["ts"]),
                 )
             )
+            current_path = None
         elif row["reltype"] == "R-D":
             assert row["type"] == "D"
             rev["R_D"].append(
                 SynthRelation(
+                    prefix=None,
                     path=row["path"],
                     src=rev["sha1"],
                     dst=bytes.fromhex(row["sha1"]),
                     rel_ts=float(row["ts"]),
                 )
             )
+            current_path = row["path"]
         elif row["reltype"] == "D-C":
             assert row["type"] == "C"
             rev["D_C"].append(
                 SynthRelation(
+                    prefix=current_path,
                     path=row["path"],
                     src=rev["R_D"][-1]["dst"],
                     dst=bytes.fromhex(row["sha1"]),

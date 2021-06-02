@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 
 from swh.model.model import ObjectType, Origin, TargetType
 
@@ -38,7 +38,9 @@ class ArchiveOriginIterator:
         )
 
 
-def iterate_statuses(origins, archive: ArchiveInterface, limit: Optional[int] = None):
+def iterate_statuses(
+    origins: List[Origin], archive: ArchiveInterface, limit: Optional[int] = None
+):
     idx = 0
     for origin in origins:
         for visit in archive.iter_origin_visits(origin.url):

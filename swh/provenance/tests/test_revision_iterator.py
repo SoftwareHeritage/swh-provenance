@@ -17,7 +17,7 @@ from swh.provenance.tests.test_provenance_db import ts2dt
         "out-of-order",
     ),
 )
-def test_archive_direct_revision_iterator(swh_storage, archive_direct, repo):
+def test_archive_direct_revision_iterator(swh_storage, repo):
     """Test CSVRevisionIterator"""
     data = load_repo_data(repo)
     fill_storage(swh_storage, data)
@@ -25,6 +25,6 @@ def test_archive_direct_revision_iterator(swh_storage, archive_direct, repo):
         (rev["id"], ts2dt(rev["date"]).isoformat(), rev["directory"])
         for rev in data["revision"]
     ]
-    revisions = list(CSVRevisionIterator(revisions_csv, archive_direct))
+    revisions = list(CSVRevisionIterator(revisions_csv))
     assert revisions
     assert len(revisions) == len(data["revision"])

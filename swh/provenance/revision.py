@@ -1,12 +1,10 @@
 from datetime import datetime, timezone
 from itertools import islice
-import threading
 from typing import Iterable, Iterator, Optional, Tuple
 
 import iso8601
 
 from swh.model.hashutil import hash_to_bytes
-from swh.provenance.archive import ArchiveInterface
 from swh.provenance.model import RevisionEntry
 
 ########################################################################################
@@ -29,7 +27,6 @@ class CSVRevisionIterator:
     def __init__(
         self,
         revisions: Iterable[Tuple[bytes, datetime, bytes]],
-        archive: ArchiveInterface,
         limit: Optional[int] = None,
     ):
         self.revisions: Iterator[Tuple[bytes, datetime, bytes]]
@@ -37,20 +34,17 @@ class CSVRevisionIterator:
             self.revisions = islice(revisions, limit)
         else:
             self.revisions = iter(revisions)
-        self.mutex = threading.Lock()
-        self.archive = archive
 
     def __iter__(self):
         return self
 
     def __next__(self):
-        with self.mutex:
-            id, date, root = next(self.revisions)
-            date = iso8601.parse_date(date)
-            if date.tzinfo is None:
-                date = date.replace(tzinfo=timezone.utc)
-            return RevisionEntry(
-                hash_to_bytes(id),
-                date=date,
-                root=hash_to_bytes(root),
-            )
+        id, date, root = next(self.revisions)
+        date = iso8601.parse_date(date)
+        if date.tzinfo is None:
+            date = date.replace(tzinfo=timezone.utc)
+        return RevisionEntry(
+            hash_to_bytes(id),
+            date=date,
+            root=hash_to_bytes(root),
+        )

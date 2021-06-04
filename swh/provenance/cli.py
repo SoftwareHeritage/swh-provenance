@@ -137,7 +137,7 @@ def iter_revisions(ctx, filename, track_all, limit, min_depth, reuse):
     revisions_provider = (
         line.strip().split(",") for line in open(filename, "r") if line.strip()
     )
-    revisions = CSVRevisionIterator(revisions_provider, archive, limit=limit)
+    revisions = CSVRevisionIterator(revisions_provider, limit=limit)
 
     for revision in revisions:
         revision_add(

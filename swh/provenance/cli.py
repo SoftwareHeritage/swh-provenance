@@ -157,14 +157,18 @@ def iter_revisions(ctx, filename, track_all, limit, min_depth, reuse):
 def iter_origins(ctx, filename, limit):
     """Process a provided list of origins."""
     from . import get_archive, get_provenance
-    from .origin import FileOriginIterator
+    from .origin import CSVOriginIterator
     from .provenance import origin_add
 
     archive = get_archive(**ctx.obj["config"]["archive"])
     provenance = get_provenance(**ctx.obj["config"]["provenance"])
+    origins_provider = (
+        line.strip().split(",") for line in open(filename, "r") if line.strip()
+    )
+    origins = CSVOriginIterator(origins_provider, limit=limit)
 
-    for origin in FileOriginIterator(filename, archive, limit=limit):
-        origin_add(archive, provenance, origin)
+    for origin in origins:
+        origin_add(provenance, archive, [origin])
 
 
 @cli.command(name="find-first")

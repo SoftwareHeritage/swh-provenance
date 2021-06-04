@@ -4,16 +4,64 @@
 # See top-level LICENSE file for more information
 
 from datetime import datetime
-from typing import Iterable, Iterator, List, Optional
+from typing import Iterable, Iterator, List, Optional, Set
+
+from swh.core.utils import grouper
+from swh.model.model import ObjectType, TargetType
 
 from .archive import ArchiveInterface
 
 
 class OriginEntry:
-    def __init__(self, url, revisions: Iterable["RevisionEntry"], id=None):
-        self.id = id
+    def __init__(
+        self, url: str, date: datetime, snapshot: bytes, id: Optional[int] = None
+    ):
         self.url = url
-        self.revisions = revisions
+        self.date = date
+        self.snapshot = snapshot
+        self.id = id
+        self._revisions: Optional[List[RevisionEntry]] = None
+
+    def retrieve_revisions(self, archive: ArchiveInterface):
+        if self._revisions is None:
+            snapshot = archive.snapshot_get_all_branches(self.snapshot)
+            assert snapshot is not None
+            targets_set = set()
+            releases_set = set()
+            if snapshot is not None:
+                for branch in snapshot.branches:
+                    if snapshot.branches[branch].target_type == TargetType.REVISION:
+                        targets_set.add(snapshot.branches[branch].target)
+                    elif snapshot.branches[branch].target_type == TargetType.RELEASE:
+                        releases_set.add(snapshot.branches[branch].target)
+
+            batchsize = 100
+            for releases in grouper(releases_set, batchsize):
+                targets_set.update(
+                    release.target
+                    for release in archive.revision_get(releases)
+                    if release is not None
+                    and release.target_type == ObjectType.REVISION
+                )
+
+            revisions: Set[RevisionEntry] = set()
+            for targets in grouper(targets_set, batchsize):
+                revisions.update(
+                    RevisionEntry(revision.id)
+                    for revision in archive.revision_get(targets)
+                    if revision is not None
+                )
+
+            self._revisions = list(revisions)
+
+    @property
+    def revisions(self) -> Iterator["RevisionEntry"]:
+        if self._revisions is None:
+            raise RuntimeError(
+                "Revisions of this node has not yet been retrieved. "
+                "Please call retrieve_revisions() before using this property."
+            )
+        return (x for x in self._revisions)
 
 
 class RevisionEntry:
@@ -35,7 +83,7 @@ class RevisionEntry:
         if self._parents is None:
             revision = archive.revision_get([self.id])
             if revision:
-                self._parents = revision[0].parents
+                self._parents = list(revision)[0].parents
         if self._parents and not self._nodes:
             self._nodes = [
                 RevisionEntry(

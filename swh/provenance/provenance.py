@@ -133,20 +133,30 @@ def flatten_directory(
 
 
 def origin_add(
-    archive: ArchiveInterface, provenance: ProvenanceInterface, origin: OriginEntry
+    provenance: ProvenanceInterface,
+    archive: ArchiveInterface,
+    origins: List[OriginEntry],
 ) -> None:
-    # TODO: refactor to iterate over origin visit statuses and commit only once
-    # per status.
-    origin.id = provenance.origin_get_id(origin)
-    for revision in origin.revisions:
-        origin_add_revision(archive, provenance, origin, revision)
-        # Commit after each revision
-        provenance.commit()  # TODO: verify this!
+    start = time.time()
+    for origin in origins:
+        origin.retrieve_revisions(archive)
+        for revision in origin.revisions:
+            origin_add_revision(provenance, archive, origin, revision)
+    done = time.time()
+    provenance.commit()
+    stop = time.time()
+    logging.debug(
+        "Origins "
+        ";".join(
+            [origin.url + ":" + hash_to_hex(origin.snapshot) for origin in origins]
+        )
+        + f" were processed in {stop - start} secs (commit took {stop - done} secs)!"
+    )
 
 
 def origin_add_revision(
-    archive: ArchiveInterface,
     provenance: ProvenanceInterface,
+    archive: ArchiveInterface,
     origin: OriginEntry,
     revision: RevisionEntry,
 ) -> None:

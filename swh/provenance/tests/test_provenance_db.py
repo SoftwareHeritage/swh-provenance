@@ -20,8 +20,12 @@ def ts2dt(ts: dict) -> datetime.datetime:
 
 
 def test_provenance_origin_add(provenance, swh_storage_with_objects):
-    """Test the ProvenanceDB.origin_add() method"""
-    for origin in TEST_OBJECTS["origin"]:
-        entry = OriginEntry(url=origin.url, revisions=[])
-        origin_add(ArchiveStorage(swh_storage_with_objects), provenance, entry)
+    """Test the origin_add function"""
+    archive = ArchiveStorage(swh_storage_with_objects)
+    for status in TEST_OBJECTS["origin_visit_status"]:
+        if status.snapshot is not None:
+            entry = OriginEntry(
+                url=status.origin, date=status.date, snapshot=status.snapshot
+            )
+            origin_add(provenance, archive, [entry])
     # TODO: check some facts here

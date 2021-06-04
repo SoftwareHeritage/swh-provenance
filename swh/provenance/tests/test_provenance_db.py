@@ -28,53 +28,6 @@ def test_provenance_origin_add(provenance, swh_storage_with_objects):
     # TODO: check some facts here
 
 
-def test_provenance_add_revision(provenance, storage_and_CMDBTS, archive):
-
-    storage, data = storage_and_CMDBTS
-    for i in range(2):
-        # do it twice, there should be no change in results
-        for revision in data["revision"]:
-            entry = RevisionEntry(
-                id=revision["id"],
-                date=ts2dt(revision["date"]),
-                root=revision["directory"],
-            )
-            revision_add(provenance, archive, [entry])
-
-        # there should be as many entries in 'revision' as revisions from the
-        # test dataset
-        provenance.cursor.execute("SELECT count(*) FROM revision")
-        assert provenance.cursor.fetchone()[0] == len(data["revision"])
-
-        # there should be no 'location' for the empty path
-        provenance.cursor.execute("SELECT count(*) FROM location WHERE path=''")
-        assert provenance.cursor.fetchone()[0] == 0
-
-        # there should be 32 'location' for non-empty path
-        provenance.cursor.execute("SELECT count(*) FROM location WHERE path!=''")
-        assert provenance.cursor.fetchone()[0] == 32
-
-        # there should be as many entries in 'revision' as revisions from the
-        # test dataset
-        provenance.cursor.execute("SELECT count(*) FROM revision")
-        assert provenance.cursor.fetchone()[0] == len(data["revision"])
-
-        # 7 directories
-        provenance.cursor.execute("SELECT count(*) FROM directory")
-        assert provenance.cursor.fetchone()[0] == 7
-
-        # 12 D-R entries
-        provenance.cursor.execute("SELECT count(*) FROM directory_in_rev")
-        assert provenance.cursor.fetchone()[0] == 12
-
-        provenance.cursor.execute("SELECT count(*) FROM content")
-        assert provenance.cursor.fetchone()[0] == len(data["content"])
-        provenance.cursor.execute("SELECT count(*) FROM content_in_dir")
-        assert provenance.cursor.fetchone()[0] == 16
-        provenance.cursor.execute("SELECT count(*) FROM content_early_in_rev")
-        assert provenance.cursor.fetchone()[0] == 13
-
-
 def test_provenance_content_find_first(provenance, storage_and_CMDBTS, archive):
     storage, data = storage_and_CMDBTS
     for revision in data["revision"]:

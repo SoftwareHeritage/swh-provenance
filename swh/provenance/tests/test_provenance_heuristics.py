@@ -3,6 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from typing import Dict, List, Tuple
+
 import pytest
 
 from swh.provenance.model import RevisionEntry
@@ -245,3 +247,72 @@ def test_provenance_heuristics_content_find_all(
         ]
         assert len(db_occurrences) == len(expected)
         assert set(db_occurrences) == set(expected)
+
+
+@pytest.mark.parametrize(
+    "repo, lower, mindepth",
+    (
+        ("cmdbts2", True, 1),
+        ("cmdbts2", False, 1),
+        ("cmdbts2", True, 2),
+        ("cmdbts2", False, 2),
+        ("out-of-order", True, 1),
+    ),
+)
+def test_provenance_heuristics_content_find_first(
+    provenance, swh_storage, archive, repo, lower, mindepth
+):
+    # read data/README.md for more details on how these datasets are generated
+    data = load_repo_data(repo)
+    fill_storage(swh_storage, data)
+    revisions = [
+        RevisionEntry(
+            id=revision["id"],
+            date=ts2dt(revision["date"]),
+            root=revision["directory"],
+        )
+        for revision in data["revision"]
+    ]
+
+    # XXX adding all revisions at once should be working just fine, but it does not...
+    # revision_add(provenance, archive, revisions, lower=lower, mindepth=mindepth)
+    # ...so add revisions one at a time for now
+    for revision in revisions:
+        revision_add(provenance, archive, [revision], lower=lower, mindepth=mindepth)
+
+    syntheticfile = get_datafile(
+        f"synthetic_{repo}_{'lower' if lower else 'upper'}_{mindepth}.txt"
+    )
+    expected_first: Dict[str, Tuple[str, str, List[str]]] = {}
+    # dict of tuples (blob_id, rev_id, [path, ...]) the third element for path
+    # is a list because a content can be added at several places in a single
+    # revision, in which case the result of content_find_first() is one of
+    # those path, but we have no guarantee which one it will return.
+    for synth_rev in synthetic_result(syntheticfile):
+        rev_id = synth_rev["sha1"].hex()
+        rev_ts = synth_rev["date"]
+
+        for rc in synth_rev["R_C"]:
+            sha1 = rc["dst"].hex()
+            if sha1 not in expected_first:
+                assert rc["rel_ts"] == 0
+                expected_first[sha1] = (rev_id, rev_ts, [rc["path"]])
+            else:
+                if rev_ts == expected_first[sha1][1]:
+                    expected_first[sha1][2].append(rc["path"])
+                elif rev_ts < expected_first[sha1][1]:
+                    expected_first[sha1] = (rev_id, rev_ts, rc["path"])
+
+        for dc in synth_rev["D_C"]:
+            sha1 = rc["dst"].hex()
+            assert sha1 in expected_first
+            # nothing to do there, this content cannot be a "first seen file"
+
+    for content_id, (rev_id, ts, paths) in expected_first.items():
+        (r_sha1, r_rev_id, r_ts, r_path) = provenance.content_find_first(
+            bytes.fromhex(content_id)
+        )
+        assert r_sha1.hex() == content_id
+        assert r_rev_id.hex() == rev_id
+        assert r_ts.timestamp() == ts
+        assert r_path.decode() in paths

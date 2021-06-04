@@ -79,16 +79,19 @@ def archive_api(swh_storage_with_objects):
     return ArchiveStorage(swh_storage_with_objects)
 
 
-@pytest.fixture
-def archive(swh_storage_with_objects):
+@pytest.fixture(params=["archive", "db"])
+def archive(request, swh_storage_with_objects):
     """Return a ArchivePostgreSQL based StorageInterface object"""
     # this is a workaround to prevent tests from hanging because of an unclosed
     # transaction.
     # TODO: refactor the ArchivePostgreSQL to properly deal with
     # transactions and get rif of this fixture
-    archive = ArchivePostgreSQL(conn=swh_storage_with_objects.get_db().conn)
-    yield archive
-    archive.conn.rollback()
+    if request.param == "db":
+        archive = ArchivePostgreSQL(conn=swh_storage_with_objects.get_db().conn)
+        yield archive
+        archive.conn.rollback()
+    else:
+        yield ArchiveStorage(swh_storage_with_objects)
 
 
 def get_datafile(fname):

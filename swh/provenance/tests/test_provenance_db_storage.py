@@ -7,10 +7,13 @@ import pytest
 
 from swh.provenance.storage.archive import ArchiveStorage
 
-from .test_provenance_db import (  # noqa
+from .test_provenance_db import (  # noqa: F401
     test_provenance_add_revision,
-    test_provenance_content_find_all,
     test_provenance_content_find_first,
+)
+from .test_provenance_heuristics import (  # noqa: F401
+    test_provenance_heuristics,
+    test_provenance_heuristics_content_find_all,
 )
 
 

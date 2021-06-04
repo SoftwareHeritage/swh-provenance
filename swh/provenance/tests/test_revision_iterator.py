@@ -3,13 +3,24 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import pytest
+
 from swh.provenance.revision import CSVRevisionIterator
+from swh.provenance.tests.conftest import fill_storage, load_repo_data
 from swh.provenance.tests.test_provenance_db import ts2dt
 
 
-def test_archive_direct_revision_iterator(storage_and_CMDBTS, archive_direct):
+@pytest.mark.parametrize(
+    "repo",
+    (
+        "cmdbts2",
+        "out-of-order",
+    ),
+)
+def test_archive_direct_revision_iterator(swh_storage, archive_direct, repo):
     """Test CSVRevisionIterator"""
-    storage, data = storage_and_CMDBTS
+    data = load_repo_data(repo)
+    fill_storage(swh_storage, data)
     revisions_csv = [
         (rev["id"], ts2dt(rev["date"]).isoformat(), rev["directory"])
         for rev in data["revision"]

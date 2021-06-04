@@ -98,69 +98,6 @@ def get_datafile(fname):
     return path.join(path.dirname(__file__), "data", fname)
 
 
-@pytest.fixture
-def CMDBTS_data():
-    # imported git tree is https://github.com/grouss/CMDBTS rev 4c5551b496
-    # ([xxx] is the timestamp):
-    # o - [1609757158] first commit            35ccb8dd1b53d2d8a5c1375eb513ef2beaa79ae5
-    # |    `- README.md                      * 43f3c871310a8e524004e91f033e7fb3b0bc8475
-    # o - [1610644094] Reset Empty repository  840b91df68e9549c156942ddd5002111efa15604
-    # |
-    # o - [1610644094] R0000                   9e36e095b79e36a3da104ce272989b39cd68aefd
-    # |    `- Red/Blue/Green/a               * 6dc7e44ead5c0e300fe94448c3e046dfe33ad4d1
-    # o - [1610644097] R0001                   bfbfcc72ae7fc35d6941386c36280512e6b38440
-    # |    |- Red/Blue/Green/a                 6dc7e44ead5c0e300fe94448c3e046dfe33ad4d1
-    # |    `- Red/Blue/Green/b               * 9f6e04be05297905f1275d3f4e0bb0583458b2e8
-    # o - [1610644099] R0002                   0a31c9d509783abfd08f9fdfcd3acae20f17dfd0
-    # |    |- Red/Blue/Green/a                 6dc7e44ead5c0e300fe94448c3e046dfe33ad4d1
-    # |    |- Red/Blue/Green/b                 9f6e04be05297905f1275d3f4e0bb0583458b2e8
-    # |    `- Red/Blue/c                     * a28fa70e725ebda781e772795ca080cd737b823c
-    # o - [1610644101] R0003                   ca6ec564c69efd2e5c70fb05486fd3f794765a04
-    # |    |- Red/Green/a                      6dc7e44ead5c0e300fe94448c3e046dfe33ad4d1
-    # |    |- Red/Green/b                      9f6e04be05297905f1275d3f4e0bb0583458b2e8
-    # |    `- Red/a                            6dc7e44ead5c0e300fe94448c3e046dfe33ad4d1
-    # o - [1610644103] R0004                   fc6e10b7d41b1d56a94091134e3683ce91e80d91
-    # |    |- Red/Blue/Green/a                 6dc7e44ead5c0e300fe94448c3e046dfe33ad4d1
-    # |    |- Red/Blue/Green/b                 9f6e04be05297905f1275d3f4e0bb0583458b2e8
-    # |    `- Red/Blue/c                       a28fa70e725ebda781e772795ca080cd737b823c
-    # o - [1610644105] R0005                   1d1fcf1816a8a2a77f9b1f342ba11d0fe9fd7f17
-    # |    `- Purple/d                       * c0229d305adf3edf49f031269a70e3e87665fe88
-    # o - [1610644107] R0006                   9a71f967ae1a125be9b6569cc4eccec0aecabb7c
-    # |    `- Purple/Brown/Purple/d            c0229d305adf3edf49f031269a70e3e87665fe88
-    # o - [1610644109] R0007                   4fde4ea4494a630030a4bda99d03961d9add00c7
-    # |    |- Dark/Brown/Purple/d              c0229d305adf3edf49f031269a70e3e87665fe88
-    # |    `- Dark/d                           c0229d305adf3edf49f031269a70e3e87665fe88
-    # o - [1610644111] R0008                   ba00e89d47dc820bb32c783af7123ffc6e58b56d
-    # |    |- Dark/Brown/Purple/d              c0229d305adf3edf49f031269a70e3e87665fe88
-    # |    |- Dark/Brown/Purple/e              c0229d305adf3edf49f031269a70e3e87665fe88
-    # |    `- Dark/a                           6dc7e44ead5c0e300fe94448c3e046dfe33ad4d1
-    # o - [1610644113] R0009                   55d4dc9471de6144f935daf3c38878155ca274d5
-    # |    |- Dark/Brown/Purple/f            * 94ba40161084e8b80943accd9d24e1f9dd47189b
-    # |    |- Dark/Brown/Purple/g              94ba40161084e8b80943accd9d24e1f9dd47189b
-    # |    `- Dark/f                           94ba40161084e8b80943accd9d24e1f9dd47189b
-    # o - [1610644116] R0010                   a8939755d0be76cfea136e9e5ebce9bc51c49fef
-    # |    |- Dark/Brown/Purple/f              94ba40161084e8b80943accd9d24e1f9dd47189b
-    # |    |- Dark/Brown/Purple/g              94ba40161084e8b80943accd9d24e1f9dd47189b
-    # |    `- Dark/h                         * 5e8f9ceaee9dafae2e3210e254fdf170295f8b5b
-    # o - [1610644118] R0011                   ca1774a07b6e02c1caa7ae678924efa9259ee7c6
-    # |    |- Paris/Brown/Purple/f             94ba40161084e8b80943accd9d24e1f9dd47189b
-    # |    |- Paris/Brown/Purple/g             94ba40161084e8b80943accd9d24e1f9dd47189b
-    # |    `- Paris/i                        * bbd54b961764094b13f10cef733e3725d0a834c3
-    # o - [1610644120] R0012                   611fe71d75b6ea151b06e3845c09777acc783d82
-    # |    |- Paris/Berlin/Purple/f            94ba40161084e8b80943accd9d24e1f9dd47189b
-    # |    |- Paris/Berlin/Purple/g            94ba40161084e8b80943accd9d24e1f9dd47189b
-    # |    `- Paris/j                        * 7ce4fe9a22f589fa1656a752ea371b0ebc2106b1
-    # o - [1610644122] R0013                   4c5551b4969eb2160824494d40b8e1f6187fc01e
-    #      |- Paris/Berlin/Purple/f            94ba40161084e8b80943accd9d24e1f9dd47189b
-    #      |- Paris/Berlin/Purple/g            94ba40161084e8b80943accd9d24e1f9dd47189b
-    #      |- Paris/Munich/Purple/f            94ba40161084e8b80943accd9d24e1f9dd47189b
-    #      |- Paris/Munich/Purple/g            94ba40161084e8b80943accd9d24e1f9dd47189b
-    #      |- Paris/Purple/f                   94ba40161084e8b80943accd9d24e1f9dd47189b
-    #      |- Paris/Purple/g                   94ba40161084e8b80943accd9d24e1f9dd47189b
-    #      `- Paris/k                        * cb79b39935c9392fa5193d9f84a6c35dc9c22c75
-    return load_repo_data("CMDBTS")
-
-
 def load_repo_data(repo):
     data = {"revision": [], "directory": [], "content": []}
     with open(get_datafile(f"{repo}.msgpack"), "rb") as fobj:
@@ -171,12 +108,6 @@ def load_repo_data(repo):
 
 def filter_dict(d, keys):
     return {k: v for (k, v) in d.items() if k in keys}
-
-
-@pytest.fixture
-def storage_and_CMDBTS(swh_storage, CMDBTS_data):
-    fill_storage(swh_storage, CMDBTS_data)
-    return swh_storage, CMDBTS_data
 
 
 def fill_storage(storage, data):

@@ -314,6 +314,22 @@ class IsochroneNode:
         self.children.append(node)
         return node
 
+    def __eq__(self, other):
+        sameDbDate = (
+            self._dbdate is None and other._dbdate is None
+        ) or self._dbdate == other._dbdate
+        sameMaxdate = (
+            self.maxdate is None and other.maxdate is None
+        ) or self.maxdate == other.maxdate
+        return (
+            isinstance(other, IsochroneNode)
+            and (self.entry, self.depth, self.known, self.path)
+            == (other.entry, other.depth, other.known, other.path)
+            and sameDbDate
+            and sameMaxdate
+            and set(self.children) == set(other.children)
+        )
+
 
 def build_isochrone_graph(
     archive: ArchiveInterface,

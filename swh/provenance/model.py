@@ -141,6 +141,20 @@ class DirectoryEntry:
     def __str__(self):
         return f"<MDirectory[{self.id.hex()}] {self.name}>"
 
+    def __eq__(self, other):
+        sameFiles = (self._files is None and other._files is None) or (
+            set(self._files) == set(other._files)
+        )
+        sameDirs = (self._dirs is None and other._dirs is None) or (
+            set(self._dirs) == set(other._dirs)
+        )
+        return (
+            isinstance(other, DirectoryEntry)
+            and (self.id, self.name) == (other.id, other.name)
+            and sameFiles
+            and sameDirs
+        )
+
 
 class FileEntry:
     def __init__(self, id: bytes, name: bytes):
@@ -149,3 +163,9 @@ class FileEntry:
 
     def __str__(self):
         return f"<MFile[{self.id.hex()}] {self.name}>"
+
+    def __eq__(self, other):
+        return isinstance(other, FileEntry) and (self.id, self.name) == (
+            other.id,
+            other.name,
+        )

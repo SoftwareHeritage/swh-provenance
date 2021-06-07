@@ -288,12 +288,6 @@ class IsochroneNode:
         self.path = os.path.join(prefix, self.entry.name) if prefix else self.entry.name
         self.children: List[IsochroneNode] = []
 
-    def __str__(self):
-        return (
-            f"<{self.entry.__class__.__name__}[{self.entry.name}]: "
-            f"known={self.known}, maxdate={self.maxdate}, dbdate={self.dbdate}>"
-        )
-
     @property
     def dbdate(self):
         # use a property to make this attribute (mostly) read-only
@@ -314,6 +308,14 @@ class IsochroneNode:
         self.children.append(node)
         return node
 
+    def __str__(self):
+        return (
+            f"<{self.entry}: "
+            f"known={self.known}, maxdate={self.maxdate}, "
+            f"dbdate={self.dbdate}, path={self.path}, "
+            f"children=[{', '.join(str(child) for child in self.children)}]>"
+        )
+
     def __eq__(self, other):
         sameDbDate = (
             self._dbdate is None and other._dbdate is None
@@ -328,6 +330,11 @@ class IsochroneNode:
             and sameDbDate
             and sameMaxdate
             and set(self.children) == set(other.children)
+        )
+
+    def __hash__(self):
+        return hash(
+            (self.entry, self.depth, self._dbdate, self.maxdate, self.known, self.path)
         )
 
 

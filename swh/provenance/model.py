@@ -142,18 +142,13 @@ class DirectoryEntry:
         return f"<MDirectory[{self.id.hex()}] {self.name}>"
 
     def __eq__(self, other):
-        sameFiles = (self._files is None and other._files is None) or (
-            set(self._files) == set(other._files)
+        return isinstance(other, DirectoryEntry) and (self.id, self.name) == (
+            other.id,
+            other.name,
         )
-        sameDirs = (self._dirs is None and other._dirs is None) or (
-            set(self._dirs) == set(other._dirs)
-        )
-        return (
-            isinstance(other, DirectoryEntry)
-            and (self.id, self.name) == (other.id, other.name)
-            and sameFiles
-            and sameDirs
-        )
+
+    def __hash__(self):
+        return hash((self.id, self.name))
 
 
 class FileEntry:
@@ -169,3 +164,6 @@ class FileEntry:
             other.id,
             other.name,
         )
+
+    def __hash__(self):
+        return hash((self.id, self.name))

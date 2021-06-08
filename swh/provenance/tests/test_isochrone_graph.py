@@ -37,6 +37,7 @@ def isochrone_graph_from_dict(d, depth=0) -> IsochroneNode:
     )
     node.maxdate = datetime.fromtimestamp(d["maxdate"], timezone.utc)
     node.known = d.get("known", False)
+    node.invalid = d.get("invalid", False)
     node.path = bytes(d["path"], encoding="utf-8")
     node.children = [
         isochrone_graph_from_dict(child, depth=depth + 1) for child in children
@@ -54,7 +55,10 @@ def isochrone_graph_from_dict(d, depth=0) -> IsochroneNode:
         ("out-of-order", True, 1),
     ),
 )
-def test_isochrone_graph(provenance, swh_storage, archive, repo, lower, mindepth):
+@pytest.mark.parametrize("batch", (True, False))
+def test_isochrone_graph(
+    provenance, swh_storage, archive, repo, lower, mindepth, batch
+):
     # read data/README.md for more details on how these datasets are generated
     data = load_repo_data(repo)
     fill_storage(swh_storage, data)
@@ -64,6 +68,7 @@ def test_isochrone_graph(provenance, swh_storage, archive, repo, lower, mindepth
 
     with open(get_datafile(filename)) as file:
         for expected in yaml.full_load(file):
+            print("# Processing revision", expected["rev"])
             revision = revisions[hash_to_bytes(expected["rev"])]
             entry = RevisionEntry(
                 id=revision["id"],
@@ -71,7 +76,7 @@ def test_isochrone_graph(provenance, swh_storage, archive, repo, lower, mindepth
                 root=revision["directory"],
             )
             expected_graph = isochrone_graph_from_dict(expected["graph"])
-            print("Expected", expected_graph)
+            print("Expected graph:", expected_graph)
 
             # Create graph for current revision and check it has the expected structure.
             computed_graph = build_isochrone_graph(
@@ -80,9 +85,16 @@ def test_isochrone_graph(provenance, swh_storage, archive, repo, lower, mindepth
                 entry,
                 DirectoryEntry(entry.root),
             )
-            print("Computed", computed_graph)
+            print("Computed graph:", computed_graph)
             assert computed_graph == expected_graph
 
             # Add current revision so that provenance info is kept up to date for the
             # following ones.
-            revision_add(provenance, archive, [entry], lower=lower, mindepth=mindepth)
+            revision_add(
+                provenance,
+                archive,
+                [entry],
+                lower=lower,
+                mindepth=mindepth,
+                commit=not batch,
+            )

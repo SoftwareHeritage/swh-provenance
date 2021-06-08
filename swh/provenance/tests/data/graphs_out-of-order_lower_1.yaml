@@ -134,29 +134,26 @@
     entry:
       id: "b3cf11b22c9f93c3c494cf90ab072f394155072d"
       name: ""
-    maxdate: 1000000010.0
-    known: True # TODO: analyse this, as it might be a source of issues!
+    maxdate: 1000000005.0
     path: ""
     children:
       - entry:
           id: "baca735bf8b8720131b4bfdb47c51631a9260348"
           name: "A"
-        maxdate: 1000000010.0
-        known: True
+        maxdate: 1000000005.0
         path: "A"
         children:
           - entry:
               id: "4b28979d88ed209a09c272bcc80f69d9b18339c2"
               name: "B"
-            maxdate: 1000000010.0
-            known: True
+            maxdate: 1000000005.0
             path: "A/B"
             children:
             - entry:
                 id: "c9cabe7f49012e3fdef6ac6b929efb5654f583cf"
                 name: "C"
-              maxdate: 1000000010.0
-              known: True
+              maxdate: 1000000005.0
+              invalid: True
               path: "A/B/C"
 # Isochrone graph for R06
 - rev: "53519b5a5e8cf12a4f81f82e489f95c1d04d5314"
@@ -182,7 +179,7 @@
               - entry:
                   id: "c9cabe7f49012e3fdef6ac6b929efb5654f583cf"
                   name: "C"
-                dbdate: 1000000010.0
-                maxdate: 1000000010.0
+                dbdate: 1000000005.0
+                maxdate: 1000000005.0
                 known: True
                 path: "A/B/C"

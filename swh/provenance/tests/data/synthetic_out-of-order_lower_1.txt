@@ -33,10 +33,6 @@ R05   |       |                      | R 1dfac0491892096948d6a02bf12a2fed4bf7574
 1000000050 53519b5a5e8cf12a4f81f82e489f95c1d04d5314 R06
 R06   |       |                      | R 53519b5a5e8cf12a4f81f82e489f95c1d04d5314 | 1000000050
       | R---C | A/B/c                | C fa08654474ae2ddc4f61ee3a43d017ba65a439c3 | 0
-# Note the ts below (-40) is NOT the same as the maxdate of its content (-45)!
-# This is because the ts of the existing frontier (the R-D below) has not been updated by the
-# "new" version of the b file (aka older ts) of R05.
-# /!\ This is true only when ingesting revisions one at a time!
-      | R-D   | A/B/C                | D c9cabe7f49012e3fdef6ac6b929efb5654f583cf | -40
+      | R-D   | A/B/C                | D c9cabe7f49012e3fdef6ac6b929efb5654f583cf | -45
       |   D-C | + a                  | C 20329687bb9c1231a7e05afe86160343ad49b494 | -50
       |   D-C | + b                  | C 50e9cdb03f9719261dd39d7f2920b906db3711a3 | -45

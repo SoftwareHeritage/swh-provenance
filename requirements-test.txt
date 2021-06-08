@@ -1,2 +1,2 @@
 pytest
-swh.loader.git
+swh.loader.git >= 0.8

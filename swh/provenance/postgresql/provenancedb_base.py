@@ -102,57 +102,33 @@ class ProvenanceDBBase:
                 self.read_cache[table][sha1] = date
         return dates
 
-    def insert_all(self):
+    def insert_entity(self, entity):
         # Perform insertions with cached information
-        if self.write_cache["content"]:
+        if self.write_cache[entity]:
             psycopg2.extras.execute_values(
                 self.cursor,
-                """
-                LOCK TABLE ONLY content;
-                INSERT INTO content(sha1, date) VALUES %s
-                  ON CONFLICT (sha1) DO
-                    UPDATE SET date=LEAST(EXCLUDED.date,content.date)
+                f"""
+                LOCK TABLE ONLY {entity};
+                INSERT INTO {entity}(sha1, date) VALUES %s
+                    ON CONFLICT (sha1) DO
+                    UPDATE SET date=LEAST(EXCLUDED.date,{entity}.date)
                 """,
-                self.write_cache["content"].items(),
+                self.write_cache[entity].items(),
             )
-            self.write_cache["content"].clear()
+            self.write_cache[entity].clear()
 
-        if self.write_cache["directory"]:
-            psycopg2.extras.execute_values(
-                self.cursor,
-                """
-                LOCK TABLE ONLY directory;
-                INSERT INTO directory(sha1, date) VALUES %s
-                  ON CONFLICT (sha1) DO
-                    UPDATE SET date=LEAST(EXCLUDED.date,directory.date)
-                """,
-                self.write_cache["directory"].items(),
-            )
-            self.write_cache["directory"].clear()
+    def insert_all(self):
+        # First insert entities
+        self.insert_entity("content")
+        self.insert_entity("directory")
+        self.insert_entity("revision")
 
-        if self.write_cache["revision"]:
-            psycopg2.extras.execute_values(
-                self.cursor,
-                """
-                LOCK TABLE ONLY revision;
-                INSERT INTO revision(sha1, date) VALUES %s
-                  ON CONFLICT (sha1) DO
-                    UPDATE SET date=LEAST(EXCLUDED.date,revision.date)
-                """,
-                self.write_cache["revision"].items(),
-            )
-            self.write_cache["revision"].clear()
+        # Relations should come after ids for entities were resolved
+        self.insert_relation("content", "revision", "content_early_in_rev")
+        self.insert_relation("content", "directory", "content_in_dir")
+        self.insert_relation("directory", "revision", "directory_in_rev")
 
-        # Relations should come after ids for elements were resolved
-        if self.write_cache["content_early_in_rev"]:
-            self.insert_location("content", "revision", "content_early_in_rev")
-
-        if self.write_cache["content_in_dir"]:
-            self.insert_location("content", "directory", "content_in_dir")
-
-        if self.write_cache["directory_in_rev"]:
-            self.insert_location("directory", "revision", "directory_in_rev")
-
+        # TODO: this should be updated when origin-revision layer gets properly updated.
         # if self.write_cache["revision_before_rev"]:
         #     psycopg2.extras.execute_values(
         #         self.cursor,
@@ -164,7 +140,7 @@ class ProvenanceDBBase:
         #         self.write_cache["revision_before_rev"],
         #     )
         #     self.write_cache["revision_before_rev"].clear()
-
+        #
         # if self.write_cache["revision_in_org"]:
         #     psycopg2.extras.execute_values(
         #         self.cursor,

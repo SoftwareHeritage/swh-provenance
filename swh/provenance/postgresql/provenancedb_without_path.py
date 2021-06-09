@@ -100,41 +100,42 @@ class ProvenanceWithoutPathDB(ProvenanceDBBase):
     ):
         self.write_cache["directory_in_rev"].add((directory.id, revision.id))
 
-    def insert_location(self, src0_table, src1_table, dst_table):
-        # Resolve src0 ids
-        src0_values = dict().fromkeys(
-            map(operator.itemgetter(0), self.write_cache[dst_table])
-        )
-        values = ", ".join(itertools.repeat("%s", len(src0_values)))
-        self.cursor.execute(
-            f"""SELECT sha1, id FROM {src0_table} WHERE sha1 IN ({values})""",
-            tuple(src0_values),
-        )
-        src0_values = dict(self.cursor.fetchall())
+    def insert_relation(self, src, dst, relation):
+        if self.write_cache[relation]:
+            # Resolve src ids
+            src_values = dict().fromkeys(
+                map(operator.itemgetter(0), self.write_cache[relation])
+            )
+            values = ", ".join(itertools.repeat("%s", len(src_values)))
+            self.cursor.execute(
+                f"""SELECT sha1, id FROM {src} WHERE sha1 IN ({values})""",
+                tuple(src_values),
+            )
+            src_values = dict(self.cursor.fetchall())
 
-        # Resolve src1 ids
-        src1_values = dict().fromkeys(
-            map(operator.itemgetter(1), self.write_cache[dst_table])
-        )
-        values = ", ".join(itertools.repeat("%s", len(src1_values)))
-        self.cursor.execute(
-            f"""SELECT sha1, id FROM {src1_table} WHERE sha1 IN ({values})""",
-            tuple(src1_values),
-        )
-        src1_values = dict(self.cursor.fetchall())
+            # Resolve dst ids
+            dst_values = dict().fromkeys(
+                map(operator.itemgetter(1), self.write_cache[relation])
+            )
+            values = ", ".join(itertools.repeat("%s", len(dst_values)))
+            self.cursor.execute(
+                f"""SELECT sha1, id FROM {dst} WHERE sha1 IN ({values})""",
+                tuple(dst_values),
+            )
+            dst_values = dict(self.cursor.fetchall())
 
-        # Insert values in dst_table
-        rows = map(
-            lambda row: (src0_values[row[0]], src1_values[row[1]]),
-            self.write_cache[dst_table],
-        )
-        psycopg2.extras.execute_values(
-            self.cursor,
-            f"""
-            LOCK TABLE ONLY {dst_table};
-            INSERT INTO {dst_table} VALUES %s
-              ON CONFLICT DO NOTHING
-            """,
-            rows,
-        )
-        self.write_cache[dst_table].clear()
+            # Insert values in relation
+            rows = map(
+                lambda row: (src_values[row[0]], dst_values[row[1]]),
+                self.write_cache[relation],
+            )
+            psycopg2.extras.execute_values(
+                self.cursor,
+                f"""
+                LOCK TABLE ONLY {relation};
+                INSERT INTO {relation} VALUES %s
+                ON CONFLICT DO NOTHING
+                """,
+                rows,
+            )
+            self.write_cache[relation].clear()

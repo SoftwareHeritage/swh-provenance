@@ -94,64 +94,65 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
             (directory.id, revision.id, normalize(path))
         )
 
-    def insert_location(self, src0_table, src1_table, dst_table):
-        """Insert location entries in `dst_table` from the write_cache
+    def insert_relation(self, src, dst, relation):
+        """Insert entries in `relation` from the write_cache
 
         Also insert missing location entries in the 'location' table.
         """
-        # TODO: find a better way of doing this; might be doable in a coupls of
-        # SQL queries (one to insert missing entries in the location' table,
-        # one to insert entries in the dst_table)
+        if self.write_cache[relation]:
+            # TODO: find a better way of doing this; might be doable in a couple of
+            # SQL queries (one to insert missing entries in the location' table,
+            # one to insert entries in the relation)
 
-        # Resolve src0 ids
-        src0_sha1s = tuple(set(sha1 for (sha1, _, _) in self.write_cache[dst_table]))
-        fmt = ",".join(["%s"] * len(src0_sha1s))
-        self.cursor.execute(
-            f"""SELECT sha1, id FROM {src0_table} WHERE sha1 IN ({fmt})""",
-            src0_sha1s,
-        )
-        src0_values = dict(self.cursor.fetchall())
+            # Resolve src ids
+            src_sha1s = tuple(set(sha1 for (sha1, _, _) in self.write_cache[relation]))
+            fmt = ",".join(["%s"] * len(src_sha1s))
+            self.cursor.execute(
+                f"""SELECT sha1, id FROM {src} WHERE sha1 IN ({fmt})""",
+                src_sha1s,
+            )
+            src_values = dict(self.cursor.fetchall())
 
-        # Resolve src1 ids
-        src1_sha1s = tuple(set(sha1 for (_, sha1, _) in self.write_cache[dst_table]))
-        fmt = ",".join(["%s"] * len(src1_sha1s))
-        self.cursor.execute(
-            f"""SELECT sha1, id FROM {src1_table} WHERE sha1 IN ({fmt})""",
-            src1_sha1s,
-        )
-        src1_values = dict(self.cursor.fetchall())
+            # Resolve dst ids
+            dst_sha1s = tuple(set(sha1 for (_, sha1, _) in self.write_cache[relation]))
+            fmt = ",".join(["%s"] * len(dst_sha1s))
+            self.cursor.execute(
+                f"""SELECT sha1, id FROM {dst} WHERE sha1 IN ({fmt})""",
+                dst_sha1s,
+            )
+            dst_values = dict(self.cursor.fetchall())
 
-        # insert missing locations
-        locations = tuple(set((loc,) for (_, _, loc) in self.write_cache[dst_table]))
-        psycopg2.extras.execute_values(
-            self.cursor,
-            """
-            LOCK TABLE ONLY location;
-            INSERT INTO location(path) VALUES %s
-              ON CONFLICT (path) DO NOTHING
-            """,
-            locations,
-        )
-        # fetch location ids
-        fmt = ",".join(["%s"] * len(locations))
-        self.cursor.execute(
-            f"SELECT path, id FROM location WHERE path IN ({fmt})",
-            locations,
-        )
-        loc_ids = dict(self.cursor.fetchall())
+            # insert missing locations
+            locations = tuple(set((loc,) for (_, _, loc) in self.write_cache[relation]))
+            psycopg2.extras.execute_values(
+                self.cursor,
+                """
+                LOCK TABLE ONLY location;
+                INSERT INTO location(path) VALUES %s
+                ON CONFLICT (path) DO NOTHING
+                """,
+                locations,
+            )
+            # fetch location ids
+            fmt = ",".join(["%s"] * len(locations))
+            self.cursor.execute(
+                f"SELECT path, id FROM location WHERE path IN ({fmt})",
+                locations,
+            )
+            loc_ids = dict(self.cursor.fetchall())
 
-        # Insert values in dst_table
-        rows = [
-            (src0_values[sha1_src], src1_values[sha1_dst], loc_ids[loc])
-            for (sha1_src, sha1_dst, loc) in self.write_cache[dst_table]
-        ]
-        psycopg2.extras.execute_values(
-            self.cursor,
-            f"""
-            LOCK TABLE ONLY {dst_table};
-            INSERT INTO {dst_table} VALUES %s
-              ON CONFLICT DO NOTHING
-            """,
-            rows,
-        )
-        self.write_cache[dst_table].clear()
+            # Insert values in relation
+            rows = [
+                (src_values[sha1_src], dst_values[sha1_dst], loc_ids[loc])
+                for (sha1_src, sha1_dst, loc) in self.write_cache[relation]
+            ]
+            psycopg2.extras.execute_values(
+                self.cursor,
+                f"""
+                LOCK TABLE ONLY {relation};
+                INSERT INTO {relation} VALUES %s
+                ON CONFLICT DO NOTHING
+                """,
+                rows,
+            )
+            self.write_cache[relation].clear()

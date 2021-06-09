@@ -19,9 +19,15 @@ class ProvenanceDBBase:
     def commit(self, data: Dict[str, Any], raise_on_commit: bool = False) -> bool:
         try:
             # First insert entities
-            self.insert_entity("content", data["content"])
-            self.insert_entity("directory", data["directory"])
-            self.insert_entity("revision", data["revision"])
+            for entity in ("content", "directory", "revision"):
+
+                self.insert_entity(
+                    entity,
+                    {
+                        sha1: data[entity]["data"][sha1]
+                        for sha1 in data[entity]["added"]
+                    },
+                )
 
             # Relations should come after ids for entities were resolved
             self.insert_relation(

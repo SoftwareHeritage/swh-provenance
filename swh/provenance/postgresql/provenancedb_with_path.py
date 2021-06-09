@@ -18,14 +18,14 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
     def content_add_to_directory(
         self, directory: DirectoryEntry, blob: FileEntry, prefix: bytes
     ):
-        self.insert_cache["content_in_dir"].add(
+        self.write_cache["content_in_dir"].add(
             (blob.id, directory.id, normalize(os.path.join(prefix, blob.name)))
         )
 
     def content_add_to_revision(
         self, revision: RevisionEntry, blob: FileEntry, prefix: bytes
     ):
-        self.insert_cache["content_early_in_rev"].add(
+        self.write_cache["content_early_in_rev"].add(
             (blob.id, revision.id, normalize(os.path.join(prefix, blob.name)))
         )
 
@@ -90,12 +90,12 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
     def directory_add_to_revision(
         self, revision: RevisionEntry, directory: DirectoryEntry, path: bytes
     ):
-        self.insert_cache["directory_in_rev"].add(
+        self.write_cache["directory_in_rev"].add(
             (directory.id, revision.id, normalize(path))
         )
 
     def insert_location(self, src0_table, src1_table, dst_table):
-        """Insert location entries in `dst_table` from the insert_cache
+        """Insert location entries in `dst_table` from the write_cache
 
         Also insert missing location entries in the 'location' table.
         """
@@ -104,7 +104,7 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
         # one to insert entries in the dst_table)
 
         # Resolve src0 ids
-        src0_sha1s = tuple(set(sha1 for (sha1, _, _) in self.insert_cache[dst_table]))
+        src0_sha1s = tuple(set(sha1 for (sha1, _, _) in self.write_cache[dst_table]))
         fmt = ",".join(["%s"] * len(src0_sha1s))
         self.cursor.execute(
             f"""SELECT sha1, id FROM {src0_table} WHERE sha1 IN ({fmt})""",
@@ -113,7 +113,7 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
         src0_values = dict(self.cursor.fetchall())
 
         # Resolve src1 ids
-        src1_sha1s = tuple(set(sha1 for (_, sha1, _) in self.insert_cache[dst_table]))
+        src1_sha1s = tuple(set(sha1 for (_, sha1, _) in self.write_cache[dst_table]))
         fmt = ",".join(["%s"] * len(src1_sha1s))
         self.cursor.execute(
             f"""SELECT sha1, id FROM {src1_table} WHERE sha1 IN ({fmt})""",
@@ -122,7 +122,7 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
         src1_values = dict(self.cursor.fetchall())
 
         # insert missing locations
-        locations = tuple(set((loc,) for (_, _, loc) in self.insert_cache[dst_table]))
+        locations = tuple(set((loc,) for (_, _, loc) in self.write_cache[dst_table]))
         psycopg2.extras.execute_values(
             self.cursor,
             """
@@ -143,7 +143,7 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
         # Insert values in dst_table
         rows = [
             (src0_values[sha1_src], src1_values[sha1_dst], loc_ids[loc])
-            for (sha1_src, sha1_dst, loc) in self.insert_cache[dst_table]
+            for (sha1_src, sha1_dst, loc) in self.write_cache[dst_table]
         ]
         psycopg2.extras.execute_values(
             self.cursor,
@@ -154,4 +154,4 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
             """,
             rows,
         )
-        self.insert_cache[dst_table].clear()
+        self.write_cache[dst_table].clear()

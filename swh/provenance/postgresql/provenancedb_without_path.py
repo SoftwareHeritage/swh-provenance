@@ -19,12 +19,12 @@ class ProvenanceWithoutPathDB(ProvenanceDBBase):
     def content_add_to_directory(
         self, directory: DirectoryEntry, blob: FileEntry, prefix: bytes
     ):
-        self.insert_cache["content_in_dir"].add((blob.id, directory.id))
+        self.write_cache["content_in_dir"].add((blob.id, directory.id))
 
     def content_add_to_revision(
         self, revision: RevisionEntry, blob: FileEntry, prefix: bytes
     ):
-        self.insert_cache["content_early_in_rev"].add((blob.id, revision.id))
+        self.write_cache["content_early_in_rev"].add((blob.id, revision.id))
 
     def content_find_first(
         self, blobid: bytes
@@ -98,12 +98,12 @@ class ProvenanceWithoutPathDB(ProvenanceDBBase):
     def directory_add_to_revision(
         self, revision: RevisionEntry, directory: DirectoryEntry, path: bytes
     ):
-        self.insert_cache["directory_in_rev"].add((directory.id, revision.id))
+        self.write_cache["directory_in_rev"].add((directory.id, revision.id))
 
     def insert_location(self, src0_table, src1_table, dst_table):
         # Resolve src0 ids
         src0_values = dict().fromkeys(
-            map(operator.itemgetter(0), self.insert_cache[dst_table])
+            map(operator.itemgetter(0), self.write_cache[dst_table])
         )
         values = ", ".join(itertools.repeat("%s", len(src0_values)))
         self.cursor.execute(
@@ -114,7 +114,7 @@ class ProvenanceWithoutPathDB(ProvenanceDBBase):
 
         # Resolve src1 ids
         src1_values = dict().fromkeys(
-            map(operator.itemgetter(1), self.insert_cache[dst_table])
+            map(operator.itemgetter(1), self.write_cache[dst_table])
         )
         values = ", ".join(itertools.repeat("%s", len(src1_values)))
         self.cursor.execute(
@@ -126,7 +126,7 @@ class ProvenanceWithoutPathDB(ProvenanceDBBase):
         # Insert values in dst_table
         rows = map(
             lambda row: (src0_values[row[0]], src1_values[row[1]]),
-            self.insert_cache[dst_table],
+            self.write_cache[dst_table],
         )
         psycopg2.extras.execute_values(
             self.cursor,
@@ -137,4 +137,4 @@ class ProvenanceWithoutPathDB(ProvenanceDBBase):
             """,
             rows,
         )
-        self.insert_cache[dst_table].clear()
+        self.write_cache[dst_table].clear()

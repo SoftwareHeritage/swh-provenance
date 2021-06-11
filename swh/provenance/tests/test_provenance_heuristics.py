@@ -116,19 +116,21 @@ def test_provenance_heuristics(provenance, swh_storage, archive, repo, lower, mi
 
         # each "entry" in the synth file is one new revision
         rows["revision"].add(synth_rev["sha1"].hex())
-        assert rows["revision"] == sha1s(provenance.cursor, "revision"), synth_rev[
-            "msg"
-        ]
+        assert rows["revision"] == sha1s(
+            provenance.storage.cursor, "revision"
+        ), synth_rev["msg"]
         # check the timestamp of the revision
         rev_ts = synth_rev["date"]
         assert get_timestamp(
-            provenance.cursor, "revision", synth_rev["sha1"].hex()
+            provenance.storage.cursor, "revision", synth_rev["sha1"].hex()
         ) == [rev_ts], synth_rev["msg"]
 
         # this revision might have added new content objects
         rows["content"] |= set(x["dst"].hex() for x in synth_rev["R_C"])
         rows["content"] |= set(x["dst"].hex() for x in synth_rev["D_C"])
-        assert rows["content"] == sha1s(provenance.cursor, "content"), synth_rev["msg"]
+        assert rows["content"] == sha1s(
+            provenance.storage.cursor, "content"
+        ), synth_rev["msg"]
 
         # check for R-C (direct) entries
         # these are added directly in the content_early_in_rev table
@@ -136,11 +138,11 @@ def test_provenance_heuristics(provenance, swh_storage, archive, repo, lower, mi
             (x["dst"].hex(), x["src"].hex(), x["path"]) for x in synth_rev["R_C"]
         )
         assert rows["content_early_in_rev"] == relations(
-            provenance.cursor, "content", "revision"
+            provenance.storage.cursor, "content", "revision"
         ), synth_rev["msg"]
         # check timestamps
         for rc in synth_rev["R_C"]:
-            assert get_timestamp(provenance.cursor, "content", rc["dst"]) == [
+            assert get_timestamp(provenance.storage.cursor, "content", rc["dst"]) == [
                 rev_ts + rc["rel_ts"]
             ], synth_rev["msg"]
 
@@ -148,9 +150,9 @@ def test_provenance_heuristics(provenance, swh_storage, archive, repo, lower, mi
         # each directory stored in the provenance index is an entry
         #      in the "directory" table...
         rows["directory"] |= set(x["dst"].hex() for x in synth_rev["R_D"])
-        assert rows["directory"] == sha1s(provenance.cursor, "directory"), synth_rev[
-            "msg"
-        ]
+        assert rows["directory"] == sha1s(
+            provenance.storage.cursor, "directory"
+        ), synth_rev["msg"]
 
         # ... + a number of rows in the "directory_in_rev" table...
         # check for R-D entries
@@ -158,11 +160,11 @@ def test_provenance_heuristics(provenance, swh_storage, archive, repo, lower, mi
             (x["dst"].hex(), x["src"].hex(), x["path"]) for x in synth_rev["R_D"]
         )
         assert rows["directory_in_rev"] == relations(
-            provenance.cursor, "directory", "revision"
+            provenance.storage.cursor, "directory", "revision"
         ), synth_rev["msg"]
         # check timestamps
         for rd in synth_rev["R_D"]:
-            assert get_timestamp(provenance.cursor, "directory", rd["dst"]) == [
+            assert get_timestamp(provenance.storage.cursor, "directory", rd["dst"]) == [
                 rev_ts + rd["rel_ts"]
             ], synth_rev["msg"]
 
@@ -173,11 +175,11 @@ def test_provenance_heuristics(provenance, swh_storage, archive, repo, lower, mi
             (x["dst"].hex(), x["src"].hex(), x["path"]) for x in synth_rev["D_C"]
         )
         assert rows["content_in_dir"] == relations(
-            provenance.cursor, "content", "directory"
+            provenance.storage.cursor, "content", "directory"
         ), synth_rev["msg"]
         # check timestamps
         for dc in synth_rev["D_C"]:
-            assert get_timestamp(provenance.cursor, "content", dc["dst"]) == [
+            assert get_timestamp(provenance.storage.cursor, "content", dc["dst"]) == [
                 rev_ts + dc["rel_ts"]
             ], synth_rev["msg"]
 
@@ -185,7 +187,9 @@ def test_provenance_heuristics(provenance, swh_storage, archive, repo, lower, mi
         rows["location"] |= set(x["path"] for x in synth_rev["R_C"])
         rows["location"] |= set(x["path"] for x in synth_rev["D_C"])
         rows["location"] |= set(x["path"] for x in synth_rev["R_D"])
-        assert rows["location"] == locations(provenance.cursor), synth_rev["msg"]
+        assert rows["location"] == locations(provenance.storage.cursor), synth_rev[
+            "msg"
+        ]
 
 
 @pytest.mark.parametrize(

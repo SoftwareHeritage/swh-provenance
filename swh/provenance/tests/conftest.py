@@ -36,12 +36,10 @@ provenance_db = postgresql_fact(
 @pytest.fixture
 def provenance(provenance_db):
     """return a working and initialized provenance db"""
-    from swh.provenance.postgresql.provenancedb_with_path import (
-        ProvenanceWithPathDB as ProvenanceDB,
-    )
+    from swh.provenance.provenance import ProvenanceBackend
 
     BaseDb.adapt_conn(provenance_db)
-    prov = ProvenanceDB(provenance_db)
+    prov = ProvenanceBackend(provenance_db)
     # in test sessions, we DO want to raise any exception occurring at commit time
     prov.raise_on_commit = True
     return prov

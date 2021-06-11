@@ -1,36 +1,15 @@
 from datetime import datetime
-import os
-from typing import Generator, Optional, Tuple
+from typing import Generator, Optional, Set, Tuple
 
 import psycopg2
 import psycopg2.extras
 
-from ..model import DirectoryEntry, FileEntry
-from ..revision import RevisionEntry
 from .provenancedb_base import ProvenanceDBBase
 
 
-def normalize(path: bytes) -> bytes:
-    return path[2:] if path.startswith(bytes("." + os.path.sep, "utf-8")) else path
-
-
 class ProvenanceWithPathDB(ProvenanceDBBase):
-    def content_add_to_directory(
-        self, directory: DirectoryEntry, blob: FileEntry, prefix: bytes
-    ):
-        self.write_cache["content_in_dir"].add(
-            (blob.id, directory.id, normalize(os.path.join(prefix, blob.name)))
-        )
-
-    def content_add_to_revision(
-        self, revision: RevisionEntry, blob: FileEntry, prefix: bytes
-    ):
-        self.write_cache["content_early_in_rev"].add(
-            (blob.id, revision.id, normalize(os.path.join(prefix, blob.name)))
-        )
-
     def content_find_first(
-        self, blobid: bytes
+        self, blob: bytes
     ) -> Optional[Tuple[bytes, bytes, datetime, bytes]]:
         self.cursor.execute(
             """
@@ -45,12 +24,12 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
             WHERE C.sha1=%s
             ORDER BY date, rev, path ASC LIMIT 1
             """,
-            (blobid,),
+            (blob,),
         )
         return self.cursor.fetchone()
 
     def content_find_all(
-        self, blobid: bytes, limit: Optional[int] = None
+        self, blob: bytes, limit: Optional[int] = None
     ) -> Generator[Tuple[bytes, bytes, datetime, bytes], None, None]:
         early_cut = f"LIMIT {limit}" if limit is not None else ""
         self.cursor.execute(
@@ -82,30 +61,25 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
              WHERE C.sha1=%s)
             ORDER BY date, rev, path {early_cut}
             """,
-            (blobid, blobid),
+            (blob, blob),
         )
         # TODO: use POSTGRESQL EXPLAIN looking for query optimizations.
         yield from self.cursor.fetchall()
 
-    def directory_add_to_revision(
-        self, revision: RevisionEntry, directory: DirectoryEntry, path: bytes
+    def insert_relation(
+        self, src: str, dst: str, relation: str, data: Set[Tuple[bytes, bytes, bytes]]
     ):
-        self.write_cache["directory_in_rev"].add(
-            (directory.id, revision.id, normalize(path))
-        )
-
-    def insert_relation(self, src, dst, relation):
-        """Insert entries in `relation` from the write_cache
+        """Insert entries in `relation` from `data`
 
         Also insert missing location entries in the 'location' table.
         """
-        if self.write_cache[relation]:
+        if data:
             # TODO: find a better way of doing this; might be doable in a couple of
             # SQL queries (one to insert missing entries in the location' table,
             # one to insert entries in the relation)
 
             # Resolve src ids
-            src_sha1s = tuple(set(sha1 for (sha1, _, _) in self.write_cache[relation]))
+            src_sha1s = tuple(set(sha1 for (sha1, _, _) in data))
             fmt = ",".join(["%s"] * len(src_sha1s))
             self.cursor.execute(
                 f"""SELECT sha1, id FROM {src} WHERE sha1 IN ({fmt})""",
@@ -114,7 +88,7 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
             src_values = dict(self.cursor.fetchall())
 
             # Resolve dst ids
-            dst_sha1s = tuple(set(sha1 for (_, sha1, _) in self.write_cache[relation]))
+            dst_sha1s = tuple(set(sha1 for (_, sha1, _) in data))
             fmt = ",".join(["%s"] * len(dst_sha1s))
             self.cursor.execute(
                 f"""SELECT sha1, id FROM {dst} WHERE sha1 IN ({fmt})""",
@@ -123,7 +97,7 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
             dst_values = dict(self.cursor.fetchall())
 
             # insert missing locations
-            locations = tuple(set((loc,) for (_, _, loc) in self.write_cache[relation]))
+            locations = tuple(set((loc,) for (_, _, loc) in data))
             psycopg2.extras.execute_values(
                 self.cursor,
                 """
@@ -144,7 +118,7 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
             # Insert values in relation
             rows = [
                 (src_values[sha1_src], dst_values[sha1_dst], loc_ids[loc])
-                for (sha1_src, sha1_dst, loc) in self.write_cache[relation]
+                for (sha1_src, sha1_dst, loc) in data
             ]
             psycopg2.extras.execute_values(
                 self.cursor,
@@ -155,4 +129,4 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
                 """,
                 rows,
             )
-            self.write_cache[relation].clear()
+            data.clear()

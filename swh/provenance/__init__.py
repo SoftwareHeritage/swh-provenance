@@ -24,17 +24,9 @@ def get_archive(cls: str, **kwargs) -> "ArchiveInterface":
 def get_provenance(cls: str, **kwargs) -> "ProvenanceInterface":
     if cls == "local":
         conn = connect(kwargs["db"])
-        if kwargs.get("with_path", True):
-            from swh.provenance.postgresql.provenancedb_with_path import (
-                ProvenanceWithPathDB,
-            )
+        with_path = kwargs.get("with_path", True)
+        from swh.provenance.provenance import ProvenanceBackend
 
-            return ProvenanceWithPathDB(conn)
-        else:
-            from swh.provenance.postgresql.provenancedb_without_path import (
-                ProvenanceWithoutPathDB,
-            )
-
-            return ProvenanceWithoutPathDB(conn)
+        return ProvenanceBackend(conn, with_path=with_path)
     else:
         raise NotImplementedError

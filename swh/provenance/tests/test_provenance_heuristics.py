@@ -8,7 +8,7 @@ from typing import Dict, List, Tuple
 import pytest
 
 from swh.provenance.model import RevisionEntry
-from swh.provenance.provenance import revision_add
+from swh.provenance.revision import revision_add
 from swh.provenance.tests.conftest import (
     fill_storage,
     get_datafile,

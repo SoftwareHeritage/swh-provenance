@@ -129,8 +129,7 @@ def iter_revisions(ctx, filename, track_all, limit, min_depth, reuse):
     # TODO: add file size filtering
     """Process a provided list of revisions."""
     from . import get_archive, get_provenance
-    from .provenance import revision_add
-    from .revision import CSVRevisionIterator
+    from .revision import CSVRevisionIterator, revision_add
 
     archive = get_archive(**ctx.obj["config"]["archive"])
     provenance = get_provenance(**ctx.obj["config"]["provenance"])
@@ -157,8 +156,7 @@ def iter_revisions(ctx, filename, track_all, limit, min_depth, reuse):
 def iter_origins(ctx, filename, limit):
     """Process a provided list of origins."""
     from . import get_archive, get_provenance
-    from .origin import CSVOriginIterator
-    from .provenance import origin_add
+    from .origin import CSVOriginIterator, origin_add
 
     archive = get_archive(**ctx.obj["config"]["archive"])
     provenance = get_provenance(**ctx.obj["config"]["provenance"])
@@ -200,7 +198,7 @@ def find_first(ctx, swhid):
 @click.pass_context
 def find_all(ctx, swhid, limit):
     """Find all occurrences of the requested blob."""
-    from swh.provenance import get_provenance
+    from . import get_provenance
 
     provenance = get_provenance(**ctx.obj["config"]["provenance"])
     # TODO: return a dictionary with proper keys for each field

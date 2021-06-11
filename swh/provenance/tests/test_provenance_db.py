@@ -6,8 +6,8 @@
 import datetime
 
 from swh.model.tests.swh_model_data import TEST_OBJECTS
-from swh.provenance.origin import OriginEntry
-from swh.provenance.provenance import origin_add
+from swh.provenance.model import OriginEntry
+from swh.provenance.origin import origin_add
 from swh.provenance.storage.archive import ArchiveStorage
 
 

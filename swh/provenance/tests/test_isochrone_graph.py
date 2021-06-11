@@ -10,8 +10,9 @@ import pytest
 import yaml
 
 from swh.model.hashutil import hash_to_bytes
+from swh.provenance.graph import IsochroneNode, build_isochrone_graph
 from swh.provenance.model import DirectoryEntry, RevisionEntry
-from swh.provenance.provenance import IsochroneNode, build_isochrone_graph, revision_add
+from swh.provenance.revision import revision_add
 from swh.provenance.tests.conftest import fill_storage, get_datafile, load_repo_data
 from swh.provenance.tests.test_provenance_db import ts2dt
 

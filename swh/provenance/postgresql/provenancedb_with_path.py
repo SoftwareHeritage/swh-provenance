@@ -74,28 +74,6 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
         Also insert missing location entries in the 'location' table.
         """
         if data:
-            # TODO: find a better way of doing this; might be doable in a couple of
-            # SQL queries (one to insert missing entries in the location' table,
-            # one to insert entries in the relation)
-
-            # Resolve src ids
-            src_sha1s = tuple(set(sha1 for (sha1, _, _) in data))
-            fmt = ",".join(["%s"] * len(src_sha1s))
-            self.cursor.execute(
-                f"""SELECT sha1, id FROM {src} WHERE sha1 IN ({fmt})""",
-                src_sha1s,
-            )
-            src_values = dict(self.cursor.fetchall())
-
-            # Resolve dst ids
-            dst_sha1s = tuple(set(sha1 for (_, sha1, _) in data))
-            fmt = ",".join(["%s"] * len(dst_sha1s))
-            self.cursor.execute(
-                f"""SELECT sha1, id FROM {dst} WHERE sha1 IN ({fmt})""",
-                dst_sha1s,
-            )
-            dst_values = dict(self.cursor.fetchall())
-
             # insert missing locations
             locations = tuple(set((loc,) for (_, _, loc) in data))
             psycopg2.extras.execute_values(
@@ -107,26 +85,14 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
                 """,
                 locations,
             )
-            # fetch location ids
-            fmt = ",".join(["%s"] * len(locations))
-            self.cursor.execute(
-                f"SELECT path, id FROM location WHERE path IN ({fmt})",
-                locations,
-            )
-            loc_ids = dict(self.cursor.fetchall())
-
-            # Insert values in relation
-            rows = [
-                (src_values[sha1_src], dst_values[sha1_dst], loc_ids[loc])
-                for (sha1_src, sha1_dst, loc) in data
-            ]
-            psycopg2.extras.execute_values(
-                self.cursor,
-                f"""
-                LOCK TABLE ONLY {relation};
-                INSERT INTO {relation} VALUES %s
-                ON CONFLICT DO NOTHING
-                """,
-                rows,
-            )
+            sql = f"""
+            LOCK TABLE ONLY {relation};
+            INSERT INTO {relation}
+              SELECT {src}.id, {dst}.id, location.id
+              FROM (VALUES %s) AS V(src, dst, path)
+              INNER JOIN {src} on ({src}.sha1=V.src)
+              INNER JOIN {dst} on ({dst}.sha1=V.dst)
+              INNER JOIN location on (location.path=V.path)
+            """
+            psycopg2.extras.execute_values(self.cursor, sql, data)
             data.clear()

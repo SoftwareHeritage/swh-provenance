@@ -1,6 +1,4 @@
 from datetime import datetime
-import itertools
-import operator
 from typing import Generator, Optional, Set, Tuple
 
 import psycopg2
@@ -87,36 +85,13 @@ class ProvenanceWithoutPathDB(ProvenanceDBBase):
         self, src: str, dst: str, relation: str, data: Set[Tuple[bytes, bytes, bytes]]
     ):
         if data:
-            # Resolve src ids
-            src_values = dict().fromkeys(map(operator.itemgetter(0), data))
-            values = ", ".join(itertools.repeat("%s", len(src_values)))
-            self.cursor.execute(
-                f"""SELECT sha1, id FROM {src} WHERE sha1 IN ({values})""",
-                tuple(src_values),
-            )
-            src_values = dict(self.cursor.fetchall())
-
-            # Resolve dst ids
-            dst_values = dict().fromkeys(map(operator.itemgetter(1), data))
-            values = ", ".join(itertools.repeat("%s", len(dst_values)))
-            self.cursor.execute(
-                f"""SELECT sha1, id FROM {dst} WHERE sha1 IN ({values})""",
-                tuple(dst_values),
-            )
-            dst_values = dict(self.cursor.fetchall())
-
-            # Insert values in relation
-            rows = map(
-                lambda row: (src_values[row[0]], dst_values[row[1]]),
-                data,
-            )
-            psycopg2.extras.execute_values(
-                self.cursor,
-                f"""
-                LOCK TABLE ONLY {relation};
-                INSERT INTO {relation} VALUES %s
-                ON CONFLICT DO NOTHING
-                """,
-                rows,
-            )
+            sql = f"""
+            LOCK TABLE ONLY {relation};
+            INSERT INTO {relation}
+              SELECT {src}.id, {dst}.id
+              FROM (VALUES %s) AS V(src, dst)
+              INNER JOIN {src} on ({src}.sha1=V.src)
+              INNER JOIN {dst} on ({dst}.sha1=V.dst)
+            """
+            psycopg2.extras.execute_values(self.cursor, sql, data)
             data.clear()

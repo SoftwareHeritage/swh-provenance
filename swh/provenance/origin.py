@@ -96,7 +96,8 @@ def origin_add_revision(
         else:
             # This revision is a parent of another one in the history of the
             # relative revision.
-            for parent in current.parents(archive):
+            current.retrieve_parents(archive)
+            for parent in current.parents:
                 visited = provenance.revision_visited(parent)
 
                 if not visited:

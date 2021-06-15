@@ -24,7 +24,7 @@ conninfo = {
     "archive": {
         "cls": "direct",
         "db": {
-            "host": "somerset.internal.softwareheritage.org",
+            "host": "belvedere.internal.softwareheritage.org",
             "port": "5433",
             "dbname": "softwareheritage",
             "user": "guest",
@@ -100,7 +100,9 @@ class Worker(Thread):
         self.trackall = trackall
         self.lower = lower
         self.mindepth = mindepth
-        logging.info(f"Worker {self.idx} created ({self.trackall}, {self.lower}, {self.mindepth})")
+        logging.info(
+            f"Worker {self.idx} created ({self.trackall}, {self.lower}, {self.mindepth})"
+        )
 
     def run(self):
         context = zmq.Context()
@@ -113,14 +115,11 @@ class Worker(Thread):
             if response is None:
                 break
 
-            # Ensure date has a valid timezone
-            date = iso8601.parse_date(response["date"])
-            if date.tzinfo is None:
-                date = date.replace(tzinfo=timezone.utc)
-
             revision = RevisionEntry(
                 hash_to_bytes(response["rev"]),
-                date=date,
+                date=iso8601.parse_date(
+                    response["date"], default_timezone=timezone.utc
+                ),
                 root=hash_to_bytes(response["root"]),
             )
             revision_add(
@@ -147,15 +146,10 @@ if __name__ == "__main__":
     mindepth = int(sys.argv[5])
     dbname = conninfo["provenance"]["db"]["dbname"]
     conninfo["server"] = f"tcp://localhost:{port}"
-    # conninfo["server"] = f"tcp://128.93.73.182:{port}" # petit-palais
+    # conninfo["server"] = f"tcp://128.93.73.182:{port}"  # petit-palais
 
     # Set logging level
     logging.getLogger().setLevel(logging.INFO)
-    handler = logging.handlers.RotatingFileHandler(
-        conninfo["provenance"]["db"]["dbname"] + ".log",
-        maxBytes=1024 * 1024 * 10
-    )
-    logging.getLogger().addHandler(handler)
 
     # Start counter
     start = time.time()

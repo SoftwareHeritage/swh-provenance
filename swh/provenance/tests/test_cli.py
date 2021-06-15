@@ -31,14 +31,15 @@ TABLES = {
     "dbflavor",
     "dbversion",
     "content",
-    "content_early_in_rev",
-    "content_in_dir",
+    "content_in_revision",
+    "content_in_directory",
     "directory",
-    "directory_in_rev",
+    "directory_in_revision",
+    "location",
     "origin",
     "revision",
-    "revision_before_rev",
-    "revision_in_org",
+    "revision_before_revision",
+    "revision_in_origin",
 }
 
 

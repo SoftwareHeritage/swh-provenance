@@ -17,26 +17,19 @@ class ProvenanceWithoutPathDB(ProvenanceDBBase):
     ) -> Optional[Tuple[bytes, bytes, datetime, bytes]]:
         self.cursor.execute(
             """
-            SELECT revision.sha1 AS rev,
-                   revision.date AS date
-              FROM (SELECT content_early_in_rev.rev
-                      FROM content_early_in_rev
-                      JOIN content
-                        ON content.id=content_early_in_rev.blob
-                      WHERE content.sha1=%s
-                   ) AS content_in_rev
-              JOIN revision
-                ON revision.id=content_in_rev.rev
-              ORDER BY date, rev ASC LIMIT 1
+            SELECT C.sha1 AS blob,
+                   R.sha1 AS rev,
+                   R.date AS date,
+                   '\\x'::bytea as path
+            FROM content AS C
+            INNER JOIN content_in_revision AS CR ON (CR.content = C.id)
+            INNER JOIN revision as R ON (CR.revision = R.id)
+            WHERE C.sha1=%s
+            ORDER BY date, rev ASC LIMIT 1
             """,
             (blob,),
         )
-        row = self.cursor.fetchone()
-        if row is not None:
-            # TODO: query revision from the archive and look for blob into a
-            # recursive directory_ls of the revision's root.
-            return blob, row[0], row[1], b""
-        return None
+        return self.cursor.fetchone()
 
     def content_find_all(
         self, blob: bytes, limit: Optional[int] = None
@@ -44,47 +37,40 @@ class ProvenanceWithoutPathDB(ProvenanceDBBase):
         early_cut = f"LIMIT {limit}" if limit is not None else ""
         self.cursor.execute(
             f"""
-            (SELECT revision.sha1 AS rev,
-                    revision.date AS date
-               FROM (SELECT content_early_in_rev.rev
-                       FROM content_early_in_rev
-                       JOIN content
-                         ON content.id=content_early_in_rev.blob
-                       WHERE content.sha1=%s
-                    ) AS content_in_rev
-               JOIN revision
-                 ON revision.id=content_in_rev.rev
-            )
+            (SELECT C.sha1 AS blob,
+                    R.sha1 AS rev,
+                    R.date AS date,
+                    '\\x'::bytea as path
+             FROM content AS C
+             INNER JOIN content_in_revision AS CR ON (CR.content = C.id)
+             INNER JOIN revision AS R ON (CR.revision = R.id)
+             WHERE C.sha1=%s)
             UNION
-            (SELECT revision.sha1 AS rev,
-                    revision.date AS date
-               FROM (SELECT directory_in_rev.rev
-                       FROM (SELECT content_in_dir.dir
-                               FROM content_in_dir
-                               JOIN content
-                                 ON content_in_dir.blob=content.id
-                               WHERE content.sha1=%s
-                            ) AS content_dir
-                       JOIN directory_in_rev
-                         ON directory_in_rev.dir=content_dir.dir
-                    ) AS content_in_rev
-               JOIN revision
-                 ON revision.id=content_in_rev.rev
-            )
-            ORDER BY date, rev {early_cut}
+            (SELECT C.sha1 AS content,
+                    R.sha1 AS revision,
+                    R.date AS date,
+                    '\\x'::bytea as path
+             FROM content AS C
+             INNER JOIN content_in_directory AS CD ON (C.id = CD.content)
+             INNER JOIN directory_in_revision AS DR ON (CD.directory = DR.directory)
+             INNER JOIN revision AS R ON (DR.revision = R.id)
+             WHERE C.sha1=%s)
+            ORDER BY date, rev, path {early_cut}
             """,
             (blob, blob),
         )
-        # TODO: use POSTGRESQL EXPLAIN looking for query optimizations.
-        for row in self.cursor.fetchall():
-            # TODO: query revision from the archive and look for blob into a
-            # recursive directory_ls of the revision's root.
-            yield blob, row[0], row[1], b""
+        yield from self.cursor.fetchall()
 
-    def insert_relation(
-        self, src: str, dst: str, relation: str, data: Set[Tuple[bytes, bytes, bytes]]
-    ):
+    def insert_relation(self, relation: str, data: Set[Tuple[bytes, bytes, bytes]]):
         if data:
+            assert relation in (
+                "content_in_revision",
+                "content_in_directory",
+                "directory_in_revision",
+            )
+            # insert missing locations
+            src, dst = relation.split("_in_")
+
             sql = f"""
             LOCK TABLE ONLY {relation};
             INSERT INTO {relation}

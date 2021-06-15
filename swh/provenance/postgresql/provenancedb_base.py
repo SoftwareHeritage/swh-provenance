@@ -30,44 +30,38 @@ class ProvenanceDBBase:
                 )
 
             # Relations should come after ids for entities were resolved
-            self.insert_relation(
-                "content",
-                "revision",
-                "content_early_in_rev",
-                data["content_early_in_rev"],
-            )
-            self.insert_relation(
-                "content", "directory", "content_in_dir", data["content_in_dir"]
-            )
-            self.insert_relation(
-                "directory", "revision", "directory_in_rev", data["directory_in_rev"]
-            )
+            for rel_table in (
+                "content_in_revision",
+                "content_in_directory",
+                "directory_in_revision",
+            ):
+                self.insert_relation(rel_table, data[rel_table])
 
             # TODO: this should be updated when origin-revision layer gets properly
             #       updated.
-            # if data["revision_before_rev"]:
+            # if data["revision_before_revision"]:
             #     psycopg2.extras.execute_values(
             #         self.cursor,
             #         """
-            #         LOCK TABLE ONLY revision_before_rev;
-            #         INSERT INTO revision_before_rev VALUES %s
+            #         LOCK TABLE ONLY revision_before_revision;
+            #         INSERT INTO revision_before_revision VALUES %s
             #           ON CONFLICT DO NOTHING
             #         """,
-            #         data["revision_before_rev"],
+            #         data["revision_before_revision"],
             #     )
-            #     data["revision_before_rev"].clear()
+            #     data["revision_before_revision"].clear()
             #
-            # if data["revision_in_org"]:
+            # if data["revision_in_origin"]:
             #     psycopg2.extras.execute_values(
             #         self.cursor,
             #         """
-            #         LOCK TABLE ONLY revision_in_org;
-            #         INSERT INTO revision_in_org VALUES %s
+            #         LOCK TABLE ONLY revision_in_origin;
+            #         INSERT INTO revision_in_origin VALUES %s
             #           ON CONFLICT DO NOTHING
             #         """,
-            #         data["revision_in_org"],
+            #         data["revision_in_origin"],
             #     )
-            #     data["revision_in_org"].clear()
+            #     data["revision_in_origin"].clear()
 
             return True
         except:  # noqa: E722
@@ -104,9 +98,7 @@ class ProvenanceDBBase:
             #      This might be useless!
             data.clear()
 
-    def insert_relation(
-        self, src: str, dst: str, relation: str, data: Set[Tuple[bytes, bytes, bytes]]
-    ):
+    def insert_relation(self, relation: str, data: Set[Tuple[bytes, bytes, bytes]]):
         ...
 
     def content_find_first(
@@ -134,7 +126,7 @@ class ProvenanceDBBase:
 
     def revision_get_preferred_origin(self, revision: bytes) -> int:
         self.cursor.execute(
-            """SELECT COALESCE(org,0) FROM revision WHERE sha1=%s""", (revision,)
+            """SELECT COALESCE(origin, 0) FROM revision WHERE sha1=%s""", (revision,)
         )
         row = self.cursor.fetchone()
         # None means revision is not in database;
@@ -145,9 +137,9 @@ class ProvenanceDBBase:
         self.cursor.execute(
             """
             SELECT 1
-              FROM revision_before_rev
+              FROM revision_before_revision
               JOIN revision
-                ON revision.id=revision_before_rev.prev
+                ON revision.id=revision_before_revision.prev
               WHERE revision.sha1=%s
             """,
             (revision,),
@@ -156,16 +148,16 @@ class ProvenanceDBBase:
 
     def revision_set_preferred_origin(self, origin: int, revision: bytes):
         self.cursor.execute(
-            """UPDATE revision SET org=%s WHERE sha1=%s""", (origin, revision)
+            """UPDATE revision SET origin=%s WHERE sha1=%s""", (origin, revision)
         )
 
     def revision_visited(self, revision: bytes) -> bool:
         self.cursor.execute(
             """
             SELECT 1
-              FROM revision_in_org
+              FROM revision_in_origin
               JOIN revision
-                ON revision.id=revision_in_org.rev
+                ON revision.id=revision_in_origin.revision
               WHERE revision.sha1=%s
             """,
             (revision,),

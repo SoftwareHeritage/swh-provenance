@@ -114,12 +114,12 @@ class ProvenanceCache(TypedDict):
     directory: Cache
     revision: Cache
     # below are insertion caches only
-    content_early_in_rev: Set[Tuple[bytes, bytes, bytes]]
-    content_in_dir: Set[Tuple[bytes, bytes, bytes]]
-    directory_in_rev: Set[Tuple[bytes, bytes, bytes]]
+    content_in_revision: Set[Tuple[bytes, bytes, bytes]]
+    content_in_directory: Set[Tuple[bytes, bytes, bytes]]
+    directory_in_revision: Set[Tuple[bytes, bytes, bytes]]
     # these two are for the origin layer
-    revision_before_rev: List[Tuple[bytes, bytes]]
-    revision_in_org: List[Tuple[bytes, int]]
+    revision_before_revision: List[Tuple[bytes, bytes]]
+    revision_in_origin: List[Tuple[bytes, int]]
 
 
 def new_cache():
@@ -127,11 +127,11 @@ def new_cache():
         content=Cache(data={}, added=set()),
         directory=Cache(data={}, added=set()),
         revision=Cache(data={}, added=set()),
-        content_early_in_rev=set(),
-        content_in_dir=set(),
-        directory_in_rev=set(),
-        revision_before_rev=[],
-        revision_in_org=[],
+        content_in_revision=set(),
+        content_in_directory=set(),
+        directory_in_revision=set(),
+        revision_before_revision=[],
+        revision_in_origin=[],
     )
 
 
@@ -169,14 +169,14 @@ class ProvenanceBackend:
     def content_add_to_directory(
         self, directory: DirectoryEntry, blob: FileEntry, prefix: bytes
     ):
-        self.cache["content_in_dir"].add(
+        self.cache["content_in_directory"].add(
             (blob.id, directory.id, normalize(os.path.join(prefix, blob.name)))
         )
 
     def content_add_to_revision(
         self, revision: RevisionEntry, blob: FileEntry, prefix: bytes
     ):
-        self.cache["content_early_in_rev"].add(
+        self.cache["content_in_revision"].add(
             (blob.id, revision.id, normalize(os.path.join(prefix, blob.name)))
         )
 
@@ -205,7 +205,9 @@ class ProvenanceBackend:
     def directory_add_to_revision(
         self, revision: RevisionEntry, directory: DirectoryEntry, path: bytes
     ):
-        self.cache["directory_in_rev"].add((directory.id, revision.id, normalize(path)))
+        self.cache["directory_in_revision"].add(
+            (directory.id, revision.id, normalize(path))
+        )
 
     def directory_get_date_in_isochrone_frontier(
         self, directory: DirectoryEntry
@@ -247,11 +249,11 @@ class ProvenanceBackend:
     def revision_add_before_revision(
         self, relative: RevisionEntry, revision: RevisionEntry
     ):
-        self.cache["revision_before_rev"].append((revision.id, relative.id))
+        self.cache["revision_before_revision"].append((revision.id, relative.id))
 
     def revision_add_to_origin(self, origin: OriginEntry, revision: RevisionEntry):
         assert origin.id is not None
-        self.cache["revision_in_org"].append((revision.id, origin.id))
+        self.cache["revision_in_origin"].append((revision.id, origin.id))
 
     def revision_get_early_date(self, revision: RevisionEntry) -> Optional[datetime]:
         return self.get_dates("revision", [revision.id]).get(revision.id, None)

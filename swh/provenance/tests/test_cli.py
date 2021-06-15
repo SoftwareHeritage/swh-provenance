@@ -86,12 +86,12 @@ def test_cli_db_create_and_init_db_with_flavor(
         assert tables == dbtables
 
 
-def test_cli_init_db_default_flavor(provenance_db):
+def test_cli_init_db_default_flavor(postgresql):
     "Test that 'swh db init provenance' defaults to a with-path flavored DB"
-    dbname = provenance_db.dsn
+    dbname = postgresql.dsn
     result = CliRunner().invoke(swhmain, ["db", "init", "-d", dbname, "provenance"])
     assert result.exit_code == 0, result.output
 
-    with provenance_db.cursor() as cur:
+    with postgresql.cursor() as cur:
         cur.execute("select swh_get_dbflavor()")
         assert cur.fetchone() == ("with-path",)

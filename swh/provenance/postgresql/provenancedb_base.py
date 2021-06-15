@@ -15,6 +15,19 @@ class ProvenanceDBBase:
         self.cursor = self.conn.cursor()
         # XXX: not sure this is the best place to do it!
         self.cursor.execute("SET timezone TO 'UTC'")
+        self._flavor: Optional[str] = None
+
+    @property
+    def flavor(self) -> str:
+        if self._flavor is None:
+            self.cursor.execute("select swh_get_dbflavor()")
+            self._flavor = self.cursor.fetchone()[0]
+        assert self._flavor is not None
+        return self._flavor
+
+    @property
+    def with_path(self) -> bool:
+        return self.flavor == "with-path"
 
     def commit(self, data: Dict[str, Any], raise_on_commit: bool = False) -> bool:
         try:

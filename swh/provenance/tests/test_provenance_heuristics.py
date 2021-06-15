@@ -45,18 +45,34 @@ def relations(cur, src, dst):
     'cur' is a cursor to the provenance index DB.
     """
     relation = f"{src}_in_{dst}"
+    cur.execute("select swh_get_dbflavor()")
+    with_path = cur.fetchone()[0] == "with-path"
+
     # note that the columns have the same name as the relations they refer to,
     # so we can write things like "rel.{dst}=src.id" in the query below
-    cur.execute(
-        f"SELECT encode(src.sha1::bytea, 'hex'),"
-        f"       encode(dst.sha1::bytea, 'hex'),"
-        f"       encode(location.path::bytea, 'escape') "
-        f"FROM {relation} as rel, "
-        f"     {src} as src, {dst} as dst, location "
-        f"WHERE rel.{src}=src.id "
-        f"  AND rel.{dst}=dst.id "
-        f"  AND rel.location=location.id"
-    )
+    if with_path:
+        cur.execute(
+            f"""
+            SELECT encode(src.sha1::bytea, 'hex'),
+                   encode(dst.sha1::bytea, 'hex'),
+                   encode(location.path::bytea, 'escape')
+            FROM {relation} as relation
+            INNER JOIN {src} AS src ON (relation.{src} = src.id)
+            INNER JOIN {dst} AS dst ON (relation.{dst} = dst.id)
+            INNER JOIN location ON (relation.location = location.id)
+            """
+        )
+    else:
+        cur.execute(
+            f"""
+            SELECT encode(src.sha1::bytea, 'hex'),
+                   encode(dst.sha1::bytea, 'hex'),
+                   ''
+            FROM {relation} as relation
+            INNER JOIN {src} AS src ON (src.id = relation.{src})
+            INNER JOIN {dst} AS dst ON (dst.id = relation.{dst})
+            """
+        )
     return set(cur.fetchall())
 
 
@@ -102,6 +118,11 @@ def test_provenance_heuristics(provenance, swh_storage, archive, repo, lower, mi
     }
     cursor = provenance.storage.cursor
 
+    def maybe_path(path: str) -> str:
+        if provenance.storage.with_path:
+            return path
+        return ""
+
     for synth_rev in synthetic_result(syntheticfile):
         revision = revisions[synth_rev["sha1"]]
         entry = RevisionEntry(
@@ -128,7 +149,8 @@ def test_provenance_heuristics(provenance, swh_storage, archive, repo, lower, mi
         # check for R-C (direct) entries
         # these are added directly in the content_early_in_rev table
         rows["content_in_revision"] |= set(
-            (x["dst"].hex(), x["src"].hex(), x["path"]) for x in synth_rev["R_C"]
+            (x["dst"].hex(), x["src"].hex(), maybe_path(x["path"]))
+            for x in synth_rev["R_C"]
         )
         assert rows["content_in_revision"] == relations(
             cursor, "content", "revision"
@@ -148,7 +170,8 @@ def test_provenance_heuristics(provenance, swh_storage, archive, repo, lower, mi
         # ... + a number of rows in the "directory_in_rev" table...
         # check for R-D entries
         rows["directory_in_revision"] |= set(
-            (x["dst"].hex(), x["src"].hex(), x["path"]) for x in synth_rev["R_D"]
+            (x["dst"].hex(), x["src"].hex(), maybe_path(x["path"]))
+            for x in synth_rev["R_D"]
         )
         assert rows["directory_in_revision"] == relations(
             cursor, "directory", "revision"
@@ -163,7 +186,8 @@ def test_provenance_heuristics(provenance, swh_storage, archive, repo, lower, mi
         #     for content of the directory.
         # check for D-C entries
         rows["content_in_directory"] |= set(
-            (x["dst"].hex(), x["src"].hex(), x["path"]) for x in synth_rev["D_C"]
+            (x["dst"].hex(), x["src"].hex(), maybe_path(x["path"]))
+            for x in synth_rev["D_C"]
         )
         assert rows["content_in_directory"] == relations(
             cursor, "content", "directory"
@@ -174,11 +198,12 @@ def test_provenance_heuristics(provenance, swh_storage, archive, repo, lower, mi
                 rev_ts + dc["rel_ts"]
             ], synth_rev["msg"]
 
-        # check for location entries
-        rows["location"] |= set(x["path"] for x in synth_rev["R_C"])
-        rows["location"] |= set(x["path"] for x in synth_rev["D_C"])
-        rows["location"] |= set(x["path"] for x in synth_rev["R_D"])
-        assert rows["location"] == locations(cursor), synth_rev["msg"]
+        if provenance.storage.with_path:
+            # check for location entries
+            rows["location"] |= set(x["path"] for x in synth_rev["R_C"])
+            rows["location"] |= set(x["path"] for x in synth_rev["D_C"])
+            rows["location"] |= set(x["path"] for x in synth_rev["R_D"])
+            assert rows["location"] == locations(cursor), synth_rev["msg"]
 
 
 @pytest.mark.parametrize(
@@ -206,6 +231,11 @@ def test_provenance_heuristics_content_find_all(
         for revision in data["revision"]
     ]
 
+    def maybe_path(path: str) -> str:
+        if provenance.storage.with_path:
+            return path
+        return ""
+
     # XXX adding all revisions at once should be working just fine, but it does not...
     # revision_add(provenance, archive, revisions, lower=lower, mindepth=mindepth)
     # ...so add revisions one at a time for now
@@ -222,12 +252,12 @@ def test_provenance_heuristics_content_find_all(
 
         for rc in synth_rev["R_C"]:
             expected_occurrences.setdefault(rc["dst"].hex(), []).append(
-                (rev_id, rev_ts, rc["path"])
+                (rev_id, rev_ts, maybe_path(rc["path"]))
             )
         for dc in synth_rev["D_C"]:
             assert dc["prefix"] is not None  # to please mypy
             expected_occurrences.setdefault(dc["dst"].hex(), []).append(
-                (rev_id, rev_ts, dc["prefix"] + "/" + dc["path"])
+                (rev_id, rev_ts, maybe_path(dc["prefix"] + "/" + dc["path"]))
             )
 
     for content_id, results in expected_occurrences.items():
@@ -238,7 +268,11 @@ def test_provenance_heuristics_content_find_all(
                 bytes.fromhex(content_id)
             )
         ]
-        assert len(db_occurrences) == len(expected)
+        if provenance.storage.with_path:
+            # this is not true if the db stores no path, because a same content
+            # that appears several times in a given revision may be reported
+            # only once by content_find_all()
+            assert len(db_occurrences) == len(expected)
         assert set(db_occurrences) == set(expected)
 
 
@@ -308,4 +342,5 @@ def test_provenance_heuristics_content_find_first(
         assert r_sha1.hex() == content_id
         assert r_rev_id.hex() == rev_id
         assert r_ts.timestamp() == ts
-        assert r_path.decode() in paths
+        if provenance.storage.with_path:
+            assert r_path.decode() in paths

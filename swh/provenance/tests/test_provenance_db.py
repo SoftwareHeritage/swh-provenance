@@ -8,6 +8,8 @@ import datetime
 from swh.model.tests.swh_model_data import TEST_OBJECTS
 from swh.provenance.model import OriginEntry
 from swh.provenance.origin import origin_add
+from swh.provenance.postgresql.provenancedb_with_path import ProvenanceWithPathDB
+from swh.provenance.postgresql.provenancedb_without_path import ProvenanceWithoutPathDB
 from swh.provenance.storage.archive import ArchiveStorage
 
 
@@ -29,3 +31,12 @@ def test_provenance_origin_add(provenance, swh_storage_with_objects):
             )
             origin_add(provenance, archive, [entry])
     # TODO: check some facts here
+
+
+def test_provenance_flavor(provenance):
+    assert provenance.storage.flavor in ("with-path", "without-path")
+    if provenance.storage.flavor == "with-path":
+        backend_class = ProvenanceWithPathDB
+    else:
+        backend_class = ProvenanceWithoutPathDB
+    assert isinstance(provenance.storage, backend_class)

@@ -3,7 +3,6 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import glob
 from os import path
 import re
 from typing import Iterable, Iterator, List, Optional
@@ -13,33 +12,25 @@ from typing_extensions import TypedDict
 
 from swh.core.api.serializers import msgpack_loads
 from swh.core.db import BaseDb
-from swh.core.db.pytest_plugin import postgresql_fact
-from swh.core.utils import numfile_sortkey as sortkey
 from swh.model.model import Content, Directory, DirectoryEntry, Revision
 from swh.model.tests.swh_model_data import TEST_OBJECTS
-import swh.provenance
 from swh.provenance.postgresql.archive import ArchivePostgreSQL
 from swh.provenance.storage.archive import ArchiveStorage
 
-SQL_DIR = path.join(path.dirname(swh.provenance.__file__), "sql")
-SQL_FILES = [
-    sqlfile
-    for sqlfile in sorted(glob.glob(path.join(SQL_DIR, "*.sql")), key=sortkey)
-    if "-without-path-" not in sqlfile
-]
 
-provenance_db = postgresql_fact(
-    "postgresql_proc", dbname="provenance", dump_files=SQL_FILES
-)
-
-
-@pytest.fixture
-def provenance(provenance_db):
+@pytest.fixture(params=["with-path", "without-path"])
+def provenance(request, postgresql):
     """return a working and initialized provenance db"""
+    from swh.core.cli.db import populate_database_for_package
+
+    flavor = request.param
+    populate_database_for_package("swh.provenance", postgresql.dsn, flavor=flavor)
+
     from swh.provenance.provenance import ProvenanceBackend
 
-    BaseDb.adapt_conn(provenance_db)
-    prov = ProvenanceBackend(provenance_db)
+    BaseDb.adapt_conn(postgresql)
+    prov = ProvenanceBackend(postgresql)
+    assert prov.storage.flavor == flavor
     # in test sessions, we DO want to raise any exception occurring at commit time
     prov.raise_on_commit = True
     return prov

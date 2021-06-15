@@ -139,12 +139,13 @@ def new_cache():
 class ProvenanceBackend:
     raise_on_commit: bool = False
 
-    def __init__(self, conn: psycopg2.extensions.connection, with_path: bool = True):
+    def __init__(self, conn: psycopg2.extensions.connection):
         from .postgresql.provenancedb_base import ProvenanceDBBase
 
         # TODO: this class should not know what the actual used DB is.
         self.storage: ProvenanceDBBase
-        if with_path:
+        flavor = ProvenanceDBBase(conn).flavor
+        if flavor == "with-path":
             from .postgresql.provenancedb_with_path import ProvenanceWithPathDB
 
             self.storage = ProvenanceWithPathDB(conn)
@@ -152,7 +153,6 @@ class ProvenanceBackend:
             from .postgresql.provenancedb_without_path import ProvenanceWithoutPathDB
 
             self.storage = ProvenanceWithoutPathDB(conn)
-
         self.cache: ProvenanceCache = new_cache()
 
     def clear_caches(self):

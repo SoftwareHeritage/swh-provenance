@@ -6,7 +6,6 @@
 from click.testing import CliRunner
 import psycopg2
 import pytest
-import yaml
 
 from swh.core.cli import swh as swhmain
 import swh.core.cli.db  # noqa ; ensure cli is loaded
@@ -20,29 +19,12 @@ def test_cli_swh_db_help():
     assert "Commands:" in result.output
     commands = result.output.split("Commands:")[1]
     for command in (
-        "create",
         "find-all",
         "find-first",
         "iter-origins",
         "iter-revisions",
     ):
         assert f"  {command} " in commands
-
-
-def test_cli_create_deprecated(provenance_db, tmp_path):
-    conffile = tmp_path / "config.yml"
-    conf = {
-        "provenance": {
-            "cls": "local",
-            "with_path": True,
-        },
-    }
-    yaml.dump(conf, conffile.open("w"))
-    result = CliRunner().invoke(
-        swhmain, ["provenance", "--config-file", str(conffile), "create", "--drop"]
-    )
-    assert result.exit_code == 0, result.output
-    assert "DeprecationWarning" in result.output
 
 
 TABLES = {

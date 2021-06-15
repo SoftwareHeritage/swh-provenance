@@ -105,19 +105,6 @@ def cli(ctx, config_file: Optional[str], profile: str):
         atexit.register(exit)
 
 
-@cli.command(name="create", deprecated=True)
-@click.option("--maintenance-db", default=None)
-@click.option("--drop/--no-drop", "drop_db", default=False)
-@click.pass_context
-def create(ctx, maintenance_db, drop_db):
-    """Deprecated, please use:
-      swh db create provenance
-    and
-      swh db init provenance
-    instead.
-    """
-
-
 @cli.command(name="iter-revisions")
 @click.argument("filename")
 @click.option("-a", "--track-all", default=True, type=bool)

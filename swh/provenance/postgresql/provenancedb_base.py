@@ -33,7 +33,6 @@ class ProvenanceDBBase:
         try:
             # First insert entities
             for entity in ("content", "directory", "revision"):
-
                 self.insert_entity(
                     entity,
                     {
@@ -43,12 +42,12 @@ class ProvenanceDBBase:
                 )
 
             # Relations should come after ids for entities were resolved
-            for rel_table in (
+            for relation in (
                 "content_in_revision",
                 "content_in_directory",
                 "directory_in_revision",
             ):
-                self.insert_relation(rel_table, data[rel_table])
+                self.insert_relation(relation, data[relation])
 
             # TODO: this should be updated when origin-revision layer gets properly
             #       updated.
@@ -102,8 +101,8 @@ class ProvenanceDBBase:
                 f"""
                 LOCK TABLE ONLY {entity};
                 INSERT INTO {entity}(sha1, date) VALUES %s
-                    ON CONFLICT (sha1) DO
-                    UPDATE SET date=LEAST(EXCLUDED.date,{entity}.date)
+                  ON CONFLICT (sha1) DO
+                  UPDATE SET date=LEAST(EXCLUDED.date,{entity}.date)
                 """,
                 data.items(),
             )
@@ -130,8 +129,8 @@ class ProvenanceDBBase:
             """
             LOCK TABLE ONLY origin;
             INSERT INTO origin(url) VALUES (%s)
-                ON CONFLICT DO NOTHING
-                RETURNING id
+              ON CONFLICT DO NOTHING
+              RETURNING id
             """,
             (url,),
         )

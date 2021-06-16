@@ -159,7 +159,7 @@ class ProvenanceBackend:
         self.cache = new_cache()
 
     def commit(self):
-        # TODO: for now we just forward the write_cache. This should be improved!
+        # TODO: for now we just forward the cache. This should be improved!
         while not self.storage.commit(self.cache, raise_on_commit=self.raise_on_commit):
             logging.warning(
                 f"Unable to commit cached information {self.write_cache}. Retrying..."

@@ -76,7 +76,6 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
                 "content_in_directory",
                 "directory_in_revision",
             )
-            # insert missing locations
             src, dst = relation.split("_in_")
 
             # insert missing locations
@@ -86,18 +85,21 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
                 """
                 LOCK TABLE ONLY location;
                 INSERT INTO location(path) VALUES %s
-                ON CONFLICT (path) DO NOTHING
+                  ON CONFLICT (path) DO NOTHING
                 """,
                 locations,
             )
-            sql = f"""
-            LOCK TABLE ONLY {relation};
-            INSERT INTO {relation}
-              SELECT {src}.id, {dst}.id, location.id
-              FROM (VALUES %s) AS V(src, dst, path)
-              INNER JOIN {src} on ({src}.sha1=V.src)
-              INNER JOIN {dst} on ({dst}.sha1=V.dst)
-              INNER JOIN location on (location.path=V.path)
-            """
-            psycopg2.extras.execute_values(self.cursor, sql, data)
+            psycopg2.extras.execute_values(
+                self.cursor,
+                f"""
+                LOCK TABLE ONLY {relation};
+                INSERT INTO {relation}
+                  SELECT {src}.id, {dst}.id, location.id
+                  FROM (VALUES %s) AS V(src, dst, path)
+                  INNER JOIN {src} on ({src}.sha1=V.src)
+                  INNER JOIN {dst} on ({dst}.sha1=V.dst)
+                  INNER JOIN location on (location.path=V.path)
+                """,
+                data,
+            )
             data.clear()

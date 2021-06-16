@@ -2,9 +2,9 @@
 
 create table dbversion
 (
-  version     int primary key,
-  release     timestamptz,
-  description text
+    version     int primary key,
+    release     timestamptz,
+    description text
 );
 
 comment on table dbversion is 'Details of current db version';
@@ -14,7 +14,7 @@ comment on column dbversion.description is 'Release description';
 
 -- latest schema version
 insert into dbversion(version, release, description)
-      values(1, now(), 'Work In Progress');
+    values(1, now(), 'Work In Progress');
 
 -- a Git object ID, i.e., a Git-style salted SHA1 checksum
 create domain sha1_git as bytea check (length(value) = 20);
@@ -77,7 +77,7 @@ create table content_in_revision
 (
     content  bigint not null,            -- internal identifier of the content blob
     revision bigint not null,            -- internal identifier of the revision where the blob appears for the first time
-	location bigint                      -- location of the content relative to the revision root directory
+    location bigint                      -- location of the content relative to the revision root directory
     -- foreign key (blob) references content (id),
     -- foreign key (rev) references revision (id),
     -- foreign key (loc) references location (id)

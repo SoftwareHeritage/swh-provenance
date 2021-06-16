@@ -40,6 +40,8 @@ class ProvenanceDBBase:
                         for sha1 in data[entity]["added"]
                     },
                 )
+                data[entity]["data"].clear()
+                data[entity]["added"].clear()
 
             # Relations should come after ids for entities were resolved
             for relation in (
@@ -49,39 +51,39 @@ class ProvenanceDBBase:
             ):
                 self.insert_relation(relation, data[relation])
 
-            # TODO: this should be updated when origin-revision layer gets properly
-            #       updated.
-            # if data["revision_before_revision"]:
-            #     psycopg2.extras.execute_values(
-            #         self.cursor,
-            #         """
-            #         LOCK TABLE ONLY revision_before_revision;
-            #         INSERT INTO revision_before_revision VALUES %s
-            #           ON CONFLICT DO NOTHING
-            #         """,
-            #         data["revision_before_revision"],
-            #     )
-            #     data["revision_before_revision"].clear()
-            #
-            # if data["revision_in_origin"]:
-            #     psycopg2.extras.execute_values(
-            #         self.cursor,
-            #         """
-            #         LOCK TABLE ONLY revision_in_origin;
-            #         INSERT INTO revision_in_origin VALUES %s
-            #           ON CONFLICT DO NOTHING
-            #         """,
-            #         data["revision_in_origin"],
-            #     )
-            #     data["revision_in_origin"].clear()
+            # Insert relations from the origin-revision layer
+            self.insert_origin_head(data["revision_in_origin"])
+            self.insert_revision_history(data["revision_before_revision"])
+
+            # Update preferred origins
+            self.update_preferred_origin(
+                {
+                    sha1: data["revision_preferred_origin"]["data"][sha1]
+                    for sha1 in data["revision_preferred_origin"]["added"]
+                }
+            )
+            data["revision_preferred_origin"]["data"].clear()
+            data["revision_preferred_origin"]["added"].clear()
 
             return True
+
         except:  # noqa: E722
             # Unexpected error occurred, rollback all changes and log message
             logging.exception("Unexpected error")
             if raise_on_commit:
                 raise
+
         return False
+
+    def content_find_first(
+        self, blob: bytes
+    ) -> Optional[Tuple[bytes, bytes, datetime, bytes]]:
+        ...
+
+    def content_find_all(
+        self, blob: bytes, limit: Optional[int] = None
+    ) -> Generator[Tuple[bytes, bytes, datetime, bytes], None, None]:
+        ...
 
     def get_dates(self, entity: str, ids: List[bytes]) -> Dict[bytes, datetime]:
         dates = {}
@@ -110,21 +112,46 @@ class ProvenanceDBBase:
             #      This might be useless!
             data.clear()
 
+    def insert_origin_head(self, data: Dict[bytes, int]):
+        if data:
+            psycopg2.extras.execute_values(
+                self.cursor,
+                # XXX: not clear how conflicts are handled here!
+                """
+                LOCK TABLE ONLY revision_in_origin;
+                INSERT INTO revision_in_origin
+                    SELECT R.id, V.org
+                    FROM (VALUES %s) AS V(rev, org)
+                    INNER JOIN revision AS R on (R.sha1=V.rev)
+                """,
+                data,
+            )
+            data.clear()
+
     def insert_relation(self, relation: str, data: Set[Tuple[bytes, bytes, bytes]]):
         ...
 
-    def content_find_first(
-        self, blob: bytes
-    ) -> Optional[Tuple[bytes, bytes, datetime, bytes]]:
-        ...
-
-    def content_find_all(
-        self, blob: bytes, limit: Optional[int] = None
-    ) -> Generator[Tuple[bytes, bytes, datetime, bytes], None, None]:
-        ...
+    def insert_revision_history(self, data: Dict[bytes, bytes]):
+        if data:
+            values = [[(prev, next) for next in data[prev]] for prev in data]
+            psycopg2.extras.execute_values(
+                self.cursor,
+                # XXX: not clear how conflicts are handled here!
+                """
+                LOCK TABLE ONLY revision_before_revision;
+                INSERT INTO revision_before_revision
+                    SELECT P.id, N.id
+                    FROM (VALUES %s) AS V(prev, next)
+                    INNER JOIN revision AS P on (P.sha1=V.prev)
+                    INNER JOIN revision AS N on (N.sha1=V.next)
+                """,
+                tuple(sum(values, [])),
+            )
+            data.clear()
 
     def origin_get_id(self, url: str) -> int:
         # Insert origin in the DB and return the assigned id
+        # XXX: not sure this works as expected if url is already in the db!
         self.cursor.execute(
             """
             LOCK TABLE ONLY origin;
@@ -136,7 +163,7 @@ class ProvenanceDBBase:
         )
         return self.cursor.fetchone()[0]
 
-    def revision_get_preferred_origin(self, revision: bytes) -> int:
+    def revision_get_preferred_origin(self, revision: bytes) -> Optional[int]:
         self.cursor.execute(
             """SELECT COALESCE(origin, 0) FROM revision WHERE sha1=%s""", (revision,)
         )
@@ -158,11 +185,6 @@ class ProvenanceDBBase:
         )
         return self.cursor.fetchone() is not None
 
-    def revision_set_preferred_origin(self, origin: int, revision: bytes):
-        self.cursor.execute(
-            """UPDATE revision SET origin=%s WHERE sha1=%s""", (origin, revision)
-        )
-
     def revision_visited(self, revision: bytes) -> bool:
         self.cursor.execute(
             """
@@ -175,3 +197,19 @@ class ProvenanceDBBase:
             (revision,),
         )
         return self.cursor.fetchone() is not None
+
+    def update_preferred_origin(self, data: Dict[bytes, int]):
+        if data:
+            # XXX: this is assuming the revision already exists in the db! It should
+            #      be improved by allowing null dates in the revision table.
+            psycopg2.extras.execute_values(
+                self.cursor,
+                """
+                UPDATE revision
+                    SET origin=V.org
+                    FROM (VALUES %s) AS V(rev, org)
+                    WHERE sha1=V.rev
+                """,
+                data.items(),
+            )
+            data.clear()

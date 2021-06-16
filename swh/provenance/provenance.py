@@ -89,7 +89,7 @@ class ProvenanceInterface(Protocol):
     def revision_get_early_date(self, revision: RevisionEntry) -> Optional[datetime]:
         ...
 
-    def revision_get_preferred_origin(self, revision: RevisionEntry) -> int:
+    def revision_get_preferred_origin(self, revision: RevisionEntry) -> Optional[int]:
         ...
 
     def revision_in_history(self, revision: RevisionEntry) -> bool:
@@ -104,34 +104,41 @@ class ProvenanceInterface(Protocol):
         ...
 
 
-class Cache(TypedDict):
+class DatetimeCache(TypedDict):
     data: Dict[bytes, datetime]
     added: Set[bytes]
 
 
+class OriginCache(TypedDict):
+    data: Dict[bytes, int]  # TODO: we should switch to use Url instead
+    added: Set[bytes]
+
+
 class ProvenanceCache(TypedDict):
-    content: Cache
-    directory: Cache
-    revision: Cache
+    content: DatetimeCache
+    directory: DatetimeCache
+    revision: DatetimeCache
     # below are insertion caches only
     content_in_revision: Set[Tuple[bytes, bytes, bytes]]
     content_in_directory: Set[Tuple[bytes, bytes, bytes]]
     directory_in_revision: Set[Tuple[bytes, bytes, bytes]]
     # these two are for the origin layer
-    revision_before_revision: List[Tuple[bytes, bytes]]
-    revision_in_origin: List[Tuple[bytes, int]]
+    revision_before_revision: Dict[bytes, Set[bytes]]
+    revision_in_origin: Set[Tuple[bytes, int]]
+    revision_preferred_origin: OriginCache
 
 
 def new_cache():
     return ProvenanceCache(
-        content=Cache(data={}, added=set()),
-        directory=Cache(data={}, added=set()),
-        revision=Cache(data={}, added=set()),
+        content=DatetimeCache(data={}, added=set()),
+        directory=DatetimeCache(data={}, added=set()),
+        revision=DatetimeCache(data={}, added=set()),
         content_in_revision=set(),
         content_in_directory=set(),
         directory_in_revision=set(),
-        revision_before_revision=[],
-        revision_in_origin=[],
+        revision_before_revision={},
+        revision_in_origin=set(),
+        revision_preferred_origin=OriginCache(data={}, added=set()),
     )
 
 
@@ -249,33 +256,40 @@ class ProvenanceBackend:
     def revision_add_before_revision(
         self, relative: RevisionEntry, revision: RevisionEntry
     ):
-        self.cache["revision_before_revision"].append((revision.id, relative.id))
+        self.cache["revision_before_revision"].setdefault(revision.id, set()).add(
+            relative.id
+        )
 
     def revision_add_to_origin(self, origin: OriginEntry, revision: RevisionEntry):
         assert origin.id is not None
-        self.cache["revision_in_origin"].append((revision.id, origin.id))
+        self.cache["revision_in_origin"].add((revision.id, origin.id))
 
     def revision_get_early_date(self, revision: RevisionEntry) -> Optional[datetime]:
         return self.get_dates("revision", [revision.id]).get(revision.id, None)
 
-    def revision_get_preferred_origin(self, revision: RevisionEntry) -> int:
-        # TODO: adapt this method to consider cached values
-        return self.storage.revision_get_preferred_origin(revision.id)
+    def revision_get_preferred_origin(self, revision: RevisionEntry) -> Optional[int]:
+        if revision.id not in self.cache["revision_preferred_origin"]["data"]:
+            origin = self.storage.revision_get_preferred_origin(revision.id)
+            if origin is not None:
+                self.cache["revision_preferred_origin"]["data"][revision.id] = origin
+        return self.cache["revision_preferred_origin"]["data"].get(revision.id)
 
     def revision_in_history(self, revision: RevisionEntry) -> bool:
-        # TODO: adapt this method to consider cached values
-        return self.storage.revision_in_history(revision.id)
+        return revision.id in self.cache[
+            "revision_before_revision"
+        ] or self.storage.revision_in_history(revision.id)
 
     def revision_set_preferred_origin(
         self, origin: OriginEntry, revision: RevisionEntry
     ):
         assert origin.id is not None
-        # TODO: adapt this method to consider cached values
-        self.storage.revision_set_preferred_origin(origin.id, revision.id)
+        self.cache["revision_preferred_origin"]["data"][revision.id] = origin.id
+        self.cache["revision_preferred_origin"]["added"].add(revision.id)
 
     def revision_visited(self, revision: RevisionEntry) -> bool:
-        # TODO: adapt this method to consider cached values
-        return self.storage.revision_visited(revision.id)
+        return revision.id in dict(
+            self.cache["revision_in_origin"]
+        ) or self.storage.revision_visited(revision.id)
 
 
 def normalize(path: bytes) -> bytes:

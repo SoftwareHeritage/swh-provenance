@@ -42,9 +42,14 @@ def test_provenance_origin_add(
 
 def test_provenance_flavor(provenance: ProvenanceInterface) -> None:
     if isinstance(provenance.storage, ProvenanceDBBase):
-        assert provenance.storage.flavor in ("with-path", "without-path")
+        assert provenance.storage.flavor in (
+            "with-path",
+            "without-path",
+            "with-path-denormalized",
+            "without-path-denormalized",
+        )
         backend_class: Type[ProvenanceStorageInterface]
-        if provenance.storage.flavor == "with-path":
+        if "with-path" in provenance.storage.flavor:
             backend_class = ProvenanceWithPathDB
         else:
             backend_class = ProvenanceWithoutPathDB

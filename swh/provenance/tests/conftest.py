@@ -27,19 +27,29 @@ from swh.storage.postgresql.storage import Storage
 from swh.storage.replay import process_replay_objects
 
 
-@pytest.fixture(params=["with-path", "without-path"])
+@pytest.fixture(
+    params=[
+        "with-path",
+        "without-path",
+        "with-path-denormalized",
+        "without-path-denormalized",
+    ]
+)
 def populated_db(
     request,  # TODO: add proper type annotation
     postgresql: psycopg2.extensions.connection,
 ) -> Dict[str, str]:
+    """return a working and initialized provenance db"""
     from swh.core.cli.db import populate_database_for_package
 
-    flavor = "with-path" if request.param == "client-server" else request.param
-    populate_database_for_package("swh.provenance", postgresql.dsn, flavor=flavor)
+    # flavor = "with-path" if request.param == "client-server" else request.param
+    populate_database_for_package(
+        "swh.provenance", postgresql.dsn, flavor=request.param
+    )
     return {
-        item.split("=")[0]: item.split("=")[1]
-        for item in postgresql.dsn.split()
-        if item.split("=")[0] != "options"
+        k: v
+        for (k, v) in (item.split("=") for item in postgresql.dsn.split())
+        if k != "options"
     }
 
 

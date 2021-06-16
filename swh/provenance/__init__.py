@@ -77,7 +77,7 @@ def get_provenance_storage(cls: str, **kwargs) -> ProvenanceStorageInterface:
 
         conn = BaseDb.connect(**kwargs["db"]).conn
         raise_on_commit = kwargs.get("raise_on_commit", False)
-        if ProvenanceDBBase(conn, raise_on_commit).flavor == "with-path":
+        if "with-path" in ProvenanceDBBase(conn, raise_on_commit).flavor:
             from .postgresql.provenancedb_with_path import ProvenanceWithPathDB
 
             return ProvenanceWithPathDB(conn, raise_on_commit)

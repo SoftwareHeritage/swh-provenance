@@ -1,7 +1,9 @@
 -- database flavor
 create type database_flavor as enum (
   'with-path',
-  'without-path'
+  'without-path',
+  'with-path-denormalized',
+  'without-path-denormalized'
 );
 comment on type database_flavor is 'Flavor of the current database';
 

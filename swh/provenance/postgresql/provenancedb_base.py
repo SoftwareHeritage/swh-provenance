@@ -49,7 +49,11 @@ class ProvenanceDBBase:
         return self._flavor
 
     def with_path(self) -> bool:
-        return self.flavor == "with-path"
+        return "with-path" in self.flavor
+
+    @property
+    def denormalized(self) -> bool:
+        return "denormalized" in self.flavor
 
     def content_find_first(self, id: Sha1Git) -> Optional[ProvenanceResult]:
         ...
@@ -186,7 +190,12 @@ class ProvenanceDBBase:
                     f"INNER JOIN {src} AS S ON (S.sha1=V.src)",
                     f"INNER JOIN {dst} AS D ON (D.sha1=V.dst)",
                 ]
-                selected = ["S.id", "D.id"]
+                nope = (RelationType.REV_BEFORE_REV, RelationType.REV_IN_ORG)
+                selected = ["S.id"]
+                if self.denormalized and relation not in nope:
+                    selected.append("ARRAY_AGG(D.id)")
+                else:
+                    selected.append("D.id")
 
                 if self._relation_uses_location_table(relation):
                     locations = tuple(set((path,) for (_, _, path) in rows))
@@ -198,16 +207,30 @@ class ProvenanceDBBase:
                     psycopg2.extras.execute_values(self.cursor, sql, locations)
 
                     joins.append("INNER JOIN location AS L ON (L.path=V.path)")
-                    selected.append("L.id")
+                    if self.denormalized:
+                        selected.append("ARRAY_AGG(L.id)")
+                    else:
+                        selected.append("L.id")
+                sql_l = [
+                    f"INSERT INTO {table}",
+                    f" SELECT {', '.join(selected)}",
+                    "  FROM (VALUES %s) AS V(src, dst, path)",
+                    *joins,
+                ]
 
-                sql = f"""
-                    INSERT INTO {table}
-                      (SELECT {", ".join(selected)}
-                       FROM (VALUES %s) AS V(src, dst, path)
-                       {'''
-                       '''.join(joins)})
-                       ON CONFLICT DO NOTHING
+                if self.denormalized and relation not in nope:
+                    sql_l.append("GROUP BY S.id")
+                    sql_l.append(
+                        f"""ON CONFLICT ({src}) DO UPDATE
+                        SET {dst}=ARRAY(
+                          SELECT UNNEST({table}.{dst} || excluded.{dst})),
+                        location=ARRAY(
+                          SELECT UNNEST({relation.value}.location || excluded.location))
                     """
+                    )
+                else:
+                    sql_l.append("ON CONFLICT DO NOTHING")
+                sql = "\n".join(sql_l)
                 psycopg2.extras.execute_values(self.cursor, sql, rows)
             return True
         except:  # noqa: E722
@@ -276,11 +299,16 @@ class ProvenanceDBBase:
         sha1s: Optional[Tuple[Tuple[Sha1Git, ...]]]
         if ids is not None:
             sha1s = (tuple(ids),)
-            where = f"WHERE {'S.sha1' if not reverse else 'D.sha1'} IN %s"
+            where = f"WHERE {'S' if not reverse else 'D'}.sha1 IN %s"
         else:
             sha1s = None
             where = ""
 
+        aggreg_dst = self.denormalized and relation in (
+            RelationType.CNT_EARLY_IN_REV,
+            RelationType.CNT_IN_DIR,
+            RelationType.DIR_IN_REV,
+        )
         if sha1s is None or sha1s[0]:
             table = relation.value
             src, *_, dst = table.split("_")
@@ -293,24 +321,34 @@ class ProvenanceDBBase:
                 src_field = src
                 dst_field = dst
 
-            joins = [
-                f"INNER JOIN {src} AS S ON (S.id=R.{src_field})",
-                f"INNER JOIN {dst} AS D ON (D.id=R.{dst_field})",
-            ]
-            selected = ["S.sha1 AS src", "D.sha1 AS dst"]
+            if aggreg_dst:
+                revloc = f"UNNEST(R.{dst_field}) AS dst"
+                if self._relation_uses_location_table(relation):
+                    revloc += ", UNNEST(R.location) AS path"
+            else:
+                revloc = f"R.{dst_field} AS dst"
+                if self._relation_uses_location_table(relation):
+                    revloc += ", R.location AS path"
+
+            inner_sql = f"""
+            SELECT S.sha1 AS src, {revloc}
+            FROM {table} AS R
+            INNER JOIN {src} AS S ON (S.id=R.{src_field})
+            {where}
+            """
 
             if self._relation_uses_location_table(relation):
-                joins.append("INNER JOIN location AS L ON (L.id=R.location)")
-                selected.append("L.path AS path")
+                loc = "L.path AS path"
             else:
-                selected.append("NULL AS path")
-
+                loc = "NULL AS path"
             sql = f"""
-                SELECT {", ".join(selected)}
-                  FROM {table} AS R
-                  {" ".join(joins)}
-                  {where}
-                """
+            SELECT CL.src, D.sha1 AS dst, {loc}
+            FROM ({inner_sql}) AS CL
+            INNER JOIN {dst} AS D ON (D.id=CL.dst)
+            """
+            if self._relation_uses_location_table(relation):
+                sql += "INNER JOIN location AS L ON (L.id=CL.path)"
+
             self.cursor.execute(sql, sha1s)
             result.update(RelationData(**row) for row in self.cursor.fetchall())
         return result

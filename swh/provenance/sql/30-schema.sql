@@ -1,4 +1,5 @@
 -- psql variables to get the current database flavor
+select position('denormalized' in swh_get_dbflavor()::text) = 0 as dbflavor_norm \gset
 
 create table dbversion
 (
@@ -78,8 +79,13 @@ comment on column origin.url is 'URL of the origin';
 create table content_in_revision
 (
     content  bigint not null,           -- internal identifier of the content blob
+\if :dbflavor_norm
     revision bigint not null,           -- internal identifier of the revision where the blob appears for the first time
     location bigint                     -- location of the content relative to the revision root directory
+\else
+    revision bigint[],                  -- internal identifier of the revision where the blob appears for the first time
+    location bigint[]                   -- location of the content relative to the revision root directory
+\endif
     -- foreign key (blob) references content (id),
     -- foreign key (rev) references revision (id),
     -- foreign key (loc) references location (id)
@@ -91,8 +97,13 @@ comment on column content_in_revision.location is 'Location of content in revisi
 create table content_in_directory
 (
     content   bigint not null,          -- internal identifier of the content blob
+\if :dbflavor_norm
     directory bigint not null,          -- internal identifier of the directory containing the blob
     location  bigint                    -- location of the content relative to its parent directory in the isochrone frontier
+\else
+    directory bigint[],
+    location  bigint[]
+\endif
     -- foreign key (blob) references content (id),
     -- foreign key (dir) references directory (id),
     -- foreign key (loc) references location (id)
@@ -104,8 +115,13 @@ comment on column content_in_directory.location is 'Location of content in direc
 create table directory_in_revision
 (
     directory bigint not null,          -- internal identifier of the directory appearing in the revision
+\if :dbflavor_norm
     revision  bigint not null,          -- internal identifier of the revision containing the directory
     location  bigint                    -- location of the directory relative to the revision root directory
+\else
+    revision bigint[],
+    location bigint[]
+\endif
     -- foreign key (dir) references directory (id),
     -- foreign key (rev) references revision (id),
     -- foreign key (loc) references location (id)

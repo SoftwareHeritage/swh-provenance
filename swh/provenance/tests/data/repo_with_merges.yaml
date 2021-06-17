@@ -1,0 +1,73 @@
+# generate a git history with a multi-merge revision
+# *-.   R08
+# |\ \
+# | * | R07
+# | | |
+# | | * R06
+# | | |
+# * | | R05
+# | | |
+# * | | R04
+# |/  |
+# *   | R03
+# |  /
+# * /   R02
+# |/
+# *     R01
+# |
+# *     R00
+- msg: R00
+  date: 1000000000
+  content:
+    A/B/C/a: "content a"
+- msg: R01
+  date: 1000000010
+  content:
+    A/B/C/a: "content a"
+    A/B/C/b: "content b"
+- msg: R02
+  date: 1000000020
+  content:
+    A/C/a: "content a"
+    A/C/b: "content b"
+- msg: R03
+  date: 1000000030
+  content:
+    A/B/C/a: "content a"
+    A/B/C/b: "content b"
+- msg: R04
+  date: 1000000040
+  content:
+    A/C/a: "content a"
+    A/C/b: "content b"
+- msg: R05
+  date: 1000000050
+  content:
+    A/B/C/a: "content a"
+    A/B/C/b: "content b"
+    A/B/c: "content c"
+- msg: R06
+  parents:
+    - R01
+  date: 1000000005  # /!\ we add an earlier version of the 'b' file
+  content:
+    A/B/C/a: "content a"
+    A/B/C/b: "content b"
+- msg: R07
+  parents:
+    - R03
+  date: 1000000035  # /!\ we add an earlier version of the 'b' file
+  content:
+    A/B/C/a: "content a"
+    A/B/C/b: "content b"
+    A/B/c: "content c"
+- msg: R08
+  parents:
+    - R05
+    - R06
+    - R07
+  date: 1000000060
+  content:
+    A/B/C/a: "content a"
+    A/B/C/b: "content b"
+    A/B/c: "content c"

@@ -61,6 +61,19 @@ def generate_repo(repo_desc, output_dir):
     )
 
     for rev_d in repo_desc:
+        parents = rev_d.get("parents")
+        if parents:
+            # move at the proper (first) parent position, if any
+            check_call(["git", "checkout", parents[0]], stdout=PIPE)
+
+        # give a branch name (the msg) to each commit to make it esier to
+        # navigate in history
+        check_call(["git", "checkout", "-b", rev_d["msg"]], stdout=PIPE)
+
+        if parents and len(parents) > 1:
+            # it's a merge
+            check_call(["git", "merge", "--no-commit", *parents[1:]], stdout=PIPE)
+
         clean_wd()
         for path, content in rev_d["content"].items():
             p = pathlib.Path(path)
@@ -78,6 +91,7 @@ def generate_repo(repo_desc, output_dir):
                 "git",
                 "commit",
                 "--all",
+                "--allow-empty",
                 "-m",
                 rev_d["msg"],
             ],
@@ -92,7 +106,7 @@ def generate_repo(repo_desc, output_dir):
 @click.option("-C", "--clean-output/--no-clean-output", default=False)
 def main(input_file, output_dir, clean_output):
     repo_desc = yaml.load(open(input_file))
-    if clean_output:
+    if clean_output and os.path.exists(output_dir):
         shutil.rmtree(output_dir)
     generate_repo(repo_desc, output_dir)
 

@@ -1,0 +1,34 @@
+# a visit pattern scenario for the 'repo_with_merges' repo
+
+- origin: http://repo_with_merges/1/
+  date: 1000000015
+  branches:
+    - R01
+
+- origin: http://repo_with_merges/1/
+  date: 1000000025
+  branches:
+    - R03
+    - R06
+
+- origin: http://repo_with_merges/2/
+  date: 1000000035
+  branches:
+    - R05
+    - R06
+
+- origin: http://repo_with_merges/1/
+  date: 1000000045
+  branches:
+    - R06
+    - R07
+
+- origin: http://repo_with_merges/1/
+  date: 1000000055
+  branches:
+    - R08
+
+- origin: http://repo_with_merges/2/
+  date: 1000000065
+  branches:
+    - R08

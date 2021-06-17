@@ -5,10 +5,20 @@
 
 from datetime import datetime, timezone
 import os
+from subprocess import check_output
 
 import click
+import yaml
 
 from swh.loader.git.from_disk import GitLoaderFromDisk
+from swh.model.model import (
+    Origin,
+    OriginVisit,
+    OriginVisitStatus,
+    Snapshot,
+    SnapshotBranch,
+    TargetType,
+)
 from swh.storage import get_storage
 
 
@@ -30,8 +40,15 @@ def pop_key(d, k):
 
 @click.command()
 @click.option("-o", "--output", default=None, help="output file")
+@click.option(
+    "-v",
+    "--visits",
+    type=click.File(mode="rb"),
+    default=None,
+    help="additional visits to generate.",
+)
 @click.argument("git-repo", type=click.Path(exists=True, file_okay=False))
-def main(output, git_repo):
+def main(output, visits, git_repo):
     "simple tool to generate the git_repo.msgpack dataset file used in some tests"
     if output is None:
         output = f"{git_repo}.msgpack"
@@ -44,6 +61,52 @@ def main(output, git_repo):
 
         reponame = os.path.basename(git_repo)
         load_git_repo(f"https://{reponame}", git_repo, sto)
+
+        if visits:
+            # retrieve all branches from the actual git repo
+            all_branches = {
+                ref: sha1
+                for sha1, ref in (
+                    line.strip().split()
+                    for line in check_output(["git", "-C", git_repo, "show-ref"])
+                    .decode()
+                    .splitlines()
+                )
+            }
+
+            for visit in yaml.full_load(visits):
+                # add the origin (if it already exists, this is a noop)
+                sto.origin_add([Origin(url=visit["origin"])])
+                # add a new visit for this origin
+                visit_id = sto.origin_visit_add(
+                    [
+                        OriginVisit(
+                            origin=visit["origin"],
+                            date=datetime.fromtimestamp(visit["date"], tz=timezone.utc),
+                            type="git",
+                        )
+                    ]
+                )[0].visit
+                # add a snapshot with branches from the input file
+                branches = {
+                    f"refs/heads/{name}".encode(): SnapshotBranch(
+                        target=bytes.fromhex(all_branches[f"refs/heads/{name}"]),
+                        target_type=TargetType.REVISION,
+                    )
+                    for name in visit["branches"]
+                }
+                snap = Snapshot(branches=branches)
+                sto.snapshot_add([snap])
+                # add a "closing" origin visit status update referencing the snapshot
+                status = OriginVisitStatus(
+                    origin=visit["origin"],
+                    visit=visit_id,
+                    date=datetime.fromtimestamp(visit["date"], tz=timezone.utc),
+                    status="full",
+                    snapshot=snap.id,
+                )
+                sto.origin_visit_status_add([status])
+
     click.echo(f"Serialized the storage made from {reponame} in {output}")
 
 

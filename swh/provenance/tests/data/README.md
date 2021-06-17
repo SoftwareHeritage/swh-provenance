@@ -63,6 +63,9 @@ Note that hashes (for revision, directories and content) of the git objects
 only depends on the content of the input yaml file. Calling the tool twice on
 the same input file should generate the exact same git repo twice.
 
+Also note that the tool will add a branch at each revision (using the commit
+message as bramch name), to make it easier to reference any point in the git
+history.
 
 ## Msgpack dump of the storage
 
@@ -91,6 +94,31 @@ python generate_storage_from_git.py repo2
 Revision hash for master is 8363e8e98751dc9f264d2fedd6b829ad4b1218b0
 Wrote 86 objects in repo2.msgpack
 ```
+
+### Adding extra visits/snapshots
+
+It is also possible to generate a storage from a git repo with extra origin
+visits, using the `--visit` option of the `generate_repo_from_git` tool.
+
+This option expect a yaml file as argument. This file contains a description of
+extra visits (and snapshots) you want to add to the storage.
+
+The format is simple, for example:
+
+```
+# a visit pattern scenario for the 'repo_with_merges' repo
+
+- origin: http://repo_with_merges/1/
+  date: 1000000015
+  branches:
+    - R01
+
+```
+
+will create an OriginVisit (at given date) for the given origin URL (the Origin
+will be created as well), with a `Snapshot` including the listed
+branches.
+
 
 ## Synthetic files
 

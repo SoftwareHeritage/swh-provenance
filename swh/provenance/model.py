@@ -4,10 +4,7 @@
 # See top-level LICENSE file for more information
 
 from datetime import datetime
-from typing import Iterable, Iterator, List, Optional, Set
-
-from swh.core.utils import grouper
-from swh.model.model import ObjectType, TargetType
+from typing import Iterable, Iterator, List, Optional
 
 from .archive import ArchiveInterface
 
@@ -17,42 +14,17 @@ class OriginEntry:
         self, url: str, date: datetime, snapshot: bytes, id: Optional[int] = None
     ):
         self.url = url
-        self.date = date
+        # TODO: this is probably not needed and will be removed!
+        # self.date = date
         self.snapshot = snapshot
         self.id = id
         self._revisions: Optional[List[RevisionEntry]] = None
 
     def retrieve_revisions(self, archive: ArchiveInterface):
         if self._revisions is None:
-            snapshot = archive.snapshot_get_all_branches(self.snapshot)
-            assert snapshot is not None
-            targets_set = set()
-            releases_set = set()
-            if snapshot is not None:
-                for branch in snapshot.branches:
-                    if snapshot.branches[branch].target_type == TargetType.REVISION:
-                        targets_set.add(snapshot.branches[branch].target)
-                    elif snapshot.branches[branch].target_type == TargetType.RELEASE:
-                        releases_set.add(snapshot.branches[branch].target)
-
-            batchsize = 100
-            for releases in grouper(releases_set, batchsize):
-                targets_set.update(
-                    release.target
-                    for release in archive.revision_get(releases)
-                    if release is not None
-                    and release.target_type == ObjectType.REVISION
-                )
-
-            revisions: Set[RevisionEntry] = set()
-            for targets in grouper(targets_set, batchsize):
-                revisions.update(
-                    RevisionEntry(revision.id)
-                    for revision in archive.revision_get(targets)
-                    if revision is not None
-                )
-
-            self._revisions = list(revisions)
+            self._revisions = [
+                RevisionEntry(rev) for rev in archive.snapshot_get_heads(self.snapshot)
+            ]
 
     @property
     def revisions(self) -> Iterator["RevisionEntry"]:
@@ -93,7 +65,7 @@ class RevisionEntry:
                     parents=rev.parents,
                 )
                 for rev in archive.revision_get(self._parents)
-                if rev is not None and rev.date is not None
+                if rev.date is not None
             ]
         yield from self._nodes
 

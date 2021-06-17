@@ -1,9 +1,9 @@
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Set
 
 from methodtools import lru_cache
 import psycopg2
 
-from swh.model.model import Revision
+from swh.model.model import ObjectType, Revision, Sha1, TargetType
 from swh.storage.postgresql.storage import Storage
 
 
@@ -12,14 +12,14 @@ class ArchivePostgreSQL:
         self.conn = conn
         self.storage = Storage(conn, objstorage={"cls": "memory"})
 
-    def directory_ls(self, id: bytes) -> List[Dict[str, Any]]:
+    def directory_ls(self, id: Sha1) -> Iterable[Dict[str, Any]]:
         # TODO: only call directory_ls_internal if the id is not being queried by
         # someone else. Otherwise wait until results get properly cached.
         entries = self.directory_ls_internal(id)
-        return entries
+        yield from entries
 
     @lru_cache(maxsize=100000)
-    def directory_ls_internal(self, id: bytes) -> List[Dict[str, Any]]:
+    def directory_ls_internal(self, id: Sha1) -> List[Dict[str, Any]]:
         # TODO: add file size filtering
         with self.conn.cursor() as cursor:
             cursor.execute(
@@ -62,28 +62,7 @@ class ArchivePostgreSQL:
                 for row in cursor.fetchall()
             ]
 
-    def iter_origins(self):
-        from swh.storage.algos.origin import iter_origins
-
-        yield from iter_origins(self.storage)
-
-    def iter_origin_visits(self, origin: str):
-        from swh.storage.algos.origin import iter_origin_visits
-
-        # TODO: filter unused fields
-        yield from iter_origin_visits(self.storage, origin)
-
-    def iter_origin_visit_statuses(self, origin: str, visit: int):
-        from swh.storage.algos.origin import iter_origin_visit_statuses
-
-        # TODO: filter unused fields
-        yield from iter_origin_visit_statuses(self.storage, origin, visit)
-
-    def release_get(self, ids: Iterable[bytes]):
-        # TODO: filter unused fields
-        yield from self.storage.release_get(list(ids))
-
-    def revision_get(self, ids: Iterable[bytes]):
+    def revision_get(self, ids: Iterable[Sha1]) -> Iterable[Revision]:
         with self.conn.cursor() as cursor:
             psycopg2.extras.execute_values(
                 cursor,
@@ -117,8 +96,39 @@ class ArchivePostgreSQL:
                     }
                 )
 
-    def snapshot_get_all_branches(self, snapshot: bytes):
+    def snapshot_get_heads(self, id: Sha1) -> Iterable[Sha1]:
+        # TODO: this code is duplicated here (same as in swh.provenance.storage.archive)
+        # but it's just temporary. This method should actually perform a direct query to
+        # the SQL db of the archive.
+        from swh.core.utils import grouper
         from swh.storage.algos.snapshot import snapshot_get_all_branches
 
-        # TODO: filter unused fields
-        return snapshot_get_all_branches(self.storage, snapshot)
+        snapshot = snapshot_get_all_branches(self.storage, id)
+        assert snapshot is not None
+
+        targets_set = set()
+        releases_set = set()
+        if snapshot is not None:
+            for branch in snapshot.branches:
+                if snapshot.branches[branch].target_type == TargetType.REVISION:
+                    targets_set.add(snapshot.branches[branch].target)
+                elif snapshot.branches[branch].target_type == TargetType.RELEASE:
+                    releases_set.add(snapshot.branches[branch].target)
+
+        batchsize = 100
+        for releases in grouper(releases_set, batchsize):
+            targets_set.update(
+                release.target
+                for release in self.storage.release_get(releases)
+                if release is not None and release.target_type == ObjectType.REVISION
+            )
+
+        revisions: Set[Sha1] = set()
+        for targets in grouper(targets_set, batchsize):
+            revisions.update(
+                revision.id
+                for revision in self.storage.revision_get(targets)
+                if revision is not None
+            )
+
+        yield from revisions

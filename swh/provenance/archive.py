@@ -1,27 +1,45 @@
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable
 
 from typing_extensions import Protocol, runtime_checkable
+
+from swh.model.model import Revision, Sha1
 
 
 @runtime_checkable
 class ArchiveInterface(Protocol):
-    def directory_ls(self, id: bytes) -> List[Dict[str, Any]]:
+    def directory_ls(self, id: Sha1) -> Iterable[Dict[str, Any]]:
+        """List entries for one directory.
+
+        Args:
+            id: sha1 id of the directory to list entries from.
+
+        Yields:
+            directory entries for such directory.
+
+        """
         ...
 
-    def iter_origins(self):
+    def revision_get(self, ids: Iterable[Sha1]) -> Iterable[Revision]:
+        """Given a list of sha1, return the revisions' information
+
+        Args:
+            revisions: list of sha1s for the revisions to be retrieved
+
+        Yields:
+            revisions matching the identifiers. If a revision does
+            not exist, the provided sha1 is simply ignored.
+
+        """
         ...
 
-    def iter_origin_visits(self, origin: str):
-        ...
+    def snapshot_get_heads(self, id: Sha1) -> Iterable[Sha1]:
+        """List all revisions pointed by one snapshot.
 
-    def iter_origin_visit_statuses(self, origin: str, visit: int):
-        ...
+        Args:
+            snapshot: the snapshot's identifier
 
-    def release_get(self, ids: Iterable[bytes]):
-        ...
+        Yields:
+            sha1 ids of found revisions.
 
-    def revision_get(self, ids: Iterable[bytes]):
-        ...
-
-    def snapshot_get_all_branches(self, snapshot: bytes):
+        """
         ...

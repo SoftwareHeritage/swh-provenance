@@ -7,7 +7,7 @@ from typing import Iterable, Iterator, List, Optional, Tuple
 
 import iso8601
 
-from swh.model.hashutil import hash_to_bytes, hash_to_hex
+from swh.model.hashutil import hash_to_bytes
 
 from .archive import ArchiveInterface
 from .graph import IsochroneNode, build_isochrone_graph
@@ -71,7 +71,7 @@ def revision_add(
         date = provenance.revision_get_early_date(revision)
         if date is None or revision.date < date:
             logging.debug(
-                f"Processing revisions {hash_to_hex(revision.id)}"
+                f"Processing revisions {revision.id.hex()}"
                 f" (known date {date} / revision date {revision.date})..."
             )
             graph = build_isochrone_graph(
@@ -95,11 +95,11 @@ def revision_add(
         provenance.commit()
     stop = time.time()
     logging.debug(
-        f"Revisions {';'.join([hash_to_hex(revision.id) for revision in revisions])} "
+        f"Revisions {';'.join([revision.id.hex() for revision in revisions])} "
         f" were processed in {stop - start} secs (commit took {stop - done} secs)!"
     )
     # logging.critical(
-    #     ";".join([hash_to_hex(revision.id) for revision in revisions])
+    #     ";".join([revision.id.hex() for revision in revisions])
     #     + f",{stop - start},{stop - done}"
     # )
 

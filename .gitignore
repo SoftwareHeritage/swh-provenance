@@ -3,6 +3,8 @@
 *.log
 *.prof
 *.zip
+*.orig
+*.bak
 .coverage
 .tox
 .vscode
@@ -11,7 +13,13 @@ compact.egg.info
 content-revision
 build
 data
+!/swh/provenance/tests/data
+/swh/provenance/tests/data/*
+!/swh/provenance/tests/data/*.yaml
+!/swh/provenance/tests/data/*.py
+!/swh/provenance/tests/data/*.msgpack
 debian
 dumps
 PKG-INFO
 revision-origin
+/misc/

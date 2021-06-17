@@ -6,9 +6,8 @@ from typing import Iterable, Iterator, List, Optional, Tuple
 
 import iso8601
 
-from swh.model.hashutil import hash_to_hex
-
 from .archive import ArchiveInterface
+from .graph import HistoryNode, build_history_graph
 from .model import OriginEntry, RevisionEntry
 from .provenance import ProvenanceInterface
 
@@ -48,76 +47,60 @@ def origin_add(
     provenance: ProvenanceInterface,
     archive: ArchiveInterface,
     origins: List[OriginEntry],
-) -> None:
+):
     start = time.time()
     for origin in origins:
         origin.retrieve_revisions(archive)
         for revision in origin.revisions:
-            origin_add_revision(provenance, archive, origin, revision)
+            graph = build_history_graph(archive, provenance, revision)
+            origin_add_revision(provenance, origin, graph)
     done = time.time()
     provenance.commit()
     stop = time.time()
     logging.debug(
         "Origins "
-        ";".join(
-            [origin.url + ":" + hash_to_hex(origin.snapshot) for origin in origins]
-        )
+        ";".join([origin.url + ":" + origin.snapshot.hex() for origin in origins])
         + f" were processed in {stop - start} secs (commit took {stop - done} secs)!"
     )
 
 
 def origin_add_revision(
     provenance: ProvenanceInterface,
-    archive: ArchiveInterface,
     origin: OriginEntry,
-    revision: RevisionEntry,
-) -> None:
-    stack: List[Tuple[Optional[RevisionEntry], RevisionEntry]] = [(None, revision)]
+    graph: HistoryNode,
+):
     origin.id = provenance.origin_get_id(origin)
 
+    # head is treated separately since it should always be added to the given origin
+    head = graph.entry
+    check_preferred_origin(provenance, origin, head)
+    provenance.revision_add_to_origin(origin, head)
+
+    # head's history should be recursively iterated starting from its parents
+    stack = list(graph.parents)
     while stack:
-        relative, current = stack.pop()
+        current = stack.pop()
+        check_preferred_origin(provenance, origin, current.entry)
 
-        # Check if current revision has no preferred origin and update if necessary.
-        preferred = provenance.revision_get_preferred_origin(current)
-
-        if preferred is None:
-            provenance.revision_set_preferred_origin(origin, current)
-        ########################################################################
-
-        if relative is None:
-            # This revision is pointed directly by the origin.
-            visited = provenance.revision_visited(current)
-            provenance.revision_add_to_origin(origin, current)
-
-            if not visited:
-                stack.append((current, current))
-
+        if current.visited:
+            # if current revision was already visited just add it to the current origin
+            # and stop recursion (its history has already been flattened)
+            provenance.revision_add_to_origin(origin, current.entry)
         else:
-            # This revision is a parent of another one in the history of the
-            # relative revision.
-            current.retrieve_parents(archive)
+            # if current revision was not visited before create a link between it and
+            # the head, and recursively walk its history
+            provenance.revision_add_before_revision(head, current.entry)
             for parent in current.parents:
-                visited = provenance.revision_visited(parent)
+                stack.append(parent)
 
-                if not visited:
-                    # The parent revision has never been seen before pointing
-                    # directly to an origin.
-                    known = provenance.revision_in_history(parent)
 
-                    if known:
-                        # The parent revision is already known in some other
-                        # revision's history. We should point it directly to
-                        # the origin and (eventually) walk its history.
-                        stack.append((None, parent))
-                    else:
-                        # The parent revision was never seen before. We should
-                        # walk its history and associate it with the same
-                        # relative revision.
-                        provenance.revision_add_before_revision(relative, parent)
-                        stack.append((relative, parent))
-                else:
-                    # The parent revision already points to an origin, so its
-                    # history was properly processed before. We just need to
-                    # make sure it points to the current origin as well.
-                    provenance.revision_add_to_origin(origin, parent)
+def check_preferred_origin(
+    provenance: ProvenanceInterface,
+    origin: OriginEntry,
+    revision: RevisionEntry,
+):
+    # if the revision has no preferred origin just set the given origin as the
+    # preferred one. TODO: this should be improved in the future!
+    preferred = provenance.revision_get_preferred_origin(revision)
+    if preferred is None:
+        provenance.revision_set_preferred_origin(origin, revision)

@@ -7,15 +7,16 @@ from os import path
 import re
 from typing import Iterable, Iterator, List, Optional
 
+import msgpack
 import pytest
 from typing_extensions import TypedDict
 
-from swh.core.api.serializers import msgpack_loads
 from swh.core.db import BaseDb
-from swh.model.model import Content, Directory, DirectoryEntry, Revision
+from swh.journal.serializers import msgpack_ext_hook
 from swh.model.tests.swh_model_data import TEST_OBJECTS
 from swh.provenance.postgresql.archive import ArchivePostgreSQL
 from swh.provenance.storage.archive import ArchiveStorage
+from swh.storage.replay import process_replay_objects
 
 
 @pytest.fixture(params=["with-path", "without-path"])
@@ -88,10 +89,17 @@ def get_datafile(fname):
 
 
 def load_repo_data(repo):
-    data = {"revision": [], "directory": [], "content": []}
+    data = {}
     with open(get_datafile(f"{repo}.msgpack"), "rb") as fobj:
-        for etype, value in msgpack_loads(fobj.read()):
-            data[etype].append(value)
+        unpacker = msgpack.Unpacker(
+            fobj,
+            raw=False,
+            ext_hook=msgpack_ext_hook,
+            strict_map_key=False,
+            timestamp=3,  # convert Timestamp in datetime objects (tz UTC)
+        )
+        for objtype, objd in unpacker:
+            data.setdefault(objtype, []).append(objd)
     return data
 
 
@@ -100,25 +108,7 @@ def filter_dict(d, keys):
 
 
 def fill_storage(storage, data):
-    storage.content_add_metadata(
-        Content.from_dict(content) for content in data["content"]
-    )
-    storage.directory_add(
-        [
-            Directory(
-                entries=tuple(
-                    [
-                        DirectoryEntry.from_dict(
-                            filter_dict(entry, ("name", "type", "target", "perms"))
-                        )
-                        for entry in dir["entries"]
-                    ]
-                )
-            )
-            for dir in data["directory"]
-        ]
-    )
-    storage.revision_add(Revision.from_dict(revision) for revision in data["revision"])
+    process_replay_objects(data, storage=storage)
 
 
 class SynthRelation(TypedDict):

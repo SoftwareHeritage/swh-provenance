@@ -1,10 +1,7 @@
-from collections import Counter
 from datetime import datetime, timezone
 import logging
 import os
-from typing import Dict, List, Optional
-
-from swh.model.hashutil import hash_to_hex
+from typing import Dict, Optional, Set
 
 from .archive import ArchiveInterface
 from .model import DirectoryEntry, RevisionEntry
@@ -36,7 +33,7 @@ class IsochroneNode:
         self.known = self.dbdate is not None
         self.invalid = False
         self.path = os.path.join(prefix, self.entry.name) if prefix else self.entry.name
-        self.children: List[IsochroneNode] = []
+        self.children: Set[IsochroneNode] = set()
 
     @property
     def dbdate(self):
@@ -52,56 +49,27 @@ class IsochroneNode:
     def add_directory(
         self, child: DirectoryEntry, date: Optional[datetime] = None
     ) -> "IsochroneNode":
-        # we should not be processing this node (ie add subdirectories or
-        # files) if it's actually known by the provenance DB
+        # we should not be processing this node (ie add subdirectories or files) if it's
+        # actually known by the provenance DB
         assert self.dbdate is None
         node = IsochroneNode(child, dbdate=date, depth=self.depth + 1, prefix=self.path)
-        self.children.append(node)
+        self.children.add(node)
         return node
 
     def __str__(self):
         return (
-            f"<{self.entry}: dbdate={self.dbdate}, maxdate={self.maxdate}, "
+            f"<{self.entry}: depth={self.depth}, "
+            f"dbdate={self.dbdate}, maxdate={self.maxdate}, "
             f"known={self.known}, invalid={self.invalid}, path={self.path}, "
             f"children=[{', '.join(str(child) for child in self.children)}]>"
         )
 
     def __eq__(self, other):
-        return (
-            isinstance(other, IsochroneNode)
-            and (
-                self.entry,
-                self.depth,
-                self._dbdate,
-                self.maxdate,
-                self.known,
-                self.invalid,
-                self.path,
-            )
-            == (
-                other.entry,
-                other.depth,
-                other._dbdate,
-                other.maxdate,
-                other.known,
-                other.invalid,
-                other.path,
-            )
-            and Counter(self.children) == Counter(other.children)
-        )
+        return isinstance(other, IsochroneNode) and self.__dict__ == other.__dict__
 
     def __hash__(self):
-        return hash(
-            (
-                self.entry,
-                self.depth,
-                self._dbdate,
-                self.maxdate,
-                self.known,
-                self.invalid,
-                self.path,
-            )
-        )
+        # only immutable attributes are considered to compute hash
+        return hash((self.entry, self.depth, self.path))
 
 
 def build_isochrone_graph(
@@ -129,7 +97,7 @@ def build_isochrone_graph(
     root = IsochroneNode(directory, dbdate=root_date)
     stack = [root]
     logging.debug(
-        f"Recursively creating graph for revision {hash_to_hex(revision.id)}..."
+        f"Recursively creating isochrone graph for revision {revision.id.hex()}..."
     )
     fdates: Dict[bytes, datetime] = {}  # map {file_id: date}
     while stack:
@@ -140,9 +108,9 @@ def build_isochrone_graph(
             # the revision is being processed out of order.
             if current.dbdate is not None and current.dbdate > revision.date:
                 logging.debug(
-                    f"Invalidating frontier on {hash_to_hex(current.entry.id)}"
+                    f"Invalidating frontier on {current.entry.id.hex()}"
                     f" (date {current.dbdate})"
-                    f" when processing revision {hash_to_hex(revision.id)}"
+                    f" when processing revision {revision.id.hex()}"
                     f" (date {revision.date})"
                 )
                 current.invalidate()
@@ -162,11 +130,11 @@ def build_isochrone_graph(
             fdates.update(provenance.content_get_early_dates(current.entry.files))
 
     logging.debug(
-        f"Isochrone graph for revision {hash_to_hex(revision.id)} successfully created!"
+        f"Isochrone graph for revision {revision.id.hex()} successfully created!"
     )
     # Precalculate max known date for each node in the graph (only directory nodes are
     # pushed to the stack).
-    logging.debug(f"Computing maxdates for revision {hash_to_hex(revision.id)}...")
+    logging.debug(f"Computing maxdates for revision {revision.id.hex()}...")
     stack = [root]
 
     while stack:
@@ -217,7 +185,5 @@ def build_isochrone_graph(
                     # node should be treated as unknown
                     current.maxdate = revision.date
                     current.known = False
-    logging.debug(
-        f"Maxdates for revision {hash_to_hex(revision.id)} successfully computed!"
-    )
+    logging.debug(f"Maxdates for revision {revision.id.hex()} successfully computed!")
     return root

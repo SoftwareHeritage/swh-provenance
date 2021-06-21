@@ -40,9 +40,9 @@ def isochrone_graph_from_dict(d, depth=0) -> IsochroneNode:
     node.known = d.get("known", False)
     node.invalid = d.get("invalid", False)
     node.path = bytes(d["path"], encoding="utf-8")
-    node.children = [
+    node.children = set(
         isochrone_graph_from_dict(child, depth=depth + 1) for child in children
-    ]
+    )
     return node
 
 

@@ -10,6 +10,73 @@ from .provenance import ProvenanceInterface
 UTCMIN = datetime.min.replace(tzinfo=timezone.utc)
 
 
+class HistoryNode:
+    def __init__(
+        self, entry: RevisionEntry, visited: bool = False, in_history: bool = False
+    ):
+        self.entry = entry
+        # A revision is `visited` if it is directly pointed by an origin (ie. a head
+        # revision for some snapshot)
+        self.visited = visited
+        # A revision is `in_history` if it appears in the history graph of an already
+        # processed revision in the provenance database
+        self.in_history = in_history
+        self.parents: Set[HistoryNode] = set()
+
+    def add_parent(
+        self, parent: RevisionEntry, visited: bool = False, in_history: bool = False
+    ) -> "HistoryNode":
+        node = HistoryNode(parent, visited=visited, in_history=in_history)
+        self.parents.add(node)
+        return node
+
+    def __str__(self):
+        return (
+            f"<{self.entry}: visited={self.visited}, in_history={self.in_history}, "
+            f"parents=[{', '.join(str(parent) for parent in self.parents)}]>"
+        )
+
+    def __eq__(self, other):
+        return isinstance(other, HistoryNode) and self.__dict__ == other.__dict__
+
+    def __hash__(self):
+        return hash((self.entry, self.visited, self.in_history))
+
+
+def build_history_graph(
+    archive: ArchiveInterface,
+    provenance: ProvenanceInterface,
+    revision: RevisionEntry,
+) -> HistoryNode:
+    """Recursively build the history graph from the given revision"""
+
+    root = HistoryNode(
+        revision,
+        visited=provenance.revision_visited(revision),
+        in_history=provenance.revision_in_history(revision),
+    )
+    stack = [root]
+    logging.debug(
+        f"Recursively creating history graph for revision {revision.id.hex()}..."
+    )
+    while stack:
+        current = stack.pop()
+        if not current.visited:
+            current.entry.retrieve_parents(archive)
+
+            for rev in current.entry.parents:
+                node = current.add_parent(
+                    rev,
+                    visited=provenance.revision_visited(rev),
+                    in_history=provenance.revision_in_history(rev),
+                )
+                stack.append(node)
+    logging.debug(
+        f"History graph for revision {revision.id.hex()} successfully created!"
+    )
+    return root
+
+
 class IsochroneNode:
     def __init__(
         self,

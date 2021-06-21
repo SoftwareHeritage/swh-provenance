@@ -112,7 +112,7 @@ class ProvenanceDBBase:
             #      This might be useless!
             data.clear()
 
-    def insert_origin_head(self, data: Dict[bytes, int]):
+    def insert_origin_head(self, data: Set[Tuple[bytes, str]]):
         if data:
             psycopg2.extras.execute_values(
                 self.cursor,
@@ -120,9 +120,10 @@ class ProvenanceDBBase:
                 """
                 LOCK TABLE ONLY revision_in_origin;
                 INSERT INTO revision_in_origin
-                    SELECT R.id, V.org
+                    SELECT R.id, O.id
                     FROM (VALUES %s) AS V(rev, org)
                     INNER JOIN revision AS R on (R.sha1=V.rev)
+                    INNER JOIN origin AS O on (O.url=V.org::unix_path)
                 """,
                 data,
             )
@@ -149,28 +150,18 @@ class ProvenanceDBBase:
             )
             data.clear()
 
-    def origin_get_id(self, url: str) -> int:
-        # Insert origin in the DB and return the assigned id
-        # XXX: not sure this works as expected if url is already in the db!
+    def revision_get_preferred_origin(self, revision: bytes) -> Optional[str]:
         self.cursor.execute(
             """
-            LOCK TABLE ONLY origin;
-            INSERT INTO origin(url) VALUES (%s)
-              ON CONFLICT DO NOTHING
-              RETURNING id
-            """,
-            (url,),
-        )
-        return self.cursor.fetchone()[0]
-
-    def revision_get_preferred_origin(self, revision: bytes) -> Optional[int]:
-        self.cursor.execute(
-            """SELECT COALESCE(origin, 0) FROM revision WHERE sha1=%s""", (revision,)
+            SELECT O.url
+              FROM revision AS R
+              JOIN origin as O
+                ON R.origin=O.id
+              WHERE R.sha1=%s""",
+            (revision,),
         )
         row = self.cursor.fetchone()
-        # None means revision is not in database;
-        # 0 means revision has no preferred origin
-        return row[0] if row is not None and row[0] != 0 else None
+        return str(row[0], encoding="utf-8") if row is not None else None
 
     def revision_in_history(self, revision: bytes) -> bool:
         self.cursor.execute(
@@ -198,7 +189,7 @@ class ProvenanceDBBase:
         )
         return self.cursor.fetchone() is not None
 
-    def update_preferred_origin(self, data: Dict[bytes, int]):
+    def update_preferred_origin(self, data: Dict[bytes, str]):
         if data:
             # XXX: this is assuming the revision already exists in the db! It should
             #      be improved by allowing null dates in the revision table.
@@ -206,9 +197,10 @@ class ProvenanceDBBase:
                 self.cursor,
                 """
                 UPDATE revision
-                    SET origin=V.org
-                    FROM (VALUES %s) AS V(rev, org)
-                    WHERE sha1=V.rev
+                  SET origin=O.id
+                  FROM (VALUES %s) AS V(rev, org)
+                  INNER JOIN origin AS O on (O.url=V.org::unix_path)
+                  WHERE sha1=V.rev
                 """,
                 data.items(),
             )

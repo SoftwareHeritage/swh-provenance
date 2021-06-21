@@ -70,9 +70,6 @@ class ProvenanceInterface(Protocol):
     ) -> None:
         ...
 
-    def origin_get_id(self, origin: OriginEntry) -> int:
-        ...
-
     def revision_add(self, revision: RevisionEntry) -> None:
         ...
 
@@ -89,7 +86,7 @@ class ProvenanceInterface(Protocol):
     def revision_get_early_date(self, revision: RevisionEntry) -> Optional[datetime]:
         ...
 
-    def revision_get_preferred_origin(self, revision: RevisionEntry) -> Optional[int]:
+    def revision_get_preferred_origin(self, revision: RevisionEntry) -> Optional[str]:
         ...
 
     def revision_in_history(self, revision: RevisionEntry) -> bool:
@@ -110,7 +107,7 @@ class DatetimeCache(TypedDict):
 
 
 class OriginCache(TypedDict):
-    data: Dict[bytes, int]  # TODO: we should switch to use Url instead
+    data: Dict[bytes, str]
     added: Set[bytes]
 
 
@@ -124,7 +121,7 @@ class ProvenanceCache(TypedDict):
     directory_in_revision: Set[Tuple[bytes, bytes, bytes]]
     # these two are for the origin layer
     revision_before_revision: Dict[bytes, Set[bytes]]
-    revision_in_origin: Set[Tuple[bytes, int]]
+    revision_in_origin: Set[Tuple[bytes, str]]
     revision_preferred_origin: OriginCache
 
 
@@ -241,12 +238,6 @@ class ProvenanceBackend:
             cache["data"].update(self.storage.get_dates(entity, list(missing_ids)))
         return {sha1: cache["data"][sha1] for sha1 in ids if sha1 in cache["data"]}
 
-    def origin_get_id(self, origin: OriginEntry) -> int:
-        if origin.id is None:
-            return self.storage.origin_get_id(origin.url)
-        else:
-            return origin.id
-
     def revision_add(self, revision: RevisionEntry):
         # Add current revision to the compact DB
         assert revision.date is not None
@@ -261,17 +252,16 @@ class ProvenanceBackend:
         )
 
     def revision_add_to_origin(self, origin: OriginEntry, revision: RevisionEntry):
-        assert origin.id is not None
-        self.cache["revision_in_origin"].add((revision.id, origin.id))
+        self.cache["revision_in_origin"].add((revision.id, origin.url))
 
     def revision_get_early_date(self, revision: RevisionEntry) -> Optional[datetime]:
         return self.get_dates("revision", [revision.id]).get(revision.id, None)
 
-    def revision_get_preferred_origin(self, revision: RevisionEntry) -> Optional[int]:
+    def revision_get_preferred_origin(self, revision: RevisionEntry) -> Optional[str]:
         if revision.id not in self.cache["revision_preferred_origin"]["data"]:
-            origin = self.storage.revision_get_preferred_origin(revision.id)
-            if origin is not None:
-                self.cache["revision_preferred_origin"]["data"][revision.id] = origin
+            url = self.storage.revision_get_preferred_origin(revision.id)
+            if url is not None:
+                self.cache["revision_preferred_origin"]["data"][revision.id] = url
         return self.cache["revision_preferred_origin"]["data"].get(revision.id)
 
     def revision_in_history(self, revision: RevisionEntry) -> bool:
@@ -282,8 +272,7 @@ class ProvenanceBackend:
     def revision_set_preferred_origin(
         self, origin: OriginEntry, revision: RevisionEntry
     ):
-        assert origin.id is not None
-        self.cache["revision_preferred_origin"]["data"][revision.id] = origin.id
+        self.cache["revision_preferred_origin"]["data"][revision.id] = origin.url
         self.cache["revision_preferred_origin"]["added"].add(revision.id)
 
     def revision_visited(self, revision: RevisionEntry) -> bool:

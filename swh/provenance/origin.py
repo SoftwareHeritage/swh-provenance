@@ -69,8 +69,6 @@ def origin_add_revision(
     origin: OriginEntry,
     graph: HistoryNode,
 ):
-    origin.id = provenance.origin_get_id(origin)
-
     # head is treated separately since it should always be added to the given origin
     head = graph.entry
     check_preferred_origin(provenance, origin, head)

@@ -10,14 +10,11 @@ from .archive import ArchiveInterface
 
 
 class OriginEntry:
-    def __init__(
-        self, url: str, date: datetime, snapshot: bytes, id: Optional[int] = None
-    ):
+    def __init__(self, url: str, date: datetime, snapshot: bytes):
         self.url = url
         # TODO: this is probably not needed and will be removed!
         # self.date = date
         self.snapshot = snapshot
-        self.id = id
         self._revisions: Optional[List[RevisionEntry]] = None
 
     def retrieve_revisions(self, archive: ArchiveInterface):

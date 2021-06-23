@@ -6,6 +6,8 @@ from typing import Any, Dict, Generator, List, Optional, Set, Tuple
 import psycopg2
 import psycopg2.extras
 
+from swh.model.model import Sha1Git
+
 
 class ProvenanceDBBase:
     def __init__(self, conn: psycopg2.extensions.connection):
@@ -51,6 +53,16 @@ class ProvenanceDBBase:
             ):
                 self.insert_relation(relation, data[relation])
 
+            # Insert origins
+            self.insert_origin(
+                {
+                    sha1: data["origin"]["data"][sha1]
+                    for sha1 in data["origin"]["added"]
+                },
+            )
+            data["origin"]["data"].clear()
+            data["origin"]["added"].clear()
+
             # Insert relations from the origin-revision layer
             self.insert_origin_head(data["revision_in_origin"])
             self.insert_revision_history(data["revision_before_revision"])
@@ -58,12 +70,12 @@ class ProvenanceDBBase:
             # Update preferred origins
             self.update_preferred_origin(
                 {
-                    sha1: data["revision_preferred_origin"]["data"][sha1]
-                    for sha1 in data["revision_preferred_origin"]["added"]
+                    sha1: data["revision_origin"]["data"][sha1]
+                    for sha1 in data["revision_origin"]["added"]
                 }
             )
-            data["revision_preferred_origin"]["data"].clear()
-            data["revision_preferred_origin"]["added"].clear()
+            data["revision_origin"]["data"].clear()
+            data["revision_origin"]["added"].clear()
 
             return True
 
@@ -112,7 +124,22 @@ class ProvenanceDBBase:
             #      This might be useless!
             data.clear()
 
-    def insert_origin_head(self, data: Set[Tuple[bytes, str]]):
+    def insert_origin(self, data: Dict[Sha1Git, str]):
+        if data:
+            psycopg2.extras.execute_values(
+                self.cursor,
+                """
+                LOCK TABLE ONLY origin;
+                INSERT INTO origin(sha1, url) VALUES %s
+                  ON CONFLICT DO NOTHING
+                """,
+                data.items(),
+            )
+            # XXX: not sure if Python takes a reference or a copy.
+            #      This might be useless!
+            data.clear()
+
+    def insert_origin_head(self, data: Set[Tuple[Sha1Git, Sha1Git]]):
         if data:
             psycopg2.extras.execute_values(
                 self.cursor,
@@ -123,7 +150,7 @@ class ProvenanceDBBase:
                     SELECT R.id, O.id
                     FROM (VALUES %s) AS V(rev, org)
                     INNER JOIN revision AS R on (R.sha1=V.rev)
-                    INNER JOIN origin AS O on (O.url=V.org::unix_path)
+                    INNER JOIN origin AS O on (O.sha1=V.org)
                 """,
                 data,
             )
@@ -150,10 +177,10 @@ class ProvenanceDBBase:
             )
             data.clear()
 
-    def revision_get_preferred_origin(self, revision: bytes) -> Optional[str]:
+    def revision_get_preferred_origin(self, revision: Sha1Git) -> Optional[Sha1Git]:
         self.cursor.execute(
             """
-            SELECT O.url
+            SELECT O.sha1
               FROM revision AS R
               JOIN origin as O
                 ON R.origin=O.id
@@ -161,7 +188,7 @@ class ProvenanceDBBase:
             (revision,),
         )
         row = self.cursor.fetchone()
-        return str(row[0], encoding="utf-8") if row is not None else None
+        return row[0] if row is not None else None
 
     def revision_in_history(self, revision: bytes) -> bool:
         self.cursor.execute(
@@ -189,18 +216,18 @@ class ProvenanceDBBase:
         )
         return self.cursor.fetchone() is not None
 
-    def update_preferred_origin(self, data: Dict[bytes, str]):
+    def update_preferred_origin(self, data: Dict[Sha1Git, Sha1Git]):
         if data:
             # XXX: this is assuming the revision already exists in the db! It should
             #      be improved by allowing null dates in the revision table.
             psycopg2.extras.execute_values(
                 self.cursor,
                 """
-                UPDATE revision
+                UPDATE revision R
                   SET origin=O.id
                   FROM (VALUES %s) AS V(rev, org)
-                  INNER JOIN origin AS O on (O.url=V.org::unix_path)
-                  WHERE sha1=V.rev
+                  INNER JOIN origin AS O on (O.sha1=V.org)
+                  WHERE R.sha1=V.rev
                 """,
                 data.items(),
             )

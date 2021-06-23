@@ -67,9 +67,11 @@ comment on column location.path is 'Path to the location';
 create table origin
 (
     id      bigserial primary key,      -- internal identifier of the origin
+    sha1    sha1_git unique not null,   -- intrinsic identifier of the origin
     url     unix_path unique not null   -- url of the origin
 );
 comment on column origin.id is 'Origin internal identifier';
+comment on column origin.sha1 is 'Origin intrinsic identifier';
 comment on column origin.url is 'URL of the origin';
 
 -- relation tables

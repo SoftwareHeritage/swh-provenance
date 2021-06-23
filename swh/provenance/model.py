@@ -6,14 +6,17 @@
 from datetime import datetime
 from typing import Iterable, Iterator, List, Optional
 
+from swh.model.hashutil import hash_to_bytes
+from swh.model.identifiers import origin_identifier
+from swh.model.model import Sha1Git
+
 from .archive import ArchiveInterface
 
 
 class OriginEntry:
-    def __init__(self, url: str, date: datetime, snapshot: bytes):
+    def __init__(self, url: str, snapshot: Sha1Git):
         self.url = url
-        # TODO: this is probably not needed and will be removed!
-        # self.date = date
+        self.id: Sha1Git = hash_to_bytes(origin_identifier({"url": self.url}))
         self.snapshot = snapshot
         self._revisions: Optional[List[RevisionEntry]] = None
 
@@ -33,10 +36,7 @@ class OriginEntry:
         return (x for x in self._revisions)
 
     def __str__(self):
-        return (
-            f"<MOrigin[{self.url}] "
-            f"snap={self.snapshot.hex()}, date={self.date.isoformat()}>"
-        )
+        return f"<MOrigin[{self.id.hex()}] url={self.url}, snap={self.snapshot.hex()}>"
 
 
 class RevisionEntry:

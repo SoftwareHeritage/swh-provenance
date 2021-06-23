@@ -1,10 +1,9 @@
-from datetime import datetime, timezone
 from itertools import islice
 import logging
 import time
 from typing import Iterable, Iterator, List, Optional, Tuple
 
-import iso8601
+from swh.model.model import Sha1Git
 
 from .archive import ArchiveInterface
 from .graph import HistoryNode, build_history_graph
@@ -16,31 +15,28 @@ class CSVOriginIterator:
     """Iterator over origin visit statuses typically present in the given CSV
     file.
 
-    The input is an iterator that produces 3 elements per row:
+    The input is an iterator that produces 2 elements per row:
 
-      (url, date, snap)
+      (url, snap)
 
     where:
     - url: is the origin url of the visit
-    - date: is the date of the visit
     - snap: sha1_git of the snapshot pointed by the visit status
     """
 
     def __init__(
         self,
-        statuses: Iterable[Tuple[str, datetime, bytes]],
+        statuses: Iterable[Tuple[str, Sha1Git]],
         limit: Optional[int] = None,
     ):
-        self.statuses: Iterator[Tuple[str, datetime, bytes]]
+        self.statuses: Iterator[Tuple[str, Sha1Git]]
         if limit is not None:
             self.statuses = islice(statuses, limit)
         else:
             self.statuses = iter(statuses)
 
     def __iter__(self):
-        for url, date, snap in self.statuses:
-            date = iso8601.parse_date(date, default_timezone=timezone.utc)
-            yield OriginEntry(url, date, snap)
+        return (OriginEntry(url, snapshot) for url, snapshot in self.statuses)
 
 
 def origin_add(
@@ -50,6 +46,7 @@ def origin_add(
 ):
     start = time.time()
     for origin in origins:
+        provenance.origin_add(origin)
         origin.retrieve_revisions(archive)
         for revision in origin.revisions:
             graph = build_history_graph(archive, provenance, revision)
@@ -59,7 +56,7 @@ def origin_add(
     stop = time.time()
     logging.debug(
         "Origins "
-        ";".join([origin.url + ":" + origin.snapshot.hex() for origin in origins])
+        ";".join([origin.id.hex() + ":" + origin.snapshot.hex() for origin in origins])
         + f" were processed in {stop - start} secs (commit took {stop - done} secs)!"
     )
 

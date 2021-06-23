@@ -3,7 +3,7 @@ from typing import Any, Dict, Iterable, List, Set
 from methodtools import lru_cache
 import psycopg2
 
-from swh.model.model import ObjectType, Revision, Sha1, TargetType
+from swh.model.model import ObjectType, Revision, Sha1Git, TargetType
 from swh.storage.postgresql.storage import Storage
 
 
@@ -12,14 +12,14 @@ class ArchivePostgreSQL:
         self.conn = conn
         self.storage = Storage(conn, objstorage={"cls": "memory"})
 
-    def directory_ls(self, id: Sha1) -> Iterable[Dict[str, Any]]:
+    def directory_ls(self, id: Sha1Git) -> Iterable[Dict[str, Any]]:
         # TODO: only call directory_ls_internal if the id is not being queried by
         # someone else. Otherwise wait until results get properly cached.
         entries = self.directory_ls_internal(id)
         yield from entries
 
     @lru_cache(maxsize=100000)
-    def directory_ls_internal(self, id: Sha1) -> List[Dict[str, Any]]:
+    def directory_ls_internal(self, id: Sha1Git) -> List[Dict[str, Any]]:
         # TODO: add file size filtering
         with self.conn.cursor() as cursor:
             cursor.execute(
@@ -62,7 +62,7 @@ class ArchivePostgreSQL:
                 for row in cursor.fetchall()
             ]
 
-    def revision_get(self, ids: Iterable[Sha1]) -> Iterable[Revision]:
+    def revision_get(self, ids: Iterable[Sha1Git]) -> Iterable[Revision]:
         with self.conn.cursor() as cursor:
             psycopg2.extras.execute_values(
                 cursor,
@@ -96,7 +96,7 @@ class ArchivePostgreSQL:
                     }
                 )
 
-    def snapshot_get_heads(self, id: Sha1) -> Iterable[Sha1]:
+    def snapshot_get_heads(self, id: Sha1Git) -> Iterable[Sha1Git]:
         # TODO: this code is duplicated here (same as in swh.provenance.storage.archive)
         # but it's just temporary. This method should actually perform a direct query to
         # the SQL db of the archive.
@@ -123,7 +123,7 @@ class ArchivePostgreSQL:
                 if release is not None and release.target_type == ObjectType.REVISION
             )
 
-        revisions: Set[Sha1] = set()
+        revisions: Set[Sha1Git] = set()
         for targets in grouper(targets_set, batchsize):
             revisions.update(
                 revision.id

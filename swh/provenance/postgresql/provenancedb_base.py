@@ -88,16 +88,16 @@ class ProvenanceDBBase:
         return False
 
     def content_find_first(
-        self, blob: bytes
-    ) -> Optional[Tuple[bytes, bytes, datetime, bytes]]:
+        self, id: Sha1Git
+    ) -> Optional[Tuple[Sha1Git, Sha1Git, datetime, bytes]]:
         ...
 
     def content_find_all(
-        self, blob: bytes, limit: Optional[int] = None
-    ) -> Generator[Tuple[bytes, bytes, datetime, bytes], None, None]:
+        self, id: Sha1Git, limit: Optional[int] = None
+    ) -> Generator[Tuple[Sha1Git, Sha1Git, datetime, bytes], None, None]:
         ...
 
-    def get_dates(self, entity: str, ids: List[bytes]) -> Dict[bytes, datetime]:
+    def get_dates(self, entity: str, ids: List[Sha1Git]) -> Dict[Sha1Git, datetime]:
         dates = {}
         if ids:
             values = ", ".join(itertools.repeat("%s", len(ids)))
@@ -108,7 +108,7 @@ class ProvenanceDBBase:
             dates.update(self.cursor.fetchall())
         return dates
 
-    def insert_entity(self, entity: str, data: Dict[bytes, datetime]):
+    def insert_entity(self, entity: str, data: Dict[Sha1Git, datetime]):
         if data:
             psycopg2.extras.execute_values(
                 self.cursor,
@@ -156,10 +156,10 @@ class ProvenanceDBBase:
             )
             data.clear()
 
-    def insert_relation(self, relation: str, data: Set[Tuple[bytes, bytes, bytes]]):
+    def insert_relation(self, relation: str, data: Set[Tuple[Sha1Git, Sha1Git, bytes]]):
         ...
 
-    def insert_revision_history(self, data: Dict[bytes, bytes]):
+    def insert_revision_history(self, data: Dict[Sha1Git, Sha1Git]):
         if data:
             values = [[(prev, next) for next in data[prev]] for prev in data]
             psycopg2.extras.execute_values(
@@ -190,7 +190,7 @@ class ProvenanceDBBase:
         row = self.cursor.fetchone()
         return row[0] if row is not None else None
 
-    def revision_in_history(self, revision: bytes) -> bool:
+    def revision_in_history(self, revision: Sha1Git) -> bool:
         self.cursor.execute(
             """
             SELECT 1
@@ -203,7 +203,7 @@ class ProvenanceDBBase:
         )
         return self.cursor.fetchone() is not None
 
-    def revision_visited(self, revision: bytes) -> bool:
+    def revision_visited(self, revision: Sha1Git) -> bool:
         self.cursor.execute(
             """
             SELECT 1

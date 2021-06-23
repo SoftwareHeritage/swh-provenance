@@ -3,6 +3,8 @@ import logging
 import os
 from typing import Dict, Optional, Set
 
+from swh.model.model import Sha1Git
+
 from .archive import ArchiveInterface
 from .model import DirectoryEntry, RevisionEntry
 from .provenance import ProvenanceInterface
@@ -166,7 +168,7 @@ def build_isochrone_graph(
     logging.debug(
         f"Recursively creating isochrone graph for revision {revision.id.hex()}..."
     )
-    fdates: Dict[bytes, datetime] = {}  # map {file_id: date}
+    fdates: Dict[Sha1Git, datetime] = {}  # map {file_id: date}
     while stack:
         current = stack.pop()
         if current.dbdate is None or current.dbdate > revision.date:

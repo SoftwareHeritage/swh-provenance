@@ -2,12 +2,12 @@ from typing import Any, Dict, Iterable
 
 from typing_extensions import Protocol, runtime_checkable
 
-from swh.model.model import Revision, Sha1
+from swh.model.model import Revision, Sha1Git
 
 
 @runtime_checkable
 class ArchiveInterface(Protocol):
-    def directory_ls(self, id: Sha1) -> Iterable[Dict[str, Any]]:
+    def directory_ls(self, id: Sha1Git) -> Iterable[Dict[str, Any]]:
         """List entries for one directory.
 
         Args:
@@ -19,7 +19,7 @@ class ArchiveInterface(Protocol):
         """
         ...
 
-    def revision_get(self, ids: Iterable[Sha1]) -> Iterable[Revision]:
+    def revision_get(self, ids: Iterable[Sha1Git]) -> Iterable[Revision]:
         """Given a list of sha1, return the revisions' information
 
         Args:
@@ -32,11 +32,11 @@ class ArchiveInterface(Protocol):
         """
         ...
 
-    def snapshot_get_heads(self, id: Sha1) -> Iterable[Sha1]:
+    def snapshot_get_heads(self, id: Sha1Git) -> Iterable[Sha1Git]:
         """List all revisions pointed by one snapshot.
 
         Args:
-            snapshot: the snapshot's identifier
+            id: sha1 id of the snapshot.
 
         Yields:
             sha1 ids of found revisions.

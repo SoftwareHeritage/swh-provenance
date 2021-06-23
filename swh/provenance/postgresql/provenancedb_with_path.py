@@ -4,13 +4,15 @@ from typing import Generator, Optional, Set, Tuple
 import psycopg2
 import psycopg2.extras
 
+from swh.model.model import Sha1Git
+
 from .provenancedb_base import ProvenanceDBBase
 
 
 class ProvenanceWithPathDB(ProvenanceDBBase):
     def content_find_first(
-        self, blob: bytes
-    ) -> Optional[Tuple[bytes, bytes, datetime, bytes]]:
+        self, id: Sha1Git
+    ) -> Optional[Tuple[Sha1Git, Sha1Git, datetime, bytes]]:
         self.cursor.execute(
             """
             SELECT C.sha1 AS blob,
@@ -24,13 +26,13 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
             WHERE C.sha1=%s
             ORDER BY date, rev, path ASC LIMIT 1
             """,
-            (blob,),
+            (id,),
         )
         return self.cursor.fetchone()
 
     def content_find_all(
-        self, blob: bytes, limit: Optional[int] = None
-    ) -> Generator[Tuple[bytes, bytes, datetime, bytes], None, None]:
+        self, id: Sha1Git, limit: Optional[int] = None
+    ) -> Generator[Tuple[Sha1Git, Sha1Git, datetime, bytes], None, None]:
         early_cut = f"LIMIT {limit}" if limit is not None else ""
         self.cursor.execute(
             f"""
@@ -61,11 +63,11 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
              WHERE C.sha1=%s)
             ORDER BY date, rev, path {early_cut}
             """,
-            (blob, blob),
+            (id, id),
         )
         yield from self.cursor.fetchall()
 
-    def insert_relation(self, relation: str, data: Set[Tuple[bytes, bytes, bytes]]):
+    def insert_relation(self, relation: str, data: Set[Tuple[Sha1Git, Sha1Git, bytes]]):
         """Insert entries in `relation` from `data`
 
         Also insert missing location entries in the 'location' table.

@@ -11,6 +11,7 @@ import click
 import yaml
 
 from swh.loader.git.from_disk import GitLoaderFromDisk
+from swh.model.hashutil import hash_to_bytes
 from swh.model.model import (
     Origin,
     OriginVisit,
@@ -90,7 +91,7 @@ def main(output, visits, git_repo):
                 # add a snapshot with branches from the input file
                 branches = {
                     f"refs/heads/{name}".encode(): SnapshotBranch(
-                        target=bytes.fromhex(all_branches[f"refs/heads/{name}"]),
+                        target=hash_to_bytes(all_branches[f"refs/heads/{name}"]),
                         target_type=TargetType.REVISION,
                     )
                     for name in visit["branches"]

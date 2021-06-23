@@ -8,6 +8,7 @@ from typing import Iterable, Iterator, List, Optional, Tuple
 import iso8601
 
 from swh.model.hashutil import hash_to_bytes
+from swh.model.model import Sha1Git
 
 from .archive import ArchiveInterface
 from .graph import IsochroneNode, build_isochrone_graph
@@ -30,10 +31,10 @@ class CSVRevisionIterator:
 
     def __init__(
         self,
-        revisions: Iterable[Tuple[bytes, datetime, bytes]],
+        revisions: Iterable[Tuple[Sha1Git, datetime, Sha1Git]],
         limit: Optional[int] = None,
     ):
-        self.revisions: Iterator[Tuple[bytes, datetime, bytes]]
+        self.revisions: Iterator[Tuple[Sha1Git, datetime, Sha1Git]]
         if limit is not None:
             self.revisions = islice(revisions, limit)
         else:

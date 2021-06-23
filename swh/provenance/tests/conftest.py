@@ -13,6 +13,8 @@ from typing_extensions import TypedDict
 
 from swh.core.db import BaseDb
 from swh.journal.serializers import msgpack_ext_hook
+from swh.model.hashutil import hash_to_bytes
+from swh.model.model import Sha1Git
 from swh.model.tests.swh_model_data import TEST_OBJECTS
 from swh.provenance.postgresql.archive import ArchivePostgreSQL
 from swh.provenance.storage.archive import ArchiveStorage
@@ -114,13 +116,13 @@ def fill_storage(storage, data):
 class SynthRelation(TypedDict):
     prefix: Optional[str]
     path: str
-    src: bytes
-    dst: bytes
+    src: Sha1Git
+    dst: Sha1Git
     rel_ts: float
 
 
 class SynthRevision(TypedDict):
-    sha1: bytes
+    sha1: Sha1Git
     date: float
     msg: str
     R_C: List[SynthRelation]
@@ -134,7 +136,7 @@ def synthetic_result(filename: str) -> Iterator[SynthRevision]:
 
     Generated SynthRevision (typed dict) with the following elements:
 
-      "sha1": (bytes) sha1 of the revision,
+      "sha1": (Sha1Git) sha1 of the revision,
       "date": (float) timestamp of the revision,
       "msg": (str) commit message of the revision,
       "R_C": (list) new R---C relations added by this revision
@@ -144,8 +146,8 @@ def synthetic_result(filename: str) -> Iterator[SynthRevision]:
     Each relation above is a SynthRelation typed dict with:
 
       "path": (str) location
-      "src": (bytes) sha1 of the source of the relation
-      "dst": (bytes) sha1 of the destination of the relation
+      "src": (Sha1Git) sha1 of the source of the relation
+      "dst": (Sha1Git) sha1 of the destination of the relation
       "rel_ts": (float) timestamp of the target of the relation
                 (related to the timestamp of the revision)
 
@@ -183,7 +185,7 @@ def _parse_synthetic_file(fobj: Iterable[str]) -> Iterator[SynthRevision]:
 def _mk_synth_rev(synth_rev) -> SynthRevision:
     assert synth_rev[0]["type"] == "R"
     rev = SynthRevision(
-        sha1=bytes.fromhex(synth_rev[0]["sha1"]),
+        sha1=hash_to_bytes(synth_rev[0]["sha1"]),
         date=float(synth_rev[0]["ts"]),
         msg=synth_rev[0]["revname"],
         R_C=[],
@@ -202,7 +204,7 @@ def _mk_synth_rev(synth_rev) -> SynthRevision:
                     prefix=None,
                     path=row["path"],
                     src=rev["sha1"],
-                    dst=bytes.fromhex(row["sha1"]),
+                    dst=hash_to_bytes(row["sha1"]),
                     rel_ts=float(row["ts"]),
                 )
             )
@@ -214,7 +216,7 @@ def _mk_synth_rev(synth_rev) -> SynthRevision:
                     prefix=None,
                     path=row["path"],
                     src=rev["sha1"],
-                    dst=bytes.fromhex(row["sha1"]),
+                    dst=hash_to_bytes(row["sha1"]),
                     rel_ts=float(row["ts"]),
                 )
             )
@@ -226,7 +228,7 @@ def _mk_synth_rev(synth_rev) -> SynthRevision:
                     prefix=current_path,
                     path=row["path"],
                     src=rev["R_D"][-1]["dst"],
-                    dst=bytes.fromhex(row["sha1"]),
+                    dst=hash_to_bytes(row["sha1"]),
                     rel_ts=float(row["ts"]),
                 )
             )

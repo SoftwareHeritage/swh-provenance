@@ -42,10 +42,10 @@ class OriginEntry:
 class RevisionEntry:
     def __init__(
         self,
-        id: bytes,
+        id: Sha1Git,
         date: Optional[datetime] = None,
-        root: Optional[bytes] = None,
-        parents: Optional[Iterable[bytes]] = None,
+        root: Optional[Sha1Git] = None,
+        parents: Optional[Iterable[Sha1Git]] = None,
     ):
         self.id = id
         self.date = date
@@ -91,7 +91,7 @@ class RevisionEntry:
 
 
 class DirectoryEntry:
-    def __init__(self, id: bytes, name: bytes = b""):
+    def __init__(self, id: Sha1Git, name: bytes = b""):
         self.id = id
         self.name = name
         self._files: Optional[List[FileEntry]] = None
@@ -141,7 +141,7 @@ class DirectoryEntry:
 
 
 class FileEntry:
-    def __init__(self, id: bytes, name: bytes):
+    def __init__(self, id: Sha1Git, name: bytes):
         self.id = id
         self.name = name
 

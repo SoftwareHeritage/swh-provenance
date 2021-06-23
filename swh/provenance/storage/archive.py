@@ -1,6 +1,6 @@
 from typing import Any, Dict, Iterable, Set
 
-from swh.model.model import ObjectType, Revision, Sha1, TargetType
+from swh.model.model import ObjectType, Revision, Sha1Git, TargetType
 from swh.storage.interface import StorageInterface
 
 
@@ -8,17 +8,17 @@ class ArchiveStorage:
     def __init__(self, storage: StorageInterface):
         self.storage = storage
 
-    def directory_ls(self, id: Sha1) -> Iterable[Dict[str, Any]]:
+    def directory_ls(self, id: Sha1Git) -> Iterable[Dict[str, Any]]:
         # TODO: filter unused fields
         yield from self.storage.directory_ls(id)
 
-    def revision_get(self, ids: Iterable[Sha1]) -> Iterable[Revision]:
+    def revision_get(self, ids: Iterable[Sha1Git]) -> Iterable[Revision]:
         # TODO: filter unused fields
         yield from (
             rev for rev in self.storage.revision_get(list(ids)) if rev is not None
         )
 
-    def snapshot_get_heads(self, id: Sha1) -> Iterable[Sha1]:
+    def snapshot_get_heads(self, id: Sha1Git) -> Iterable[Sha1Git]:
         from swh.core.utils import grouper
         from swh.storage.algos.snapshot import snapshot_get_all_branches
 
@@ -42,7 +42,7 @@ class ArchiveStorage:
                 if release is not None and release.target_type == ObjectType.REVISION
             )
 
-        revisions: Set[Sha1] = set()
+        revisions: Set[Sha1Git] = set()
         for targets in grouper(targets_set, batchsize):
             revisions.update(
                 revision.id

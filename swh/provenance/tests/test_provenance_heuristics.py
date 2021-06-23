@@ -7,6 +7,7 @@ from typing import Dict, List, Tuple
 
 import pytest
 
+from swh.model.hashutil import hash_to_bytes
 from swh.provenance.model import RevisionEntry
 from swh.provenance.revision import revision_add
 from swh.provenance.tests.conftest import (
@@ -82,7 +83,7 @@ def get_timestamp(cur, table, sha1):
     'cur' is a cursor to the provenance index DB.
     """
     if isinstance(sha1, str):
-        sha1 = bytes.fromhex(sha1)
+        sha1 = hash_to_bytes(sha1)
     cur.execute(f"SELECT date FROM {table} WHERE sha1=%s", (sha1,))
     return [date.timestamp() for (date,) in cur.fetchall()]
 
@@ -265,7 +266,7 @@ def test_provenance_heuristics_content_find_all(
         db_occurrences = [
             (blob.hex(), rev.hex(), date.timestamp(), path.decode())
             for blob, rev, date, path in provenance.content_find_all(
-                bytes.fromhex(content_id)
+                hash_to_bytes(content_id)
             )
         ]
         if provenance.storage.with_path:
@@ -337,7 +338,7 @@ def test_provenance_heuristics_content_find_first(
 
     for content_id, (rev_id, ts, paths) in expected_first.items():
         (r_sha1, r_rev_id, r_ts, r_path) = provenance.content_find_first(
-            bytes.fromhex(content_id)
+            hash_to_bytes(content_id)
         )
         assert r_sha1.hex() == content_id
         assert r_rev_id.hex() == rev_id

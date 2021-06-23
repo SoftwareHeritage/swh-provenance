@@ -32,13 +32,13 @@ class ProvenanceInterface(Protocol):
         ...
 
     def content_find_first(
-        self, blob: bytes
-    ) -> Optional[Tuple[bytes, bytes, datetime, bytes]]:
+        self, id: Sha1Git
+    ) -> Optional[Tuple[Sha1Git, Sha1Git, datetime, bytes]]:
         ...
 
     def content_find_all(
-        self, blob: bytes, limit: Optional[int] = None
-    ) -> Generator[Tuple[bytes, bytes, datetime, bytes], None, None]:
+        self, id: Sha1Git, limit: Optional[int] = None
+    ) -> Generator[Tuple[Sha1Git, Sha1Git, datetime, bytes], None, None]:
         ...
 
     def content_get_early_date(self, blob: FileEntry) -> Optional[datetime]:
@@ -46,7 +46,7 @@ class ProvenanceInterface(Protocol):
 
     def content_get_early_dates(
         self, blobs: Iterable[FileEntry]
-    ) -> Dict[bytes, datetime]:
+    ) -> Dict[Sha1Git, datetime]:
         ...
 
     def content_set_early_date(self, blob: FileEntry, date: datetime) -> None:
@@ -64,7 +64,7 @@ class ProvenanceInterface(Protocol):
 
     def directory_get_dates_in_isochrone_frontier(
         self, dirs: Iterable[DirectoryEntry]
-    ) -> Dict[bytes, datetime]:
+    ) -> Dict[Sha1Git, datetime]:
         ...
 
     def directory_set_date_in_isochrone_frontier(
@@ -109,8 +109,8 @@ class ProvenanceInterface(Protocol):
 
 
 class DatetimeCache(TypedDict):
-    data: Dict[bytes, datetime]
-    added: Set[bytes]
+    data: Dict[Sha1Git, datetime]
+    added: Set[Sha1Git]
 
 
 class OriginCache(TypedDict):
@@ -128,13 +128,13 @@ class ProvenanceCache(TypedDict):
     directory: DatetimeCache
     revision: DatetimeCache
     # below are insertion caches only
-    content_in_revision: Set[Tuple[bytes, bytes, bytes]]
-    content_in_directory: Set[Tuple[bytes, bytes, bytes]]
-    directory_in_revision: Set[Tuple[bytes, bytes, bytes]]
+    content_in_revision: Set[Tuple[Sha1Git, Sha1Git, bytes]]
+    content_in_directory: Set[Tuple[Sha1Git, Sha1Git, bytes]]
+    directory_in_revision: Set[Tuple[Sha1Git, Sha1Git, bytes]]
     # these two are for the origin layer
     origin: OriginCache
     revision_origin: RevisionCache
-    revision_before_revision: Dict[bytes, Set[bytes]]
+    revision_before_revision: Dict[Sha1Git, Set[Sha1Git]]
     revision_in_origin: Set[Tuple[Sha1Git, Sha1Git]]
 
 
@@ -199,21 +199,21 @@ class ProvenanceBackend:
         )
 
     def content_find_first(
-        self, blob: bytes
-    ) -> Optional[Tuple[bytes, bytes, datetime, bytes]]:
-        return self.storage.content_find_first(blob)
+        self, id: Sha1Git
+    ) -> Optional[Tuple[Sha1Git, Sha1Git, datetime, bytes]]:
+        return self.storage.content_find_first(id)
 
     def content_find_all(
-        self, blob: bytes, limit: Optional[int] = None
-    ) -> Generator[Tuple[bytes, bytes, datetime, bytes], None, None]:
-        yield from self.storage.content_find_all(blob, limit=limit)
+        self, id: Sha1Git, limit: Optional[int] = None
+    ) -> Generator[Tuple[Sha1Git, Sha1Git, datetime, bytes], None, None]:
+        yield from self.storage.content_find_all(id, limit=limit)
 
     def content_get_early_date(self, blob: FileEntry) -> Optional[datetime]:
         return self.get_dates("content", [blob.id]).get(blob.id, None)
 
     def content_get_early_dates(
         self, blobs: Iterable[FileEntry]
-    ) -> Dict[bytes, datetime]:
+    ) -> Dict[Sha1Git, datetime]:
         return self.get_dates("content", [blob.id for blob in blobs])
 
     def content_set_early_date(self, blob: FileEntry, date: datetime):
@@ -234,7 +234,7 @@ class ProvenanceBackend:
 
     def directory_get_dates_in_isochrone_frontier(
         self, dirs: Iterable[DirectoryEntry]
-    ) -> Dict[bytes, datetime]:
+    ) -> Dict[Sha1Git, datetime]:
         return self.get_dates("directory", [directory.id for directory in dirs])
 
     def directory_set_date_in_isochrone_frontier(
@@ -244,8 +244,8 @@ class ProvenanceBackend:
         self.cache["directory"]["added"].add(directory.id)
 
     def get_dates(
-        self, entity: Literal["content", "revision", "directory"], ids: List[bytes]
-    ) -> Dict[bytes, datetime]:
+        self, entity: Literal["content", "revision", "directory"], ids: List[Sha1Git]
+    ) -> Dict[Sha1Git, datetime]:
         cache = self.cache[entity]
         missing_ids = set(id for id in ids if id not in cache)
         if missing_ids:

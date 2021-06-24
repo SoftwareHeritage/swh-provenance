@@ -47,7 +47,7 @@ create table revision
 (
     id      bigserial primary key,      -- internal identifier of the revision
     sha1    sha1_git unique not null,   -- intrinsic identifier of the revision
-    date    timestamptz not null,       -- timestamp of the revision
+    date    timestamptz,                -- timestamp of the revision
     origin  bigint                      -- id of the preferred origin
     -- foreign key (org) references origin (id)
 );

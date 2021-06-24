@@ -109,7 +109,7 @@ class ProvenanceInterface(Protocol):
 
 
 class DatetimeCache(TypedDict):
-    data: Dict[Sha1Git, datetime]
+    data: Dict[Sha1Git, Optional[datetime]]
     added: Set[Sha1Git]
 
 
@@ -209,7 +209,7 @@ class ProvenanceBackend:
         yield from self.storage.content_find_all(id, limit=limit)
 
     def content_get_early_date(self, blob: FileEntry) -> Optional[datetime]:
-        return self.get_dates("content", [blob.id]).get(blob.id, None)
+        return self.get_dates("content", [blob.id]).get(blob.id)
 
     def content_get_early_dates(
         self, blobs: Iterable[FileEntry]
@@ -230,7 +230,7 @@ class ProvenanceBackend:
     def directory_get_date_in_isochrone_frontier(
         self, directory: DirectoryEntry
     ) -> Optional[datetime]:
-        return self.get_dates("directory", [directory.id]).get(directory.id, None)
+        return self.get_dates("directory", [directory.id]).get(directory.id)
 
     def directory_get_dates_in_isochrone_frontier(
         self, dirs: Iterable[DirectoryEntry]
@@ -250,15 +250,18 @@ class ProvenanceBackend:
         missing_ids = set(id for id in ids if id not in cache)
         if missing_ids:
             cache["data"].update(self.storage.get_dates(entity, list(missing_ids)))
-        return {sha1: cache["data"][sha1] for sha1 in ids if sha1 in cache["data"]}
+        dates: Dict[Sha1Git, datetime] = {}
+        for sha1 in ids:
+            date = cache["data"].get(sha1)
+            if date is not None:
+                dates[sha1] = date
+        return dates
 
     def origin_add(self, origin: OriginEntry) -> None:
         self.cache["origin"]["data"][origin.id] = origin.url
         self.cache["origin"]["added"].add(origin.id)
 
     def revision_add(self, revision: RevisionEntry):
-        # Add current revision to the compact DB
-        assert revision.date is not None
         self.cache["revision"]["data"][revision.id] = revision.date
         self.cache["revision"]["added"].add(revision.id)
 
@@ -273,7 +276,7 @@ class ProvenanceBackend:
         self.cache["revision_in_origin"].add((revision.id, origin.id))
 
     def revision_get_early_date(self, revision: RevisionEntry) -> Optional[datetime]:
-        return self.get_dates("revision", [revision.id]).get(revision.id, None)
+        return self.get_dates("revision", [revision.id]).get(revision.id)
 
     def revision_get_preferred_origin(
         self, revision: RevisionEntry

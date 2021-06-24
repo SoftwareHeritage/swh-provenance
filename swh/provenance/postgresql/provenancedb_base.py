@@ -64,8 +64,8 @@ class ProvenanceDBBase:
             data["origin"]["added"].clear()
 
             # Insert relations from the origin-revision layer
-            self.insert_origin_head(data["revision_in_origin"])
             self.insert_revision_history(data["revision_before_revision"])
+            self.insert_origin_head(data["revision_in_origin"])
 
             # Update preferred origins
             self.update_preferred_origin(
@@ -141,16 +141,29 @@ class ProvenanceDBBase:
 
     def insert_origin_head(self, data: Set[Tuple[Sha1Git, Sha1Git]]):
         if data:
+            # Insert revisions first, to ensure "foreign keys" exist
+            # Origins are assumed to be already inserted (they require knowing the url)
+            psycopg2.extras.execute_values(
+                self.cursor,
+                """
+                LOCK TABLE ONLY revision;
+                INSERT INTO revision(sha1) VALUES %s
+                  ON CONFLICT DO NOTHING
+                """,
+                {(rev,) for rev, _ in data},
+            )
+
             psycopg2.extras.execute_values(
                 self.cursor,
                 # XXX: not clear how conflicts are handled here!
                 """
                 LOCK TABLE ONLY revision_in_origin;
                 INSERT INTO revision_in_origin
-                    SELECT R.id, O.id
-                    FROM (VALUES %s) AS V(rev, org)
-                    INNER JOIN revision AS R on (R.sha1=V.rev)
-                    INNER JOIN origin AS O on (O.sha1=V.org)
+                  SELECT R.id, O.id
+                  FROM (VALUES %s) AS V(rev, org)
+                  INNER JOIN revision AS R on (R.sha1=V.rev)
+                  INNER JOIN origin AS O on (O.sha1=V.org)
+                  ON CONFLICT DO NOTHING
                 """,
                 data,
             )
@@ -159,8 +172,23 @@ class ProvenanceDBBase:
     def insert_relation(self, relation: str, data: Set[Tuple[Sha1Git, Sha1Git, bytes]]):
         ...
 
-    def insert_revision_history(self, data: Dict[Sha1Git, Sha1Git]):
+    def insert_revision_history(self, data: Dict[Sha1Git, Set[Sha1Git]]):
         if data:
+            # print(f"Inserting histories: {data}")
+            # Insert revisions first, to ensure "foreign keys" exist
+            revisions = set(data)
+            for rev in data:
+                revisions.update(data[rev])
+            psycopg2.extras.execute_values(
+                self.cursor,
+                """
+                LOCK TABLE ONLY revision;
+                INSERT INTO revision(sha1) VALUES %s
+                  ON CONFLICT DO NOTHING
+                """,
+                ((rev,) for rev in revisions),
+            )
+
             values = [[(prev, next) for next in data[prev]] for prev in data]
             psycopg2.extras.execute_values(
                 self.cursor,
@@ -168,12 +196,13 @@ class ProvenanceDBBase:
                 """
                 LOCK TABLE ONLY revision_before_revision;
                 INSERT INTO revision_before_revision
-                    SELECT P.id, N.id
-                    FROM (VALUES %s) AS V(prev, next)
-                    INNER JOIN revision AS P on (P.sha1=V.prev)
-                    INNER JOIN revision AS N on (N.sha1=V.next)
+                  SELECT P.id, N.id
+                  FROM (VALUES %s) AS V(prev, next)
+                  INNER JOIN revision AS P on (P.sha1=V.prev)
+                  INNER JOIN revision AS N on (N.sha1=V.next)
+                  ON CONFLICT DO NOTHING
                 """,
-                tuple(sum(values, [])),
+                sum(values, []),
             )
             data.clear()
 

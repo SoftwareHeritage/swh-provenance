@@ -2,7 +2,7 @@ from typing import Any, Dict, Iterable
 
 from typing_extensions import Protocol, runtime_checkable
 
-from swh.model.model import Revision, Sha1Git
+from swh.model.model import Sha1Git
 
 
 @runtime_checkable
@@ -19,15 +19,14 @@ class ArchiveInterface(Protocol):
         """
         ...
 
-    def revision_get(self, ids: Iterable[Sha1Git]) -> Iterable[Revision]:
-        """Given a list of sha1, return the revisions' information
+    def revision_get_parents(self, id: Sha1Git) -> Iterable[Sha1Git]:
+        """List parents of one revision.
 
         Args:
-            revisions: list of sha1s for the revisions to be retrieved
+            revisions: sha1 id of the revision to list parents from.
 
         Yields:
-            revisions matching the identifiers. If a revision does
-            not exist, the provided sha1 is simply ignored.
+            sha1 ids for the parents for such revision.
 
         """
         ...

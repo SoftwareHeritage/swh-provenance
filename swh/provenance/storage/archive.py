@@ -1,6 +1,6 @@
 from typing import Any, Dict, Iterable, Set
 
-from swh.model.model import ObjectType, Revision, Sha1Git, TargetType
+from swh.model.model import ObjectType, Sha1Git, TargetType
 from swh.storage.interface import StorageInterface
 
 
@@ -12,11 +12,10 @@ class ArchiveStorage:
         # TODO: filter unused fields
         yield from self.storage.directory_ls(id)
 
-    def revision_get(self, ids: Iterable[Sha1Git]) -> Iterable[Revision]:
-        # TODO: filter unused fields
-        yield from (
-            rev for rev in self.storage.revision_get(list(ids)) if rev is not None
-        )
+    def revision_get_parents(self, id: Sha1Git) -> Iterable[Sha1Git]:
+        rev = self.storage.revision_get([id])[0]
+        if rev is not None:
+            yield from rev.parents
 
     def snapshot_get_heads(self, id: Sha1Git) -> Iterable[Sha1Git]:
         from swh.core.utils import grouper

@@ -3,7 +3,7 @@ from typing import Any, Dict, Iterable, List, Set
 from methodtools import lru_cache
 import psycopg2
 
-from swh.model.model import ObjectType, Revision, Sha1Git, TargetType
+from swh.model.model import ObjectType, Sha1Git, TargetType
 from swh.storage.postgresql.storage import Storage
 
 
@@ -62,39 +62,19 @@ class ArchivePostgreSQL:
                 for row in cursor.fetchall()
             ]
 
-    def revision_get(self, ids: Iterable[Sha1Git]) -> Iterable[Revision]:
+    def revision_get_parents(self, id: Sha1Git) -> Iterable[Sha1Git]:
         with self.conn.cursor() as cursor:
-            psycopg2.extras.execute_values(
-                cursor,
+            cursor.execute(
                 """
-                SELECT t.id, revision.date, revision.directory,
-                    ARRAY(
-                        SELECT rh.parent_id::bytea
-                            FROM revision_history rh
-                            WHERE rh.id = t.id
-                            ORDER BY rh.parent_rank
-                    )
-                    FROM (VALUES %s) as t(sortkey, id)
-                    LEFT JOIN revision ON t.id = revision.id
-                    LEFT JOIN person author ON revision.author = author.id
-                    LEFT JOIN person committer ON revision.committer = committer.id
-                    ORDER BY sortkey
+                SELECT RH.parent_id::bytea
+                    FROM revision_history AS RH
+                    WHERE RH.id=%s
+                    ORDER BY RH.parent_rank
                 """,
-                ((sortkey, id) for sortkey, id in enumerate(ids)),
+                (id,),
             )
-            for row in cursor.fetchall():
-                parents = []
-                for parent in row[3]:
-                    if parent:
-                        parents.append(parent)
-                yield Revision.from_dict(
-                    {
-                        "id": row[0],
-                        "date": row[1],
-                        "directory": row[2],
-                        "parents": tuple(parents),
-                    }
-                )
+            # There should be at most one row anyway
+            yield from (row[0] for row in cursor.fetchall())
 
     def snapshot_get_heads(self, id: Sha1Git) -> Iterable[Sha1Git]:
         # TODO: this code is duplicated here (same as in swh.provenance.storage.archive)

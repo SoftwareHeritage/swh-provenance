@@ -57,22 +57,8 @@ class RevisionEntry:
     def retrieve_parents(self, archive: ArchiveInterface):
         if self._parents_entries is None:
             if self._parents_ids is None:
-                revision = list(archive.revision_get([self.id]))
-                if revision:
-                    self._parents_ids = revision[0].parents
-                else:
-                    self._parents_ids = []
-
-            self._parents_entries = [
-                RevisionEntry(
-                    id=rev.id,
-                    root=rev.directory,
-                    date=rev.date.to_datetime(),
-                    parents=rev.parents,
-                )
-                for rev in archive.revision_get(self._parents_ids)
-                if rev.date is not None
-            ]
+                self._parents_ids = archive.revision_get_parents(self.id)
+            self._parents_entries = [RevisionEntry(id) for id in self._parents_ids]
 
     @property
     def parents(self) -> Iterator["RevisionEntry"]:

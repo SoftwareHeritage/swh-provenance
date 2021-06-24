@@ -70,10 +70,13 @@ class RevisionEntry:
         return (x for x in self._parents_entries)
 
     def __str__(self):
-        return (
-            f"<MRevision[{self.id.hex()}] "
-            f"date={self.date.isoformat()}, root={self.root.hex()}>"
-        )
+        return f"<MRevision[{self.id.hex()}]>"
+
+    def __eq__(self, other):
+        return isinstance(other, RevisionEntry) and self.id == other.id
+
+    def __hash__(self):
+        return hash(self.id)
 
 
 class DirectoryEntry:

@@ -1,0 +1,55 @@
+# History graph for snapshot with branches: R01
+- origin: "https://with-merges"
+  snapshot: "e2520f0dbf34c92754f00c5a60241dfa7d612868"
+  graphs:
+    - rev: "1444db96cbd8cd791abe83527becee73d3c64e86"
+      parents:
+        - rev: "c0d8929936631ecbcf9147be6b8aa13b13b014e4"
+# History graph for snapshot with branches: R03 and R06
+- origin: "https://with-merges"
+  snapshot: "e2520f0dbf34c92754f00c5a60241dfa7d612868"
+  graphs:
+    - rev: "20f4da0f48609d9f7f908ebbcac3b3741a0f25cb"
+      parents:
+        - rev: "1c533587277731236616cac0d44f3b46c1da0f8a"
+          parents:
+            - rev: "1444db96cbd8cd791abe83527becee73d3c64e86"
+              visited: True
+    - rev: "72d92d41a9095db2dd6b8fb1c62d92c8251753ff"
+      parents:
+        - rev: "1444db96cbd8cd791abe83527becee73d3c64e86"
+          visited: True
+# History graph for snapshot with branches: R05 and R06
+- origin: "https://with-merges"
+  snapshot: "e2520f0dbf34c92754f00c5a60241dfa7d612868"
+  graphs:
+    - rev: "65e58853df939b318c106c4c1f55acaf8b41c74c"
+      parents:
+        - rev: "0d66eadcc15e0d7f6cfd4289329a7749a1309982"
+          parents:
+            - rev: "20f4da0f48609d9f7f908ebbcac3b3741a0f25cb"
+              visited: True
+    - rev: "72d92d41a9095db2dd6b8fb1c62d92c8251753ff"
+      visited: True
+# History graph for snapshot with branches: R06 and R07
+- origin: "https://with-merges"
+  snapshot: "e2520f0dbf34c92754f00c5a60241dfa7d612868"
+  graphs:
+    - rev: "72d92d41a9095db2dd6b8fb1c62d92c8251753ff"
+      visited: True
+    - rev: "fff0089fad98e8f5b46ec5c9025a20a602851ba6"
+      parents:
+        - rev: "20f4da0f48609d9f7f908ebbcac3b3741a0f25cb"
+          visited: True
+# History graph for snapshot with branches: R08
+- origin: "https://with-merges"
+  snapshot: "e2520f0dbf34c92754f00c5a60241dfa7d612868"
+  graphs:
+    - rev: "7c8f29237dded4f9d265e46ec7066503e7858e87"
+      parents:
+        - rev: "65e58853df939b318c106c4c1f55acaf8b41c74c"
+          visited: True
+        - rev: "72d92d41a9095db2dd6b8fb1c62d92c8251753ff"
+          visited: True
+        - rev: "fff0089fad98e8f5b46ec5c9025a20a602851ba6"
+          visited: True

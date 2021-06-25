@@ -55,14 +55,6 @@ class ProvenanceDBBase:
     def denormalized(self) -> bool:
         return "denormalized" in self.flavor
 
-    def content_find_first(self, id: Sha1Git) -> Optional[ProvenanceResult]:
-        ...
-
-    def content_find_all(
-        self, id: Sha1Git, limit: Optional[int] = None
-    ) -> Generator[ProvenanceResult, None, None]:
-        ...
-
     def content_set_date(self, dates: Dict[Sha1Git, datetime]) -> bool:
         return self._entity_set_date("content", dates)
 
@@ -118,6 +110,19 @@ class ProvenanceDBBase:
 
     def revision_set_date(self, dates: Dict[Sha1Git, datetime]) -> bool:
         return self._entity_set_date("revision", dates)
+
+    def content_find_first(self, id: Sha1Git) -> Optional[ProvenanceResult]:
+        sql = "select * from swh_provenance_content_find_first(%s)"
+        self.cursor.execute(sql, (id,))
+        row = self.cursor.fetchone()
+        return ProvenanceResult(**row) if row is not None else None
+
+    def content_find_all(
+        self, id: Sha1Git, limit: Optional[int] = None
+    ) -> Generator[ProvenanceResult, None, None]:
+        sql = "select * from swh_provenance_content_find_all(%s, %s)"
+        self.cursor.execute(sql, (id, limit))
+        yield from (ProvenanceResult(**row) for row in self.cursor.fetchall())
 
     def revision_set_origin(self, origins: Dict[Sha1Git, Sha1Git]) -> bool:
         try:

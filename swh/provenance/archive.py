@@ -14,7 +14,8 @@ class ArchiveInterface(Protocol):
             id: sha1 id of the directory to list entries from.
 
         Yields:
-            directory entries for such directory.
+            dictionary of entries in such directory containing only the keys "name",
+            "target" and "type".
 
         """
         ...
@@ -26,19 +27,19 @@ class ArchiveInterface(Protocol):
             revisions: sha1 id of the revision to list parents from.
 
         Yields:
-            sha1 ids for the parents for such revision.
+            sha1 ids for the parents of such revision.
 
         """
         ...
 
     def snapshot_get_heads(self, id: Sha1Git) -> Iterable[Sha1Git]:
-        """List all revisions pointed by one snapshot.
+        """List all revisions targeted by one snapshot.
 
         Args:
             id: sha1 id of the snapshot.
 
         Yields:
-            sha1 ids of found revisions.
+            sha1 ids of revisions that a target of such snapshot.
 
         """
         ...

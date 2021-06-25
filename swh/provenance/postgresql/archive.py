@@ -1,9 +1,9 @@
-from typing import Any, Dict, Iterable, List, Set
+from typing import Any, Dict, Iterable, List
 
 from methodtools import lru_cache
 import psycopg2
 
-from swh.model.model import ObjectType, Sha1Git, TargetType
+from swh.model.model import Sha1Git
 from swh.storage.postgresql.storage import Storage
 
 
@@ -13,8 +13,6 @@ class ArchivePostgreSQL:
         self.storage = Storage(conn, objstorage={"cls": "memory"})
 
     def directory_ls(self, id: Sha1Git) -> Iterable[Dict[str, Any]]:
-        # TODO: only call directory_ls_internal if the id is not being queried by
-        # someone else. Otherwise wait until results get properly cached.
         entries = self.directory_ls_internal(id)
         yield from entries
 
@@ -23,12 +21,13 @@ class ArchivePostgreSQL:
         # TODO: add file size filtering
         with self.conn.cursor() as cursor:
             cursor.execute(
-                """WITH
-                dir  AS (SELECT id AS dir_id, dir_entries, file_entries, rev_entries
+                """
+                WITH
+                dir AS (SELECT id AS dir_id, dir_entries, file_entries, rev_entries
                             FROM directory WHERE id=%s),
-                ls_d AS (SELECT dir_id, UNNEST(dir_entries)  AS entry_id FROM dir),
+                ls_d AS (SELECT dir_id, UNNEST(dir_entries) AS entry_id FROM dir),
                 ls_f AS (SELECT dir_id, UNNEST(file_entries) AS entry_id FROM dir),
-                ls_r AS (SELECT dir_id, UNNEST(rev_entries)  AS entry_id FROM dir)
+                ls_r AS (SELECT dir_id, UNNEST(rev_entries) AS entry_id FROM dir)
                 (SELECT 'dir'::directory_entry_type AS type, e.target, e.name,
                         NULL::sha1_git
                     FROM ls_d
@@ -53,7 +52,6 @@ class ArchivePostgreSQL:
                         )
                     )
                 )
-                ORDER BY name
                 """,
                 (id,),
             )
@@ -77,38 +75,25 @@ class ArchivePostgreSQL:
             yield from (row[0] for row in cursor.fetchall())
 
     def snapshot_get_heads(self, id: Sha1Git) -> Iterable[Sha1Git]:
-        # TODO: this code is duplicated here (same as in swh.provenance.storage.archive)
-        # but it's just temporary. This method should actually perform a direct query to
-        # the SQL db of the archive.
-        from swh.core.utils import grouper
-        from swh.storage.algos.snapshot import snapshot_get_all_branches
-
-        snapshot = snapshot_get_all_branches(self.storage, id)
-        assert snapshot is not None
-
-        targets_set = set()
-        releases_set = set()
-        if snapshot is not None:
-            for branch in snapshot.branches:
-                if snapshot.branches[branch].target_type == TargetType.REVISION:
-                    targets_set.add(snapshot.branches[branch].target)
-                elif snapshot.branches[branch].target_type == TargetType.RELEASE:
-                    releases_set.add(snapshot.branches[branch].target)
-
-        batchsize = 100
-        for releases in grouper(releases_set, batchsize):
-            targets_set.update(
-                release.target
-                for release in self.storage.release_get(releases)
-                if release is not None and release.target_type == ObjectType.REVISION
+        with self.conn.cursor() as cursor:
+            cursor.execute(
+                """
+                WITH S AS (SELECT object_id FROM snapshot WHERE snapshot.id=%s)
+                (SELECT B.target AS head
+                    FROM S
+                    JOIN snapshot_branches AS BS ON (S.object_id=BS.snapshot_id)
+                    JOIN snapshot_branch AS B ON (BS.branch_id=B.object_id)
+                    WHERE B.target_type='revision'::snapshot_target)
+                UNION
+                (SELECT R.target AS head
+                    FROM S
+                    JOIN snapshot_branches AS BS ON (S.object_id=BS.snapshot_id)
+                    JOIN snapshot_branch AS B ON (BS.branch_id=B.object_id)
+                    JOIN release AS R ON (B.target=R.id)
+                    WHERE B.target_type='release'::snapshot_target
+                      AND R.target_type='revision'::object_type)
+                """,
+                (id,),
             )
-
-        revisions: Set[Sha1Git] = set()
-        for targets in grouper(targets_set, batchsize):
-            revisions.update(
-                revision.id
-                for revision in self.storage.revision_get(targets)
-                if revision is not None
-            )
-
-        yield from revisions
+            heads = [row[0] for row in cursor.fetchall()]
+            yield from heads

@@ -9,8 +9,13 @@ class ArchiveStorage:
         self.storage = storage
 
     def directory_ls(self, id: Sha1Git) -> Iterable[Dict[str, Any]]:
-        # TODO: filter unused fields
-        yield from self.storage.directory_ls(id)
+        # TODO: add file size filtering
+        for entry in self.storage.directory_ls(id):
+            yield {
+                "name": entry["name"],
+                "target": entry["target"],
+                "type": entry["type"],
+            }
 
     def revision_get_parents(self, id: Sha1Git) -> Iterable[Sha1Git]:
         rev = self.storage.revision_get([id])[0]

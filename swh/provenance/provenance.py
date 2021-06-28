@@ -1,5 +1,6 @@
 from datetime import datetime
-from typing import Dict, Generator, Iterable, Optional
+import enum
+from typing import Dict, Generator, Iterable, Optional, Set, Tuple
 
 from typing_extensions import Protocol, runtime_checkable
 
@@ -26,7 +27,7 @@ class ProvenanceResult:
 
 @runtime_checkable
 class ProvenanceInterface(Protocol):
-    raise_on_commit: bool = False
+    storage: "ProvenanceStorageInterface"
 
     def flush(self) -> None:
         """Flush internal cache to the underlying `storage`."""
@@ -157,5 +158,107 @@ class ProvenanceInterface(Protocol):
     def revision_visited(self, revision: RevisionEntry) -> bool:
         """Check if `revision` is known to be a head revision for some origin in the
         provenance model.
+        """
+        ...
+
+
+class RelationType(enum.Enum):
+    CNT_EARLY_IN_REV = "content_in_revision"
+    CNT_IN_DIR = "content_in_directory"
+    DIR_IN_REV = "directory_in_revision"
+    REV_IN_ORG = "revision_in_origin"
+    REV_BEFORE_REV = "revision_before_revision"
+
+
+@runtime_checkable
+class ProvenanceStorageInterface(Protocol):
+    raise_on_commit: bool = False
+
+    def content_find_first(self, id: Sha1Git) -> Optional[ProvenanceResult]:
+        """Retrieve the first occurrence of the blob identified by `id`."""
+        ...
+
+    def content_find_all(
+        self, id: Sha1Git, limit: Optional[int] = None
+    ) -> Generator[ProvenanceResult, None, None]:
+        """Retrieve all the occurrences of the blob identified by `id`."""
+        ...
+
+    def content_set_date(self, dates: Dict[Sha1Git, datetime]) -> bool:
+        """Associate dates to blobs identified by sha1 ids, as paired in `dates`. Return
+        a boolean stating whether the information was successfully stored.
+        """
+        ...
+
+    def content_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, datetime]:
+        """Retrieve the associated date for each blob sha1 in `ids`. If some blob has
+        no associated date, it is not present in the resulting dictionary.
+        """
+        ...
+
+    def directory_set_date(self, dates: Dict[Sha1Git, datetime]) -> bool:
+        """Associate dates to directories identified by sha1 ids, as paired in
+        `dates`. Return a boolean stating whether the information was successfully
+        stored.
+        """
+        ...
+
+    def directory_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, datetime]:
+        """Retrieve the associated date for each directory sha1 in `ids`. If some
+        directory has no associated date, it is not present in the resulting dictionary.
+        """
+        ...
+
+    def origin_set_url(self, urls: Dict[Sha1Git, str]) -> bool:
+        """Associate urls to origins identified by sha1 ids, as paired in `urls`. Return
+        a boolean stating whether the information was successfully stored.
+        """
+        ...
+
+    def origin_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, str]:
+        """Retrieve the associated url for each origin sha1 in `ids`. If some origin has
+        no associated date, it is not present in the resulting dictionary.
+        """
+        ...
+
+    def revision_set_date(self, dates: Dict[Sha1Git, datetime]) -> bool:
+        """Associate dates to revisions identified by sha1 ids, as paired in `dates`.
+        Return a boolean stating whether the information was successfully stored.
+        """
+        ...
+
+    def revision_set_origin(self, origins: Dict[Sha1Git, Sha1Git]) -> bool:
+        """Associate origins to revisions identified by sha1 ids, as paired in
+        `origins` (revision ids are keys and origin ids, values). Return a boolean
+        stating whether the information was successfully stored.
+        """
+        ...
+
+    def revision_get(
+        self, ids: Iterable[Sha1Git]
+    ) -> Dict[Sha1Git, Tuple[Optional[datetime], Optional[Sha1Git]]]:
+        """Retrieve the associated date and origin for each revision sha1 in `ids`. If
+        some revision has no associated date nor origin, it is not present in the
+        resulting dictionary.
+        """
+        ...
+
+    def relation_add(
+        self,
+        relation: RelationType,
+        data: Iterable[Tuple[Sha1Git, Sha1Git, Optional[bytes]]],
+    ) -> bool:
+        """Add entries in the selected `relation`. Each tuple in `data` is of the from
+        (`src`, `dst`, `path`), where `src` and `dst` are the sha1 ids of the entities
+        being related, and `path` is optional depending on the selected `relation`.
+        """
+        ...
+
+    def relation_get(
+        self, relation: RelationType, ids: Iterable[Sha1Git], reverse: bool = False
+    ) -> Set[Tuple[Sha1Git, Sha1Git, Optional[bytes]]]:
+        """Retrieve all tuples in the selected `relation` whose source entities are
+        identified by some sha1 id in `ids`. If `reverse` is set, destination entities
+        are matched instead.
         """
         ...

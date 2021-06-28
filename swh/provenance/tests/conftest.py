@@ -16,6 +16,7 @@ from swh.journal.serializers import msgpack_ext_hook
 from swh.model.hashutil import hash_to_bytes
 from swh.model.model import Sha1Git
 from swh.model.tests.swh_model_data import TEST_OBJECTS
+from swh.provenance import get_provenance
 from swh.provenance.postgresql.archive import ArchivePostgreSQL
 from swh.provenance.storage.archive import ArchiveStorage
 from swh.storage.replay import process_replay_objects
@@ -29,13 +30,14 @@ def provenance(request, postgresql):
     flavor = request.param
     populate_database_for_package("swh.provenance", postgresql.dsn, flavor=flavor)
 
-    from swh.provenance.backend import ProvenanceBackend
-
     BaseDb.adapt_conn(postgresql)
-    prov = ProvenanceBackend(postgresql)
+
+    args = dict(tuple(item.split("=")) for item in postgresql.dsn.split())
+    args.pop("options")
+    prov = get_provenance(cls="local", db=args)
     assert prov.storage.flavor == flavor
     # in test sessions, we DO want to raise any exception occurring at commit time
-    prov.raise_on_commit = True
+    prov.storage.raise_on_commit = True
     return prov
 
 

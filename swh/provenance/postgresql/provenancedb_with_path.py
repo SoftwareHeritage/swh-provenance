@@ -1,11 +1,8 @@
-from typing import Generator, Optional, Set, Tuple
-
-import psycopg2
-import psycopg2.extras
+from typing import Generator, Optional
 
 from swh.model.model import Sha1Git
 
-from ..provenance import ProvenanceResult
+from ..provenance import ProvenanceResult, RelationType
 from .provenancedb_base import ProvenanceDBBase
 
 
@@ -68,41 +65,6 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
         self.cursor.execute(sql, (id, id))
         yield from (ProvenanceResult(**row) for row in self.cursor.fetchall())
 
-    def insert_relation(self, relation: str, data: Set[Tuple[Sha1Git, Sha1Git, bytes]]):
-        """Insert entries in `relation` from `data`
-
-        Also insert missing location entries in the 'location' table.
-        """
-        if data:
-            assert relation in (
-                "content_in_revision",
-                "content_in_directory",
-                "directory_in_revision",
-            )
-            src, dst = relation.split("_in_")
-
-            # insert missing locations
-            locations = tuple(set((loc,) for (_, _, loc) in data))
-            psycopg2.extras.execute_values(
-                self.cursor,
-                """
-                LOCK TABLE ONLY location;
-                INSERT INTO location(path) VALUES %s
-                  ON CONFLICT (path) DO NOTHING
-                """,
-                locations,
-            )
-            psycopg2.extras.execute_values(
-                self.cursor,
-                f"""
-                LOCK TABLE ONLY {relation};
-                INSERT INTO {relation}
-                  SELECT {src}.id, {dst}.id, location.id
-                  FROM (VALUES %s) AS V(src, dst, path)
-                  INNER JOIN {src} on ({src}.sha1=V.src)
-                  INNER JOIN {dst} on ({dst}.sha1=V.dst)
-                  INNER JOIN location on (location.path=V.path)
-                """,
-                data,
-            )
-            data.clear()
+    def _relation_uses_location_table(self, relation: RelationType) -> bool:
+        src, *_ = relation.value.split("_")
+        return src in ("content", "directory")

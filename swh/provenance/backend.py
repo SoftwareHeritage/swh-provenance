@@ -1,15 +1,14 @@
 from datetime import datetime
 import logging
 import os
-from typing import Dict, Generator, Iterable, List, Optional, Set, Tuple
+from typing import Dict, Generator, Iterable, Optional, Set, Tuple
 
-import psycopg2  # TODO: remove this dependency
 from typing_extensions import Literal, TypedDict
 
 from swh.model.model import Sha1Git
 
 from .model import DirectoryEntry, FileEntry, OriginEntry, RevisionEntry
-from .provenance import ProvenanceResult
+from .provenance import ProvenanceResult, ProvenanceStorageInterface, RelationType
 
 
 class DatetimeCache(TypedDict):
@@ -59,33 +58,133 @@ def new_cache() -> ProvenanceCache:
 
 # TODO: maybe move this to a separate file
 class ProvenanceBackend:
-    raise_on_commit: bool = False
-
-    def __init__(self, conn: psycopg2.extensions.connection):
-        from .postgresql.provenancedb_base import ProvenanceDBBase
-
-        # TODO: this class should not know what the actual used DB is.
-        self.storage: ProvenanceDBBase
-        flavor = ProvenanceDBBase(conn).flavor
-        if flavor == "with-path":
-            from .postgresql.provenancedb_with_path import ProvenanceWithPathDB
-
-            self.storage = ProvenanceWithPathDB(conn)
-        else:
-            from .postgresql.provenancedb_without_path import ProvenanceWithoutPathDB
-
-            self.storage = ProvenanceWithoutPathDB(conn)
-        self.cache: ProvenanceCache = new_cache()
+    def __init__(self, storage: ProvenanceStorageInterface):
+        self.storage = storage
+        self.cache = new_cache()
 
     def clear_caches(self) -> None:
         self.cache = new_cache()
 
     def flush(self) -> None:
-        # TODO: for now we just forward the cache. This should be improved!
-        while not self.storage.commit(self.cache, raise_on_commit=self.raise_on_commit):
+        # Revision-content layer insertions ############################################
+
+        # For this layer, relations need to be inserted first so that, in case of
+        # failure, reprocessing the input does not generated an inconsistent database.
+        while not self.storage.relation_add(
+            RelationType.CNT_EARLY_IN_REV, self.cache["content_in_revision"]
+        ):
             logging.warning(
-                f"Unable to commit cached information {self.cache}. Retrying..."
+                f"Unable to write {RelationType.CNT_EARLY_IN_REV} rows to the storage. "
+                f"Data: {self.cache['content_in_revision']}. Retrying..."
             )
+
+        while not self.storage.relation_add(
+            RelationType.CNT_IN_DIR, self.cache["content_in_directory"]
+        ):
+            logging.warning(
+                f"Unable to write {RelationType.CNT_IN_DIR} rows to the storage. "
+                f"Data: {self.cache['content_in_directory']}. Retrying..."
+            )
+
+        while not self.storage.relation_add(
+            RelationType.DIR_IN_REV, self.cache["directory_in_revision"]
+        ):
+            logging.warning(
+                f"Unable to write {RelationType.DIR_IN_REV} rows to the storage. "
+                f"Data: {self.cache['directory_in_revision']}. Retrying..."
+            )
+
+        # After relations, dates for the entities can be safely set, acknowledging that
+        # these entities won't need to be reprocessed in case of failure.
+        dates = {
+            sha1: date
+            for sha1, date in self.cache["content"]["data"].items()
+            if sha1 in self.cache["content"]["added"] and date is not None
+        }
+        while not self.storage.content_set_date(dates):
+            logging.warning(
+                f"Unable to write content dates to the storage. "
+                f"Data: {dates}. Retrying..."
+            )
+
+        dates = {
+            sha1: date
+            for sha1, date in self.cache["directory"]["data"].items()
+            if sha1 in self.cache["directory"]["added"] and date is not None
+        }
+        while not self.storage.directory_set_date(dates):
+            logging.warning(
+                f"Unable to write directory dates to the storage. "
+                f"Data: {dates}. Retrying..."
+            )
+
+        dates = {
+            sha1: date
+            for sha1, date in self.cache["revision"]["data"].items()
+            if sha1 in self.cache["revision"]["added"] and date is not None
+        }
+        while not self.storage.revision_set_date(dates):
+            logging.warning(
+                f"Unable to write revision dates to the storage. "
+                f"Data: {dates}. Retrying..."
+            )
+
+        # Origin-revision layer insertions #############################################
+
+        # Origins urls should be inserted first so that internal ids' resolution works
+        # properly.
+        urls = {
+            sha1: date
+            for sha1, date in self.cache["origin"]["data"].items()
+            if sha1 in self.cache["origin"]["added"]
+        }
+        while not self.storage.origin_set_url(urls):
+            logging.warning(
+                f"Unable to write origins urls to the storage. "
+                f"Data: {urls}. Retrying..."
+            )
+
+        # Second, flat models for revisions' histories (ie. revision-before-revision).
+        rbr_data: Iterable[Tuple[Sha1Git, Sha1Git, Optional[bytes]]] = sum(
+            [
+                [
+                    (prev, next, None)
+                    for next in self.cache["revision_before_revision"][prev]
+                ]
+                for prev in self.cache["revision_before_revision"]
+            ],
+            [],
+        )
+        while not self.storage.relation_add(RelationType.REV_BEFORE_REV, rbr_data):
+            logging.warning(
+                f"Unable to write {RelationType.REV_BEFORE_REV} rows to the storage. "
+                f"Data: {rbr_data}. Retrying..."
+            )
+
+        # Heads (ie. revision-in-origin entries) should be inserted once flat models for
+        # their histories were already added. This is to guarantee consistent results if
+        # something needs to be reprocessed due to a failure: already inserted heads
+        # won't get reprocessed in such a case.
+        rio_data = [(rev, org, None) for rev, org in self.cache["revision_in_origin"]]
+        while not self.storage.relation_add(RelationType.REV_IN_ORG, rio_data):
+            logging.warning(
+                f"Unable to write {RelationType.REV_IN_ORG} rows to the storage. "
+                f"Data: {rio_data}. Retrying..."
+            )
+
+        # Finally, preferred origins for the visited revisions are set (this step can be
+        # reordered if required).
+        origins = {
+            sha1: self.cache["revision_origin"]["data"][sha1]
+            for sha1 in self.cache["revision_origin"]["added"]
+        }
+        while not self.storage.revision_set_origin(origins):
+            logging.warning(
+                f"Unable to write preferred origins to the storage. "
+                f"Data: {origins}. Retrying..."
+            )
+
+        # clear local cache ############################################################
         self.clear_caches()
 
     def content_add_to_directory(
@@ -146,12 +245,22 @@ class ProvenanceBackend:
         self.cache["directory"]["added"].add(directory.id)
 
     def get_dates(
-        self, entity: Literal["content", "revision", "directory"], ids: List[Sha1Git]
+        self,
+        entity: Literal["content", "directory", "revision"],
+        ids: Iterable[Sha1Git],
     ) -> Dict[Sha1Git, datetime]:
         cache = self.cache[entity]
         missing_ids = set(id for id in ids if id not in cache)
         if missing_ids:
-            cache["data"].update(self.storage.get_dates(entity, list(missing_ids)))
+            if entity == "revision":
+                updated = {
+                    id: date
+                    for id, (date, _) in self.storage.revision_get(missing_ids).items()
+                    if date is not None
+                }
+            else:
+                updated = getattr(self.storage, f"{entity}_get")(missing_ids)
+            cache["data"].update(updated)
         dates: Dict[Sha1Git, datetime] = {}
         for sha1 in ids:
             date = cache["data"].get(sha1)
@@ -185,17 +294,19 @@ class ProvenanceBackend:
     def revision_get_preferred_origin(
         self, revision: RevisionEntry
     ) -> Optional[Sha1Git]:
-        cache = self.cache["revision_origin"]
+        cache = self.cache["revision_origin"]["data"]
         if revision.id not in cache:
-            origin = self.storage.revision_get_preferred_origin(revision.id)
-            if origin is not None:
-                cache["data"][revision.id] = origin
-        return cache["data"].get(revision.id)
+            ret = self.storage.revision_get([revision.id])
+            if revision.id in ret:
+                origin = ret[revision.id][1]  # TODO: make this not a tuple
+                if origin is not None:
+                    cache[revision.id] = origin
+        return cache.get(revision.id)
 
     def revision_in_history(self, revision: RevisionEntry) -> bool:
-        return revision.id in self.cache[
-            "revision_before_revision"
-        ] or self.storage.revision_in_history(revision.id)
+        return revision.id in self.cache["revision_before_revision"] or bool(
+            self.storage.relation_get(RelationType.REV_BEFORE_REV, [revision.id])
+        )
 
     def revision_set_preferred_origin(
         self, origin: OriginEntry, revision: RevisionEntry
@@ -204,9 +315,9 @@ class ProvenanceBackend:
         self.cache["revision_origin"]["added"].add(revision.id)
 
     def revision_visited(self, revision: RevisionEntry) -> bool:
-        return revision.id in dict(
-            self.cache["revision_in_origin"]
-        ) or self.storage.revision_visited(revision.id)
+        return revision.id in dict(self.cache["revision_in_origin"]) or bool(
+            self.storage.relation_get(RelationType.REV_IN_ORG, [revision.id])
+        )
 
 
 def normalize(path: bytes) -> bytes:

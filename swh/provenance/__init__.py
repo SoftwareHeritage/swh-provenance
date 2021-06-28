@@ -1,47 +1,46 @@
 from typing import TYPE_CHECKING
-import warnings
 
 from .postgresql.db_utils import connect
 
 if TYPE_CHECKING:
-    from swh.provenance.archive import ArchiveInterface
-    from swh.provenance.provenance import ProvenanceInterface
+    from .archive import ArchiveInterface
+    from .provenance import ProvenanceInterface, ProvenanceStorageInterface
 
 
 def get_archive(cls: str, **kwargs) -> "ArchiveInterface":
     if cls == "api":
-        from swh.provenance.storage.archive import ArchiveStorage
         from swh.storage import get_storage
+
+        from .storage.archive import ArchiveStorage
 
         return ArchiveStorage(get_storage(**kwargs["storage"]))
     elif cls == "direct":
-        from swh.provenance.postgresql.archive import ArchivePostgreSQL
+        from .postgresql.archive import ArchivePostgreSQL
 
         return ArchivePostgreSQL(connect(kwargs["db"]))
     else:
         raise NotImplementedError
 
 
-def get_provenance(cls: str, **kwargs) -> "ProvenanceInterface":
+def get_provenance(**kwargs) -> "ProvenanceInterface":
+    from .backend import ProvenanceBackend
+
+    return ProvenanceBackend(get_provenance_storage(**kwargs))
+
+
+def get_provenance_storage(cls: str, **kwargs) -> "ProvenanceStorageInterface":
     if cls == "local":
+        from .postgresql.provenancedb_base import ProvenanceDBBase
+
         conn = connect(kwargs["db"])
-        if "with_path" in kwargs:
-            warnings.warn(
-                "Usage of the 'with-path' config option is deprecated. "
-                "The db flavor is now used instead.",
-                DeprecationWarning,
-            )
+        flavor = ProvenanceDBBase(conn).flavor
+        if flavor == "with-path":
+            from .postgresql.provenancedb_with_path import ProvenanceWithPathDB
 
-        with_path = kwargs.get("with_path")
-        from swh.provenance.backend import ProvenanceBackend
+            return ProvenanceWithPathDB(conn)
+        else:
+            from .postgresql.provenancedb_without_path import ProvenanceWithoutPathDB
 
-        prov = ProvenanceBackend(conn)
-        if with_path is not None:
-            flavor = "with-path" if with_path else "without-path"
-            if prov.storage.flavor != flavor:
-                raise ValueError(
-                    "The given flavor does not match the flavor stored in the backend."
-                )
-        return prov
+            return ProvenanceWithoutPathDB(conn)
     else:
         raise NotImplementedError

@@ -1,11 +1,8 @@
-from typing import Generator, Optional, Set, Tuple
-
-import psycopg2
-import psycopg2.extras
+from typing import Generator, Optional
 
 from swh.model.model import Sha1Git
 
-from ..provenance import ProvenanceResult
+from ..provenance import ProvenanceResult, RelationType
 from .provenancedb_base import ProvenanceDBBase
 
 
@@ -60,25 +57,5 @@ class ProvenanceWithoutPathDB(ProvenanceDBBase):
         self.cursor.execute(sql, (id, id))
         yield from (ProvenanceResult(**row) for row in self.cursor.fetchall())
 
-    def insert_relation(self, relation: str, data: Set[Tuple[Sha1Git, Sha1Git, bytes]]):
-        if data:
-            assert relation in (
-                "content_in_revision",
-                "content_in_directory",
-                "directory_in_revision",
-            )
-            src, dst = relation.split("_in_")
-
-            psycopg2.extras.execute_values(
-                self.cursor,
-                f"""
-                LOCK TABLE ONLY {relation};
-                INSERT INTO {relation}
-                  SELECT {src}.id, {dst}.id
-                  FROM (VALUES %s) AS V(src, dst)
-                  INNER JOIN {src} on ({src}.sha1=V.src)
-                  INNER JOIN {dst} on ({dst}.sha1=V.dst)
-                """,
-                data,
-            )
-            data.clear()
+    def _relation_uses_location_table(self, relation: RelationType) -> bool:
+        return False

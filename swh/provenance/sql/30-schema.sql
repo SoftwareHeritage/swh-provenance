@@ -27,7 +27,7 @@ create table content
 (
     id      bigserial primary key,      -- internal identifier of the content blob
     sha1    sha1_git unique not null,   -- intrinsic identifier of the content blob
-    date    timestamptz not null        -- timestamp of the revision where the blob appears early
+    date    timestamptz                 -- timestamp of the revision where the blob appears early
 );
 comment on column content.id is 'Content internal identifier';
 comment on column content.sha1 is 'Content intrinsic identifier';
@@ -37,7 +37,7 @@ create table directory
 (
     id      bigserial primary key,      -- internal identifier of the directory appearing in an isochrone inner frontier
     sha1    sha1_git unique not null,   -- intrinsic identifier of the directory
-    date    timestamptz not null        -- max timestamp among those of the directory children's
+    date    timestamptz                 -- max timestamp among those of the directory children's
 );
 comment on column directory.id is 'Directory internal identifier';
 comment on column directory.sha1 is 'Directory intrinsic identifier';
@@ -77,9 +77,9 @@ comment on column origin.url is 'URL of the origin';
 -- relation tables
 create table content_in_revision
 (
-    content  bigint not null,            -- internal identifier of the content blob
-    revision bigint not null,            -- internal identifier of the revision where the blob appears for the first time
-    location bigint                      -- location of the content relative to the revision root directory
+    content  bigint not null,           -- internal identifier of the content blob
+    revision bigint not null,           -- internal identifier of the revision where the blob appears for the first time
+    location bigint                     -- location of the content relative to the revision root directory
     -- foreign key (blob) references content (id),
     -- foreign key (rev) references revision (id),
     -- foreign key (loc) references location (id)
@@ -90,9 +90,9 @@ comment on column content_in_revision.location is 'Location of content in revisi
 
 create table content_in_directory
 (
-    content   bigint not null,            -- internal identifier of the content blob
-    directory bigint not null,            -- internal identifier of the directory containing the blob
-    location  bigint                      -- location of the content relative to its parent directory in the isochrone frontier
+    content   bigint not null,          -- internal identifier of the content blob
+    directory bigint not null,          -- internal identifier of the directory containing the blob
+    location  bigint                    -- location of the content relative to its parent directory in the isochrone frontier
     -- foreign key (blob) references content (id),
     -- foreign key (dir) references directory (id),
     -- foreign key (loc) references location (id)
@@ -103,9 +103,9 @@ comment on column content_in_directory.location is 'Location of content in direc
 
 create table directory_in_revision
 (
-    directory bigint not null,            -- internal identifier of the directory appearing in the revision
-    revision  bigint not null,            -- internal identifier of the revision containing the directory
-    location  bigint                      -- location of the directory relative to the revision root directory
+    directory bigint not null,          -- internal identifier of the directory appearing in the revision
+    revision  bigint not null,          -- internal identifier of the revision containing the directory
+    location  bigint                    -- location of the directory relative to the revision root directory
     -- foreign key (dir) references directory (id),
     -- foreign key (rev) references revision (id),
     -- foreign key (loc) references location (id)
@@ -116,8 +116,8 @@ comment on column directory_in_revision.location is 'Location of directory in re
 
 create table revision_in_origin
 (
-    revision bigint not null,            -- internal identifier of the revision poined by the origin
-    origin   bigint not null             -- internal identifier of the origin that points to the revision
+    revision bigint not null,           -- internal identifier of the revision poined by the origin
+    origin   bigint not null            -- internal identifier of the origin that points to the revision
     -- foreign key (rev) references revision (id),
     -- foreign key (org) references origin (id)
 );

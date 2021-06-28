@@ -33,7 +33,7 @@ def get_provenance(cls: str, **kwargs) -> "ProvenanceInterface":
             )
 
         with_path = kwargs.get("with_path")
-        from swh.provenance.provenance import ProvenanceBackend
+        from swh.provenance.backend import ProvenanceBackend
 
         prov = ProvenanceBackend(conn)
         if with_path is not None:

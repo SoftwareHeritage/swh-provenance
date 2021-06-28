@@ -29,7 +29,7 @@ def provenance(request, postgresql):
     flavor = request.param
     populate_database_for_package("swh.provenance", postgresql.dsn, flavor=flavor)
 
-    from swh.provenance.provenance import ProvenanceBackend
+    from swh.provenance.backend import ProvenanceBackend
 
     BaseDb.adapt_conn(postgresql)
     prov = ProvenanceBackend(postgresql)

@@ -1,12 +1,14 @@
 from datetime import datetime
 import itertools
 import logging
-from typing import Any, Dict, Generator, List, Optional, Set, Tuple
+from typing import Any, Dict, Generator, List, Mapping, Optional, Set, Tuple
 
 import psycopg2
 import psycopg2.extras
 
 from swh.model.model import Sha1Git
+
+from ..provenance import ProvenanceResult
 
 
 class ProvenanceDBBase:
@@ -31,7 +33,7 @@ class ProvenanceDBBase:
     def with_path(self) -> bool:
         return self.flavor == "with-path"
 
-    def commit(self, data: Dict[str, Any], raise_on_commit: bool = False) -> bool:
+    def commit(self, data: Mapping[str, Any], raise_on_commit: bool = False) -> bool:
         try:
             # First insert entities
             for entity in ("content", "directory", "revision"):
@@ -87,14 +89,12 @@ class ProvenanceDBBase:
 
         return False
 
-    def content_find_first(
-        self, id: Sha1Git
-    ) -> Optional[Tuple[Sha1Git, Sha1Git, datetime, bytes]]:
+    def content_find_first(self, id: Sha1Git) -> Optional[ProvenanceResult]:
         ...
 
     def content_find_all(
         self, id: Sha1Git, limit: Optional[int] = None
-    ) -> Generator[Tuple[Sha1Git, Sha1Git, datetime, bytes], None, None]:
+    ) -> Generator[ProvenanceResult, None, None]:
         ...
 
     def get_dates(self, entity: str, ids: List[Sha1Git]) -> Dict[Sha1Git, datetime]:

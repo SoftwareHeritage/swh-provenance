@@ -52,7 +52,7 @@ def origin_add(
             graph = build_history_graph(archive, provenance, revision)
             origin_add_revision(provenance, origin, graph)
     done = time.time()
-    provenance.commit()
+    provenance.flush()
     stop = time.time()
     logging.debug(
         "Origins "

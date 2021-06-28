@@ -165,15 +165,14 @@ def find_first(ctx, swhid):
 
     provenance = get_provenance(**ctx.obj["config"]["provenance"])
     # TODO: return a dictionary with proper keys for each field
-    row = provenance.content_find_first(hash_to_bytes(swhid))
-    if row is not None:
+    occur = provenance.content_find_first(hash_to_bytes(swhid))
+    if occur is not None:
         print(
-            "swh:1:cnt:{cnt}, swh:1:rev:{rev}, {date}, {path}".format(
-                cnt=hash_to_hex(row[0]),
-                rev=hash_to_hex(row[1]),
-                date=row[2],
-                path=os.fsdecode(row[3]),
-            )
+            f"swh:1:cnt:{hash_to_hex(occur.content)}, "
+            f"swh:1:rev:{hash_to_hex(occur.revision)}, "
+            f"{occur.date}, "
+            f"{occur.origin}, "
+            f"{os.fsdecode(occur.path)}"
         )
     else:
         print(f"Cannot find a content with the id {swhid}")
@@ -189,12 +188,11 @@ def find_all(ctx, swhid, limit):
 
     provenance = get_provenance(**ctx.obj["config"]["provenance"])
     # TODO: return a dictionary with proper keys for each field
-    for row in provenance.content_find_all(hash_to_bytes(swhid), limit=limit):
+    for occur in provenance.content_find_all(hash_to_bytes(swhid), limit=limit):
         print(
-            "swh:1:cnt:{cnt}, swh:1:rev:{rev}, {date}, {path}".format(
-                cnt=hash_to_hex(row[0]),
-                rev=hash_to_hex(row[1]),
-                date=row[2],
-                path=os.fsdecode(row[3]),
-            )
+            f"swh:1:cnt:{hash_to_hex(occur.content)}, "
+            f"swh:1:rev:{hash_to_hex(occur.revision)}, "
+            f"{occur.date}, "
+            f"{occur.origin}, "
+            f"{os.fsdecode(occur.path)}"
         )

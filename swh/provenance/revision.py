@@ -69,7 +69,7 @@ def revision_add(
         assert revision.date is not None
         assert revision.root is not None
         # Processed content starting from the revision's root directory.
-        date = provenance.revision_get_early_date(revision)
+        date = provenance.revision_get_date(revision)
         if date is None or revision.date < date:
             logging.debug(
                 f"Processing revisions {revision.id.hex()}"
@@ -93,16 +93,12 @@ def revision_add(
             )
     done = time.time()
     if commit:
-        provenance.commit()
+        provenance.flush()
     stop = time.time()
     logging.debug(
         f"Revisions {';'.join([revision.id.hex() for revision in revisions])} "
         f" were processed in {stop - start} secs (commit took {stop - done} secs)!"
     )
-    # logging.critical(
-    #     ";".join([revision.id.hex() for revision in revisions])
-    #     + f",{stop - start},{stop - done}"
-    # )
 
 
 def revision_process_content(

@@ -253,21 +253,25 @@ def test_provenance_heuristics_content_find_all(
 
         for rc in synth_rev["R_C"]:
             expected_occurrences.setdefault(rc["dst"].hex(), []).append(
-                (rev_id, rev_ts, maybe_path(rc["path"]))
+                (rev_id, rev_ts, None, maybe_path(rc["path"]))
             )
         for dc in synth_rev["D_C"]:
             assert dc["prefix"] is not None  # to please mypy
             expected_occurrences.setdefault(dc["dst"].hex(), []).append(
-                (rev_id, rev_ts, maybe_path(dc["prefix"] + "/" + dc["path"]))
+                (rev_id, rev_ts, None, maybe_path(dc["prefix"] + "/" + dc["path"]))
             )
 
     for content_id, results in expected_occurrences.items():
         expected = [(content_id, *result) for result in results]
         db_occurrences = [
-            (blob.hex(), rev.hex(), date.timestamp(), path.decode())
-            for blob, rev, date, path in provenance.content_find_all(
-                hash_to_bytes(content_id)
+            (
+                occur.content.hex(),
+                occur.revision.hex(),
+                occur.date.timestamp(),
+                occur.origin,
+                occur.path.decode(),
             )
+            for occur in provenance.content_find_all(hash_to_bytes(content_id))
         ]
         if provenance.storage.with_path:
             # this is not true if the db stores no path, because a same content
@@ -337,11 +341,10 @@ def test_provenance_heuristics_content_find_first(
             # nothing to do there, this content cannot be a "first seen file"
 
     for content_id, (rev_id, ts, paths) in expected_first.items():
-        (r_sha1, r_rev_id, r_ts, r_path) = provenance.content_find_first(
-            hash_to_bytes(content_id)
-        )
-        assert r_sha1.hex() == content_id
-        assert r_rev_id.hex() == rev_id
-        assert r_ts.timestamp() == ts
+        occur = provenance.content_find_first(hash_to_bytes(content_id))
+        assert occur.content.hex() == content_id
+        assert occur.revision.hex() == rev_id
+        assert occur.date.timestamp() == ts
+        assert occur.origin is None
         if provenance.storage.with_path:
-            assert r_path.decode() in paths
+            assert occur.path.decode() in paths

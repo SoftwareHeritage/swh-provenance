@@ -11,100 +11,156 @@ from swh.model.model import Sha1Git
 from .model import DirectoryEntry, FileEntry, OriginEntry, RevisionEntry
 
 
-# XXX: this protocol doesn't make much sense now that flavours have been delegated to
-# another class, lower in the callstack.
+class ProvenanceResult:
+    def __init__(
+        self,
+        content: Sha1Git,
+        revision: Sha1Git,
+        date: datetime,
+        origin: Optional[str],
+        path: bytes,
+    ) -> None:
+        self.content = content
+        self.revision = revision
+        self.date = date
+        self.origin = origin
+        self.path = path
+
+
 @runtime_checkable
 class ProvenanceInterface(Protocol):
     raise_on_commit: bool = False
 
-    def commit(self):
-        """Commit currently ongoing transactions in the backend DB"""
+    def flush(self) -> None:
+        """Flush internal cache to the underlying `storage`."""
         ...
 
     def content_add_to_directory(
         self, directory: DirectoryEntry, blob: FileEntry, prefix: bytes
     ) -> None:
+        """Associate `blob` with `directory` in the provenance model. `prefix` is the
+        relative path from `directory` to `blob` (excluding `blob`'s name).
+        """
         ...
 
     def content_add_to_revision(
         self, revision: RevisionEntry, blob: FileEntry, prefix: bytes
     ) -> None:
+        """Associate `blob` with `revision` in the provenance model. `prefix` is the
+        absolute path from `revision`'s root directory to `blob` (excluding `blob`'s
+        name).
+        """
         ...
 
-    def content_find_first(
-        self, id: Sha1Git
-    ) -> Optional[Tuple[Sha1Git, Sha1Git, datetime, bytes]]:
+    def content_find_first(self, id: Sha1Git) -> Optional[ProvenanceResult]:
+        """Retrieve the first occurrence of the blob identified by `id`."""
         ...
 
     def content_find_all(
         self, id: Sha1Git, limit: Optional[int] = None
-    ) -> Generator[Tuple[Sha1Git, Sha1Git, datetime, bytes], None, None]:
+    ) -> Generator[ProvenanceResult, None, None]:
+        """Retrieve all the occurrences of the blob identified by `id`."""
         ...
 
     def content_get_early_date(self, blob: FileEntry) -> Optional[datetime]:
+        """Retrieve the earliest known date of `blob`."""
         ...
 
     def content_get_early_dates(
         self, blobs: Iterable[FileEntry]
     ) -> Dict[Sha1Git, datetime]:
+        """Retrieve the earliest known date for each blob in `blobs`. If some blob has
+        no associated date, it is not present in the resulting dictionary.
+        """
         ...
 
     def content_set_early_date(self, blob: FileEntry, date: datetime) -> None:
+        """Associate `date` to `blob` as it's earliest known date."""
         ...
 
     def directory_add_to_revision(
         self, revision: RevisionEntry, directory: DirectoryEntry, path: bytes
     ) -> None:
+        """Associate `directory` with `revision` in the provenance model. `path` is the
+        absolute path from `revision`'s root directory to `directory` (including
+        `directory`'s name).
+        """
         ...
 
     def directory_get_date_in_isochrone_frontier(
         self, directory: DirectoryEntry
     ) -> Optional[datetime]:
+        """Retrieve the earliest known date of `directory` as an isochrone frontier in
+        the provenance model.
+        """
         ...
 
     def directory_get_dates_in_isochrone_frontier(
         self, dirs: Iterable[DirectoryEntry]
     ) -> Dict[Sha1Git, datetime]:
+        """Retrieve the earliest known date for each directory in `dirs` as isochrone
+        frontiers provenance model. If some directory has no associated date, it is not
+        present in the resulting dictionary.
+        """
         ...
 
     def directory_set_date_in_isochrone_frontier(
         self, directory: DirectoryEntry, date: datetime
     ) -> None:
+        """Associate `date` to `directory` as it's earliest known date as an isochrone
+        frontier in the provenance model.
+        """
         ...
 
     def origin_add(self, origin: OriginEntry) -> None:
+        """Add `origin` to the provenance model."""
         ...
 
     def revision_add(self, revision: RevisionEntry) -> None:
+        """Add `revision` to the provenance model. This implies storing `revision`'s
+        date in the model, thus `revision.date` must be a valid date.
+        """
         ...
 
     def revision_add_before_revision(
-        self, relative: RevisionEntry, revision: RevisionEntry
+        self, head: RevisionEntry, revision: RevisionEntry
     ) -> None:
+        """Associate `revision` to `head` as an ancestor of the latter."""
         ...
 
     def revision_add_to_origin(
         self, origin: OriginEntry, revision: RevisionEntry
     ) -> None:
+        """Associate `revision` to `origin` as a head revision of the latter (ie. the
+        target of an snapshot for `origin` in the archive)."""
         ...
 
-    def revision_get_early_date(self, revision: RevisionEntry) -> Optional[datetime]:
+    def revision_get_date(self, revision: RevisionEntry) -> Optional[datetime]:
+        """Retrieve the date associated to `revision`."""
         ...
 
     def revision_get_preferred_origin(
         self, revision: RevisionEntry
     ) -> Optional[Sha1Git]:
+        """Retrieve the preferred origin associated to `revision`."""
         ...
 
     def revision_in_history(self, revision: RevisionEntry) -> bool:
+        """Check if `revision` is known to be an ancestor of some head revision in the
+        provenance model.
+        """
         ...
 
     def revision_set_preferred_origin(
         self, origin: OriginEntry, revision: RevisionEntry
     ) -> None:
+        """Associate `origin` as the preferred origin for `revision`."""
         ...
 
     def revision_visited(self, revision: RevisionEntry) -> bool:
+        """Check if `revision` is known to be a head revision for some origin in the
+        provenance model.
+        """
         ...
 
 
@@ -138,7 +194,7 @@ class ProvenanceCache(TypedDict):
     revision_in_origin: Set[Tuple[Sha1Git, Sha1Git]]
 
 
-def new_cache():
+def new_cache() -> ProvenanceCache:
     return ProvenanceCache(
         content=DatetimeCache(data={}, added=set()),
         directory=DatetimeCache(data={}, added=set()),
@@ -173,39 +229,37 @@ class ProvenanceBackend:
             self.storage = ProvenanceWithoutPathDB(conn)
         self.cache: ProvenanceCache = new_cache()
 
-    def clear_caches(self):
+    def clear_caches(self) -> None:
         self.cache = new_cache()
 
-    def commit(self):
+    def flush(self) -> None:
         # TODO: for now we just forward the cache. This should be improved!
         while not self.storage.commit(self.cache, raise_on_commit=self.raise_on_commit):
             logging.warning(
-                f"Unable to commit cached information {self.write_cache}. Retrying..."
+                f"Unable to commit cached information {self.cache}. Retrying..."
             )
         self.clear_caches()
 
     def content_add_to_directory(
         self, directory: DirectoryEntry, blob: FileEntry, prefix: bytes
-    ):
+    ) -> None:
         self.cache["content_in_directory"].add(
             (blob.id, directory.id, normalize(os.path.join(prefix, blob.name)))
         )
 
     def content_add_to_revision(
         self, revision: RevisionEntry, blob: FileEntry, prefix: bytes
-    ):
+    ) -> None:
         self.cache["content_in_revision"].add(
             (blob.id, revision.id, normalize(os.path.join(prefix, blob.name)))
         )
 
-    def content_find_first(
-        self, id: Sha1Git
-    ) -> Optional[Tuple[Sha1Git, Sha1Git, datetime, bytes]]:
+    def content_find_first(self, id: Sha1Git) -> Optional[ProvenanceResult]:
         return self.storage.content_find_first(id)
 
     def content_find_all(
         self, id: Sha1Git, limit: Optional[int] = None
-    ) -> Generator[Tuple[Sha1Git, Sha1Git, datetime, bytes], None, None]:
+    ) -> Generator[ProvenanceResult, None, None]:
         yield from self.storage.content_find_all(id, limit=limit)
 
     def content_get_early_date(self, blob: FileEntry) -> Optional[datetime]:
@@ -216,13 +270,13 @@ class ProvenanceBackend:
     ) -> Dict[Sha1Git, datetime]:
         return self.get_dates("content", [blob.id for blob in blobs])
 
-    def content_set_early_date(self, blob: FileEntry, date: datetime):
+    def content_set_early_date(self, blob: FileEntry, date: datetime) -> None:
         self.cache["content"]["data"][blob.id] = date
         self.cache["content"]["added"].add(blob.id)
 
     def directory_add_to_revision(
         self, revision: RevisionEntry, directory: DirectoryEntry, path: bytes
-    ):
+    ) -> None:
         self.cache["directory_in_revision"].add(
             (directory.id, revision.id, normalize(path))
         )
@@ -239,7 +293,7 @@ class ProvenanceBackend:
 
     def directory_set_date_in_isochrone_frontier(
         self, directory: DirectoryEntry, date: datetime
-    ):
+    ) -> None:
         self.cache["directory"]["data"][directory.id] = date
         self.cache["directory"]["added"].add(directory.id)
 
@@ -261,21 +315,23 @@ class ProvenanceBackend:
         self.cache["origin"]["data"][origin.id] = origin.url
         self.cache["origin"]["added"].add(origin.id)
 
-    def revision_add(self, revision: RevisionEntry):
+    def revision_add(self, revision: RevisionEntry) -> None:
         self.cache["revision"]["data"][revision.id] = revision.date
         self.cache["revision"]["added"].add(revision.id)
 
     def revision_add_before_revision(
-        self, relative: RevisionEntry, revision: RevisionEntry
-    ):
+        self, head: RevisionEntry, revision: RevisionEntry
+    ) -> None:
         self.cache["revision_before_revision"].setdefault(revision.id, set()).add(
-            relative.id
+            head.id
         )
 
-    def revision_add_to_origin(self, origin: OriginEntry, revision: RevisionEntry):
+    def revision_add_to_origin(
+        self, origin: OriginEntry, revision: RevisionEntry
+    ) -> None:
         self.cache["revision_in_origin"].add((revision.id, origin.id))
 
-    def revision_get_early_date(self, revision: RevisionEntry) -> Optional[datetime]:
+    def revision_get_date(self, revision: RevisionEntry) -> Optional[datetime]:
         return self.get_dates("revision", [revision.id]).get(revision.id)
 
     def revision_get_preferred_origin(
@@ -295,7 +351,7 @@ class ProvenanceBackend:
 
     def revision_set_preferred_origin(
         self, origin: OriginEntry, revision: RevisionEntry
-    ):
+    ) -> None:
         self.cache["revision_origin"]["data"][revision.id] = origin.id
         self.cache["revision_origin"]["added"].add(revision.id)
 

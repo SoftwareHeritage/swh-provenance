@@ -59,4 +59,4 @@ def test_history_graph(provenance, swh_storage, archive, repo, visit, batch):
                 origin_add_revision(provenance, entry, computed_graph)
 
             if not batch:
-                provenance.commit()
+                provenance.flush()

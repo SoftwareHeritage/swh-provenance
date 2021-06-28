@@ -7,7 +7,7 @@
 def test_provenance_fixture(provenance):
     """Check the 'provenance' fixture produce a working ProvenanceDB object"""
     assert provenance
-    provenance.commit()  # should be a noop
+    provenance.flush()  # should be a noop
 
 
 def test_storage(swh_storage_with_objects):

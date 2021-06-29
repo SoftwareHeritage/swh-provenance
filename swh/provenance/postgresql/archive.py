@@ -78,22 +78,33 @@ class ArchivePostgreSQL:
         with self.conn.cursor() as cursor:
             cursor.execute(
                 """
-                WITH S AS (SELECT object_id FROM snapshot WHERE snapshot.id=%s)
-                (SELECT B.target AS head
-                    FROM S
-                    JOIN snapshot_branches AS BS ON (S.object_id=BS.snapshot_id)
-                    JOIN snapshot_branch AS B ON (BS.branch_id=B.object_id)
-                    WHERE B.target_type='revision'::snapshot_target)
-                UNION
-                (SELECT R.target AS head
-                    FROM S
-                    JOIN snapshot_branches AS BS ON (S.object_id=BS.snapshot_id)
-                    JOIN snapshot_branch AS B ON (BS.branch_id=B.object_id)
-                    JOIN release AS R ON (B.target=R.id)
-                    WHERE B.target_type='release'::snapshot_target
-                      AND R.target_type='revision'::object_type)
+                WITH
+                snaps AS (SELECT object_id FROM snapshot WHERE snapshot.id=%s),
+                heads AS ((SELECT R.id, R.date
+                            FROM snaps
+                            JOIN snapshot_branches AS BS
+                              ON (snaps.object_id=BS.snapshot_id)
+                            JOIN snapshot_branch AS B
+                              ON (BS.branch_id=B.object_id)
+                            JOIN revision AS R
+                              ON (B.target=R.id)
+                            WHERE B.target_type='revision'::snapshot_target)
+                          UNION
+                          (SELECT RV.id, RV.date
+                            FROM snaps
+                            JOIN snapshot_branches AS BS
+                              ON (snaps.object_id=BS.snapshot_id)
+                            JOIN snapshot_branch AS B
+                              ON (BS.branch_id=B.object_id)
+                            JOIN release AS RL
+                              ON (B.target=RL.id)
+                            JOIN revision AS RV
+                              ON (RL.target=RV.id)
+                            WHERE B.target_type='release'::snapshot_target
+                              AND RL.target_type='revision'::object_type)
+                          ORDER BY date, id)
+                SELECT id FROM heads
                 """,
                 (id,),
             )
-            heads = [row[0] for row in cursor.fetchall()]
-            yield from heads
+            yield from (row[0] for row in cursor.fetchall())

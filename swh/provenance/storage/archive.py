@@ -1,4 +1,5 @@
-from typing import Any, Dict, Iterable, Set
+from datetime import datetime
+from typing import Any, Dict, Iterable, Set, Tuple
 
 from swh.model.model import ObjectType, Sha1Git, TargetType
 from swh.storage.interface import StorageInterface
@@ -46,12 +47,12 @@ class ArchiveStorage:
                 if release is not None and release.target_type == ObjectType.REVISION
             )
 
-        revisions: Set[Sha1Git] = set()
+        revisions: Set[Tuple[datetime, Sha1Git]] = set()
         for targets in grouper(targets_set, batchsize):
             revisions.update(
-                revision.id
+                (revision.date.to_datetime(), revision.id)
                 for revision in self.storage.revision_get(list(targets))
-                if revision is not None
+                if revision is not None and revision.date is not None
             )
 
-        yield from revisions
+        yield from (head for _, head in sorted(revisions))

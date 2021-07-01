@@ -4,11 +4,11 @@
 # See top-level LICENSE file for more information
 
 from click.testing import CliRunner
-import psycopg2
 import pytest
 
 from swh.core.cli import swh as swhmain
 import swh.core.cli.db  # noqa ; ensure cli is loaded
+from swh.core.db import BaseDb
 import swh.provenance.cli  # noqa ; ensure cli is loaded
 
 
@@ -71,7 +71,7 @@ def test_cli_db_create_and_init_db_with_flavor(
     assert f"(flavor {flavor})" in result.output
 
     db_params["dbname"] = dbname
-    cnx = psycopg2.connect(**db_params)
+    cnx = BaseDb.connect(**db_params).conn
     # check the DB looks OK (check for db_flavor and expected tables)
     with cnx.cursor() as cur:
         cur.execute("select swh_get_dbflavor()")

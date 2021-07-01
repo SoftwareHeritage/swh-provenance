@@ -6,11 +6,10 @@
 from collections import Counter
 from operator import itemgetter
 
-import psycopg2
 import pytest
 
+from swh.core.db import BaseDb
 from swh.provenance.postgresql.archive import ArchivePostgreSQL
-from swh.provenance.postgresql.db_utils import adapt_conn
 from swh.provenance.storage.archive import ArchiveStorage
 from swh.provenance.tests.conftest import fill_storage, load_repo_data
 
@@ -22,8 +21,8 @@ from swh.provenance.tests.conftest import fill_storage, load_repo_data
 def test_archive_interface(repo, swh_storage):
     archive_api = ArchiveStorage(swh_storage)
     dsn = swh_storage.get_db().conn.dsn
-    with psycopg2.connect(dsn) as conn:
-        adapt_conn(conn)
+    with BaseDb.connect(dsn).conn as conn:
+        BaseDb.adapt_conn(conn)
         archive_direct = ArchivePostgreSQL(conn)
         # read data/README.md for more details on how these datasets are generated
         data = load_repo_data(repo)

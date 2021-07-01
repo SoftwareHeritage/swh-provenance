@@ -7,6 +7,7 @@ import psycopg2
 import psycopg2.extras
 from typing_extensions import Literal
 
+from swh.core.db import BaseDb
 from swh.model.model import Sha1Git
 
 from ..provenance import ProvenanceResult, RelationType
@@ -16,6 +17,7 @@ class ProvenanceDBBase:
     raise_on_commit: bool = False
 
     def __init__(self, conn: psycopg2.extensions.connection):
+        BaseDb.adapt_conn(conn)
         conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
         conn.set_session(autocommit=True)
         self.conn = conn

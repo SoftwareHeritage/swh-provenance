@@ -1,7 +1,7 @@
 from itertools import islice
 import logging
 import time
-from typing import Iterable, Iterator, List, Optional, Tuple
+from typing import Generator, Iterable, Iterator, List, Optional, Tuple
 
 from swh.model.model import Sha1Git
 
@@ -28,14 +28,14 @@ class CSVOriginIterator:
         self,
         statuses: Iterable[Tuple[str, Sha1Git]],
         limit: Optional[int] = None,
-    ):
+    ) -> None:
         self.statuses: Iterator[Tuple[str, Sha1Git]]
         if limit is not None:
             self.statuses = islice(statuses, limit)
         else:
             self.statuses = iter(statuses)
 
-    def __iter__(self):
+    def __iter__(self) -> Generator[OriginEntry, None, None]:
         return (OriginEntry(url, snapshot) for url, snapshot in self.statuses)
 
 
@@ -43,7 +43,7 @@ def origin_add(
     provenance: ProvenanceInterface,
     archive: ArchiveInterface,
     origins: List[OriginEntry],
-):
+) -> None:
     start = time.time()
     for origin in origins:
         provenance.origin_add(origin)
@@ -65,7 +65,7 @@ def origin_add_revision(
     provenance: ProvenanceInterface,
     origin: OriginEntry,
     graph: HistoryNode,
-):
+) -> None:
     # head is treated separately since it should always be added to the given origin
     head = graph.entry
     check_preferred_origin(provenance, origin, head)
@@ -93,7 +93,7 @@ def check_preferred_origin(
     provenance: ProvenanceInterface,
     origin: OriginEntry,
     revision: RevisionEntry,
-):
+) -> None:
     # if the revision has no preferred origin just set the given origin as the
     # preferred one. TODO: this should be improved in the future!
     preferred = provenance.revision_get_preferred_origin(revision)

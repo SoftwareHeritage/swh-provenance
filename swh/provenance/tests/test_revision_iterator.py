@@ -22,8 +22,7 @@ def test_archive_direct_revision_iterator(swh_storage, repo):
     data = load_repo_data(repo)
     fill_storage(swh_storage, data)
     revisions_csv = [
-        (rev["id"], ts2dt(rev["date"]).isoformat(), rev["directory"])
-        for rev in data["revision"]
+        (rev["id"], ts2dt(rev["date"]), rev["directory"]) for rev in data["revision"]
     ]
     revisions = list(CSVRevisionIterator(revisions_csv))
     assert revisions

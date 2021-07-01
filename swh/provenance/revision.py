@@ -3,11 +3,8 @@ from itertools import islice
 import logging
 import os
 import time
-from typing import Iterable, Iterator, List, Optional, Tuple
+from typing import Generator, Iterable, Iterator, List, Optional, Tuple
 
-import iso8601
-
-from swh.model.hashutil import hash_to_bytes
 from swh.model.model import Sha1Git
 
 from .archive import ArchiveInterface
@@ -33,26 +30,18 @@ class CSVRevisionIterator:
         self,
         revisions: Iterable[Tuple[Sha1Git, datetime, Sha1Git]],
         limit: Optional[int] = None,
-    ):
+    ) -> None:
         self.revisions: Iterator[Tuple[Sha1Git, datetime, Sha1Git]]
         if limit is not None:
             self.revisions = islice(revisions, limit)
         else:
             self.revisions = iter(revisions)
 
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        id, date, root = next(self.revisions)
-        date = iso8601.parse_date(date)
-        if date.tzinfo is None:
-            date = date.replace(tzinfo=timezone.utc)
-        return RevisionEntry(
-            hash_to_bytes(id),
-            date=date,
-            root=hash_to_bytes(root),
-        )
+    def __iter__(self) -> Generator[RevisionEntry, None, None]:
+        for id, date, root in self.revisions:
+            if date.tzinfo is None:
+                date = date.replace(tzinfo=timezone.utc)
+            yield RevisionEntry(id, date=date, root=root)
 
 
 def revision_add(
@@ -109,7 +98,7 @@ def revision_process_content(
     trackall: bool = True,
     lower: bool = True,
     mindepth: int = 1,
-):
+) -> None:
     assert revision.date is not None
     provenance.revision_add(revision)
 

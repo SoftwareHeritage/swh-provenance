@@ -5,16 +5,19 @@
 
 # WARNING: do not import unnecessary things here to keep cli startup time under
 # control
+from datetime import datetime, timezone
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Generator, Optional, Tuple
 
 import click
+import iso8601
 import yaml
 
 from swh.core import config
 from swh.core.cli import CONTEXT_SETTINGS
 from swh.core.cli import swh as swh_cli_group
 from swh.model.hashutil import hash_to_bytes, hash_to_hex
+from swh.model.model import Sha1Git
 
 # All generic config code should reside in swh.core.config
 CONFIG_ENVVAR = "SWH_CONFIG_FILE"
@@ -74,7 +77,7 @@ PROVENANCE_HELP = f"""Software Heritage Scanner tools.
     help="""Enable profiling to specified file.""",
 )
 @click.pass_context
-def cli(ctx, config_file: Optional[str], profile: str):
+def cli(ctx, config_file: Optional[str], profile: str) -> None:
     if config_file is None and config.config_exists(DEFAULT_PATH):
         config_file = DEFAULT_PATH
 
@@ -98,7 +101,7 @@ def cli(ctx, config_file: Optional[str], profile: str):
         pr = cProfile.Profile()
         pr.enable()
 
-        def exit():
+        def exit() -> None:
             pr.disable()
             pr.dump_stats(profile)
 
@@ -112,7 +115,14 @@ def cli(ctx, config_file: Optional[str], profile: str):
 @click.option("-m", "--min-depth", default=1, type=int)
 @click.option("-r", "--reuse", default=True, type=bool)
 @click.pass_context
-def iter_revisions(ctx, filename, track_all, limit, min_depth, reuse):
+def iter_revisions(
+    ctx,
+    filename: str,
+    track_all: bool,
+    limit: Optional[int],
+    min_depth: int,
+    reuse: bool,
+) -> None:
     # TODO: add file size filtering
     """Process a provided list of revisions."""
     from . import get_archive, get_provenance
@@ -120,9 +130,7 @@ def iter_revisions(ctx, filename, track_all, limit, min_depth, reuse):
 
     archive = get_archive(**ctx.obj["config"]["archive"])
     provenance = get_provenance(**ctx.obj["config"]["provenance"])
-    revisions_provider = (
-        line.strip().split(",") for line in open(filename, "r") if line.strip()
-    )
+    revisions_provider = generate_revision_tuples(filename)
     revisions = CSVRevisionIterator(revisions_provider, limit=limit)
 
     for revision in revisions:
@@ -136,30 +144,48 @@ def iter_revisions(ctx, filename, track_all, limit, min_depth, reuse):
         )
 
 
+def generate_revision_tuples(
+    filename: str,
+) -> Generator[Tuple[Sha1Git, datetime, Sha1Git], None, None]:
+    for line in open(filename, "r"):
+        if line.strip():
+            revision, date, root = line.strip().split(",")
+            yield (
+                hash_to_bytes(revision),
+                iso8601.parse_date(date, default_timezone=timezone.utc),
+                hash_to_bytes(root),
+            )
+
+
 @cli.command(name="iter-origins")
 @click.argument("filename")
 @click.option("-l", "--limit", type=int)
 @click.pass_context
-def iter_origins(ctx, filename, limit):
+def iter_origins(ctx, filename: str, limit: Optional[int]) -> None:
     """Process a provided list of origins."""
     from . import get_archive, get_provenance
     from .origin import CSVOriginIterator, origin_add
 
     archive = get_archive(**ctx.obj["config"]["archive"])
     provenance = get_provenance(**ctx.obj["config"]["provenance"])
-    origins_provider = (
-        line.strip().split(",") for line in open(filename, "r") if line.strip()
-    )
+    origins_provider = generate_origin_tuples(filename)
     origins = CSVOriginIterator(origins_provider, limit=limit)
 
     for origin in origins:
         origin_add(provenance, archive, [origin])
 
 
+def generate_origin_tuples(filename: str) -> Generator[Tuple[str, bytes], None, None]:
+    for line in open(filename, "r"):
+        if line.strip():
+            url, snapshot = line.strip().split(",")
+            yield (url, hash_to_bytes(snapshot))
+
+
 @cli.command(name="find-first")
 @click.argument("swhid")
 @click.pass_context
-def find_first(ctx, swhid):
+def find_first(ctx, swhid: str) -> None:
     """Find first occurrence of the requested blob."""
     from . import get_provenance
 
@@ -182,7 +208,7 @@ def find_first(ctx, swhid):
 @click.argument("swhid")
 @click.option("-l", "--limit", type=int)
 @click.pass_context
-def find_all(ctx, swhid, limit):
+def find_all(ctx, swhid: str, limit: Optional[int]) -> None:
     """Find all occurrences of the requested blob."""
     from . import get_provenance
 

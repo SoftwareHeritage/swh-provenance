@@ -11,12 +11,11 @@ from .provenancedb_base import ProvenanceDBBase
 
 class ProvenanceWithPathDB(ProvenanceDBBase):
     def content_find_first(self, id: Sha1Git) -> Optional[ProvenanceResult]:
-        self.cursor.execute(
-            """
-            SELECT C.sha1 AS blob,
-                   R.sha1 AS rev,
+        sql = """
+            SELECT C.sha1 AS content,
+                   R.sha1 AS revision,
                    R.date AS date,
-                   O.url AS url,
+                   O.url AS origin,
                    L.path AS path
             FROM content AS C
             INNER JOIN content_in_revision AS CR ON (CR.content=C.id)
@@ -24,28 +23,21 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
             INNER JOIN revision as R ON (CR.revision=R.id)
             LEFT JOIN origin as O ON (R.origin=O.id)
             WHERE C.sha1=%s
-            ORDER BY date, rev, url, path ASC LIMIT 1
-            """,
-            (id,),
-        )
+            ORDER BY date, revision, origin, path ASC LIMIT 1
+            """
+        self.cursor.execute(sql, (id,))
         row = self.cursor.fetchone()
-        if row:
-            return ProvenanceResult(
-                content=row[0], revision=row[1], date=row[2], origin=row[3], path=row[4]
-            )
-        else:
-            return None
+        return ProvenanceResult(**row) if row is not None else None
 
     def content_find_all(
         self, id: Sha1Git, limit: Optional[int] = None
     ) -> Generator[ProvenanceResult, None, None]:
         early_cut = f"LIMIT {limit}" if limit is not None else ""
-        self.cursor.execute(
-            f"""
-            (SELECT C.sha1 AS blob,
-                    R.sha1 AS rev,
+        sql = f"""
+            (SELECT C.sha1 AS content,
+                    R.sha1 AS revision,
                     R.date AS date,
-                    O.url AS url,
+                    O.url AS origin,
                     L.path AS path
              FROM content AS C
              INNER JOIN content_in_revision AS CR ON (CR.content=C.id)
@@ -57,7 +49,7 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
             (SELECT C.sha1 AS content,
                     R.sha1 AS revision,
                     R.date AS date,
-                    O.url AS url,
+                    O.url AS origin,
                     CASE DL.path
                       WHEN '' THEN CL.path
                       WHEN '.' THEN CL.path
@@ -71,14 +63,10 @@ class ProvenanceWithPathDB(ProvenanceDBBase):
              INNER JOIN location AS DL ON (DR.location=DL.id)
              LEFT JOIN origin AS O ON (R.origin=O.id)
              WHERE C.sha1=%s)
-            ORDER BY date, rev, url, path {early_cut}
-            """,
-            (id, id),
-        )
-        for row in self.cursor.fetchall():
-            yield ProvenanceResult(
-                content=row[0], revision=row[1], date=row[2], origin=row[3], path=row[4]
-            )
+            ORDER BY date, revision, origin, path {early_cut}
+            """
+        self.cursor.execute(sql, (id, id))
+        yield from (ProvenanceResult(**row) for row in self.cursor.fetchall())
 
     def insert_relation(self, relation: str, data: Set[Tuple[Sha1Git, Sha1Git, bytes]]):
         """Insert entries in `relation` from `data`

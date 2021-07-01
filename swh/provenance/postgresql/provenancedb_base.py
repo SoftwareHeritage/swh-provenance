@@ -16,7 +16,7 @@ class ProvenanceDBBase:
         conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
         conn.set_session(autocommit=True)
         self.conn = conn
-        self.cursor = self.conn.cursor()
+        self.cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         # XXX: not sure this is the best place to do it!
         self.cursor.execute("SET timezone TO 'UTC'")
         self._flavor: Optional[str] = None
@@ -24,8 +24,8 @@ class ProvenanceDBBase:
     @property
     def flavor(self) -> str:
         if self._flavor is None:
-            self.cursor.execute("select swh_get_dbflavor()")
-            self._flavor = self.cursor.fetchone()[0]
+            self.cursor.execute("SELECT swh_get_dbflavor() AS flavor")
+            self._flavor = self.cursor.fetchone()["flavor"]
         assert self._flavor is not None
         return self._flavor
 
@@ -98,14 +98,14 @@ class ProvenanceDBBase:
         ...
 
     def get_dates(self, entity: str, ids: List[Sha1Git]) -> Dict[Sha1Git, datetime]:
-        dates = {}
+        dates: Dict[Sha1Git, datetime] = {}
         if ids:
             values = ", ".join(itertools.repeat("%s", len(ids)))
             self.cursor.execute(
                 f"""SELECT sha1, date FROM {entity} WHERE sha1 IN ({values})""",
                 tuple(ids),
             )
-            dates.update(self.cursor.fetchall())
+            dates.update(((row["sha1"], row["date"]) for row in self.cursor.fetchall()))
         return dates
 
     def insert_entity(self, entity: str, data: Dict[Sha1Git, datetime]):
@@ -217,7 +217,7 @@ class ProvenanceDBBase:
             (revision,),
         )
         row = self.cursor.fetchone()
-        return row[0] if row is not None else None
+        return row["sha1"] if row is not None else None
 
     def revision_in_history(self, revision: Sha1Git) -> bool:
         self.cursor.execute(

@@ -25,7 +25,7 @@ def sha1s(cur, table):
     'cur' is a cursor to the provenance index DB.
     """
     cur.execute(f"SELECT sha1 FROM {table}")
-    return set(sha1.hex() for (sha1,) in cur.fetchall())
+    return set(row["sha1"].hex() for row in cur.fetchall())
 
 
 def locations(cur):
@@ -33,8 +33,8 @@ def locations(cur):
 
     'cur' is a cursor to the provenance index DB.
     """
-    cur.execute("SELECT encode(location.path::bytea, 'escape') FROM location")
-    return set(x for (x,) in cur.fetchall())
+    cur.execute("SELECT encode(location.path::bytea, 'escape') AS path FROM location")
+    return set(row["path"] for row in cur.fetchall())
 
 
 def relations(cur, src, dst):
@@ -46,17 +46,17 @@ def relations(cur, src, dst):
     'cur' is a cursor to the provenance index DB.
     """
     relation = f"{src}_in_{dst}"
-    cur.execute("select swh_get_dbflavor()")
-    with_path = cur.fetchone()[0] == "with-path"
+    cur.execute("SELECT swh_get_dbflavor() AS flavor")
+    with_path = cur.fetchone()["flavor"] == "with-path"
 
     # note that the columns have the same name as the relations they refer to,
     # so we can write things like "rel.{dst}=src.id" in the query below
     if with_path:
         cur.execute(
             f"""
-            SELECT encode(src.sha1::bytea, 'hex'),
-                   encode(dst.sha1::bytea, 'hex'),
-                   encode(location.path::bytea, 'escape')
+            SELECT encode(src.sha1::bytea, 'hex') AS src,
+                   encode(dst.sha1::bytea, 'hex') AS dst,
+                   encode(location.path::bytea, 'escape') AS path
             FROM {relation} as relation
             INNER JOIN {src} AS src ON (relation.{src} = src.id)
             INNER JOIN {dst} AS dst ON (relation.{dst} = dst.id)
@@ -66,15 +66,15 @@ def relations(cur, src, dst):
     else:
         cur.execute(
             f"""
-            SELECT encode(src.sha1::bytea, 'hex'),
-                   encode(dst.sha1::bytea, 'hex'),
-                   ''
+            SELECT encode(src.sha1::bytea, 'hex') AS src,
+                   encode(dst.sha1::bytea, 'hex') AS dst,
+                   '' AS path
             FROM {relation} as relation
             INNER JOIN {src} AS src ON (src.id = relation.{src})
             INNER JOIN {dst} AS dst ON (dst.id = relation.{dst})
             """
         )
-    return set(cur.fetchall())
+    return set((row["src"], row["dst"], row["path"]) for row in cur.fetchall())
 
 
 def get_timestamp(cur, table, sha1):
@@ -85,7 +85,7 @@ def get_timestamp(cur, table, sha1):
     if isinstance(sha1, str):
         sha1 = hash_to_bytes(sha1)
     cur.execute(f"SELECT date FROM {table} WHERE sha1=%s", (sha1,))
-    return [date.timestamp() for (date,) in cur.fetchall()]
+    return [row["date"].timestamp() for row in cur.fetchall()]
 
 
 @pytest.mark.parametrize(

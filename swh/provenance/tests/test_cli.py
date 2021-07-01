@@ -3,7 +3,10 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from typing import Set
+
 from click.testing import CliRunner
+import psycopg2
 import pytest
 
 from swh.core.cli import swh as swhmain
@@ -12,7 +15,7 @@ from swh.core.db import BaseDb
 import swh.provenance.cli  # noqa ; ensure cli is loaded
 
 
-def test_cli_swh_db_help():
+def test_cli_swh_db_help() -> None:
     # swhmain.add_command(provenance_cli)
     result = CliRunner().invoke(swhmain, ["provenance", "-h"])
     assert result.exit_code == 0
@@ -47,8 +50,11 @@ TABLES = {
     "flavor, dbtables", (("with-path", TABLES | {"location"}), ("without-path", TABLES))
 )
 def test_cli_db_create_and_init_db_with_flavor(
-    monkeypatch, postgresql, flavor, dbtables
-):
+    monkeypatch,  # TODO: add proper type annotation
+    postgresql: psycopg2.extensions.connection,
+    flavor: str,
+    dbtables: Set[str],
+) -> None:
     """Test that 'swh db init provenance' works with flavors
 
     for both with-path and without-path flavors"""
@@ -86,7 +92,7 @@ def test_cli_db_create_and_init_db_with_flavor(
         assert tables == dbtables
 
 
-def test_cli_init_db_default_flavor(postgresql):
+def test_cli_init_db_default_flavor(postgresql: psycopg2.extensions.connection) -> None:
     "Test that 'swh db init provenance' defaults to a with-path flavored DB"
     dbname = postgresql.dsn
     result = CliRunner().invoke(swhmain, ["db", "init", "-d", dbname, "provenance"])

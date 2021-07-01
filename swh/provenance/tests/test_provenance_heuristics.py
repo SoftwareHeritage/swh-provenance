@@ -3,12 +3,18 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Dict, List, Tuple
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Set, Tuple
 
+import psycopg2
 import pytest
 
 from swh.model.hashutil import hash_to_bytes
+from swh.model.model import Sha1Git
+from swh.provenance.archive import ArchiveInterface
 from swh.provenance.model import RevisionEntry
+from swh.provenance.postgresql.provenancedb_base import ProvenanceDBBase
+from swh.provenance.provenance import ProvenanceInterface
 from swh.provenance.revision import revision_add
 from swh.provenance.tests.conftest import (
     fill_storage,
@@ -17,9 +23,10 @@ from swh.provenance.tests.conftest import (
     synthetic_result,
 )
 from swh.provenance.tests.test_provenance_db import ts2dt
+from swh.storage.postgresql.storage import Storage
 
 
-def sha1s(cur, table):
+def sha1s(cur: psycopg2.extensions.cursor, table: str) -> Set[Sha1Git]:
     """return the 'sha1' column from the DB 'table' (as hex)
 
     'cur' is a cursor to the provenance index DB.
@@ -28,7 +35,7 @@ def sha1s(cur, table):
     return set(row["sha1"].hex() for row in cur.fetchall())
 
 
-def locations(cur):
+def locations(cur: psycopg2.extensions.cursor) -> Set[bytes]:
     """return the 'path' column from the DB location table
 
     'cur' is a cursor to the provenance index DB.
@@ -37,7 +44,9 @@ def locations(cur):
     return set(row["path"] for row in cur.fetchall())
 
 
-def relations(cur, src, dst):
+def relations(
+    cur: psycopg2.extensions.cursor, src: str, dst: str
+) -> Set[Tuple[Sha1Git, Sha1Git, bytes]]:
     """return the triplets ('sha1', 'sha1', 'path') from the DB
 
     for the relation between 'src' table and 'dst' table
@@ -77,13 +86,13 @@ def relations(cur, src, dst):
     return set((row["src"], row["dst"], row["path"]) for row in cur.fetchall())
 
 
-def get_timestamp(cur, table, sha1):
+def get_timestamp(
+    cur: psycopg2.extensions.cursor, table: str, sha1: Sha1Git
+) -> List[datetime]:
     """return the date for the 'sha1' from the DB 'table' (as hex)
 
     'cur' is a cursor to the provenance index DB.
     """
-    if isinstance(sha1, str):
-        sha1 = hash_to_bytes(sha1)
     cur.execute(f"SELECT date FROM {table} WHERE sha1=%s", (sha1,))
     return [row["date"].timestamp() for row in cur.fetchall()]
 
@@ -98,7 +107,14 @@ def get_timestamp(cur, table, sha1):
         ("out-of-order", True, 1),
     ),
 )
-def test_provenance_heuristics(provenance, swh_storage, archive, repo, lower, mindepth):
+def test_provenance_heuristics(
+    provenance: ProvenanceInterface,
+    swh_storage: Storage,
+    archive: ArchiveInterface,
+    repo: str,
+    lower: bool,
+    mindepth: int,
+) -> None:
     # read data/README.md for more details on how these datasets are generated
     data = load_repo_data(repo)
     fill_storage(swh_storage, data)
@@ -108,7 +124,7 @@ def test_provenance_heuristics(provenance, swh_storage, archive, repo, lower, mi
 
     revisions = {rev["id"]: rev for rev in data["revision"]}
 
-    rows = {
+    rows: Dict[str, Set[Any]] = {
         "content": set(),
         "content_in_directory": set(),
         "content_in_revision": set(),
@@ -117,9 +133,11 @@ def test_provenance_heuristics(provenance, swh_storage, archive, repo, lower, mi
         "location": set(),
         "revision": set(),
     }
+    assert isinstance(provenance.storage, ProvenanceDBBase)
     cursor = provenance.storage.cursor
 
     def maybe_path(path: str) -> str:
+        assert isinstance(provenance.storage, ProvenanceDBBase)
         if provenance.storage.with_path:
             return path
         return ""
@@ -138,7 +156,7 @@ def test_provenance_heuristics(provenance, swh_storage, archive, repo, lower, mi
         assert rows["revision"] == sha1s(cursor, "revision"), synth_rev["msg"]
         # check the timestamp of the revision
         rev_ts = synth_rev["date"]
-        assert get_timestamp(cursor, "revision", synth_rev["sha1"].hex()) == [
+        assert get_timestamp(cursor, "revision", synth_rev["sha1"]) == [
             rev_ts
         ], synth_rev["msg"]
 
@@ -218,8 +236,13 @@ def test_provenance_heuristics(provenance, swh_storage, archive, repo, lower, mi
     ),
 )
 def test_provenance_heuristics_content_find_all(
-    provenance, swh_storage, archive, repo, lower, mindepth
-):
+    provenance: ProvenanceInterface,
+    swh_storage: Storage,
+    archive: ArchiveInterface,
+    repo: str,
+    lower: bool,
+    mindepth: int,
+) -> None:
     # read data/README.md for more details on how these datasets are generated
     data = load_repo_data(repo)
     fill_storage(swh_storage, data)
@@ -233,6 +256,7 @@ def test_provenance_heuristics_content_find_all(
     ]
 
     def maybe_path(path: str) -> str:
+        assert isinstance(provenance.storage, ProvenanceDBBase)
         if provenance.storage.with_path:
             return path
         return ""
@@ -246,7 +270,7 @@ def test_provenance_heuristics_content_find_all(
     syntheticfile = get_datafile(
         f"synthetic_{repo}_{'lower' if lower else 'upper'}_{mindepth}.txt"
     )
-    expected_occurrences = {}
+    expected_occurrences: Dict[str, List[Tuple[str, float, Optional[str], str]]] = {}
     for synth_rev in synthetic_result(syntheticfile):
         rev_id = synth_rev["sha1"].hex()
         rev_ts = synth_rev["date"]
@@ -261,6 +285,7 @@ def test_provenance_heuristics_content_find_all(
                 (rev_id, rev_ts, None, maybe_path(dc["prefix"] + "/" + dc["path"]))
             )
 
+    assert isinstance(provenance.storage, ProvenanceDBBase)
     for content_id, results in expected_occurrences.items():
         expected = [(content_id, *result) for result in results]
         db_occurrences = [
@@ -292,8 +317,13 @@ def test_provenance_heuristics_content_find_all(
     ),
 )
 def test_provenance_heuristics_content_find_first(
-    provenance, swh_storage, archive, repo, lower, mindepth
-):
+    provenance: ProvenanceInterface,
+    swh_storage: Storage,
+    archive: ArchiveInterface,
+    repo: str,
+    lower: bool,
+    mindepth: int,
+) -> None:
     # read data/README.md for more details on how these datasets are generated
     data = load_repo_data(repo)
     fill_storage(swh_storage, data)
@@ -315,7 +345,7 @@ def test_provenance_heuristics_content_find_first(
     syntheticfile = get_datafile(
         f"synthetic_{repo}_{'lower' if lower else 'upper'}_{mindepth}.txt"
     )
-    expected_first: Dict[str, Tuple[str, str, List[str]]] = {}
+    expected_first: Dict[str, Tuple[str, float, List[str]]] = {}
     # dict of tuples (blob_id, rev_id, [path, ...]) the third element for path
     # is a list because a content can be added at several places in a single
     # revision, in which case the result of content_find_first() is one of
@@ -333,15 +363,17 @@ def test_provenance_heuristics_content_find_first(
                 if rev_ts == expected_first[sha1][1]:
                     expected_first[sha1][2].append(rc["path"])
                 elif rev_ts < expected_first[sha1][1]:
-                    expected_first[sha1] = (rev_id, rev_ts, rc["path"])
+                    expected_first[sha1] = (rev_id, rev_ts, [rc["path"]])
 
         for dc in synth_rev["D_C"]:
             sha1 = rc["dst"].hex()
             assert sha1 in expected_first
             # nothing to do there, this content cannot be a "first seen file"
 
+    assert isinstance(provenance.storage, ProvenanceDBBase)
     for content_id, (rev_id, ts, paths) in expected_first.items():
         occur = provenance.content_find_first(hash_to_bytes(content_id))
+        assert occur is not None
         assert occur.content.hex() == content_id
         assert occur.revision.hex() == rev_id
         assert occur.date.timestamp() == ts

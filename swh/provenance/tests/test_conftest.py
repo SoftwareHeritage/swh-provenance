@@ -3,14 +3,17 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from swh.provenance.provenance import ProvenanceInterface
+from swh.storage.postgresql.storage import Storage
 
-def test_provenance_fixture(provenance):
+
+def test_provenance_fixture(provenance: ProvenanceInterface) -> None:
     """Check the 'provenance' fixture produce a working ProvenanceDB object"""
     assert provenance
     provenance.flush()  # should be a noop
 
 
-def test_storage(swh_storage_with_objects):
+def test_storage(swh_storage_with_objects: Storage) -> None:
     """Check the 'swh_storage_with_objects' fixture produce a working Storage
     object with at least some Content, Revision and Directory in it"""
     assert swh_storage_with_objects

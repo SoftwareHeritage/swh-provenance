@@ -12,13 +12,14 @@ from swh.core.db import BaseDb
 from swh.provenance.postgresql.archive import ArchivePostgreSQL
 from swh.provenance.storage.archive import ArchiveStorage
 from swh.provenance.tests.conftest import fill_storage, load_repo_data
+from swh.storage.postgresql.storage import Storage
 
 
 @pytest.mark.parametrize(
     "repo",
     ("cmdbts2", "out-of-order", "with-merges"),
 )
-def test_archive_interface(repo, swh_storage):
+def test_archive_interface(repo: str, swh_storage: Storage) -> None:
     archive_api = ArchiveStorage(swh_storage)
     dsn = swh_storage.get_db().conn.dsn
     with BaseDb.connect(dsn).conn as conn:

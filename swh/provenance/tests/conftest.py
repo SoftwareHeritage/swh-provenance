@@ -5,9 +5,10 @@
 
 from os import path
 import re
-from typing import Iterable, Iterator, List, Optional
+from typing import Any, Dict, Iterable, Iterator, List, Optional
 
 import msgpack
+import psycopg2
 import pytest
 from typing_extensions import TypedDict
 
@@ -17,13 +18,20 @@ from swh.model.hashutil import hash_to_bytes
 from swh.model.model import Sha1Git
 from swh.model.tests.swh_model_data import TEST_OBJECTS
 from swh.provenance import get_provenance
+from swh.provenance.archive import ArchiveInterface
 from swh.provenance.postgresql.archive import ArchivePostgreSQL
+from swh.provenance.postgresql.provenancedb_base import ProvenanceDBBase
+from swh.provenance.provenance import ProvenanceInterface
 from swh.provenance.storage.archive import ArchiveStorage
+from swh.storage.postgresql.storage import Storage
 from swh.storage.replay import process_replay_objects
 
 
 @pytest.fixture(params=["with-path", "without-path"])
-def provenance(request, postgresql):
+def provenance(
+    request,  # TODO: add proper type annotation
+    postgresql: psycopg2.extensions.connection,
+) -> ProvenanceInterface:
     """return a working and initialized provenance db"""
     from swh.core.cli.db import populate_database_for_package
 
@@ -32,9 +40,13 @@ def provenance(request, postgresql):
 
     BaseDb.adapt_conn(postgresql)
 
-    args = dict(tuple(item.split("=")) for item in postgresql.dsn.split())
-    args.pop("options")
+    args: Dict[str, str] = {
+        item.split("=")[0]: item.split("=")[1]
+        for item in postgresql.dsn.split()
+        if item.split("=")[0] != "options"
+    }
     prov = get_provenance(cls="local", db=args)
+    assert isinstance(prov.storage, ProvenanceDBBase)
     assert prov.storage.flavor == flavor
     # in test sessions, we DO want to raise any exception occurring at commit time
     prov.storage.raise_on_commit = True
@@ -42,7 +54,7 @@ def provenance(request, postgresql):
 
 
 @pytest.fixture
-def swh_storage_with_objects(swh_storage):
+def swh_storage_with_objects(swh_storage: Storage) -> Storage:
     """return a Storage object (postgresql-based by default) with a few of each
     object type in it
 
@@ -64,22 +76,22 @@ def swh_storage_with_objects(swh_storage):
 
 
 @pytest.fixture
-def archive_direct(swh_storage_with_objects):
+def archive_direct(swh_storage_with_objects: Storage) -> ArchiveInterface:
     return ArchivePostgreSQL(swh_storage_with_objects.get_db().conn)
 
 
 @pytest.fixture
-def archive_api(swh_storage_with_objects):
+def archive_api(swh_storage_with_objects: Storage) -> ArchiveInterface:
     return ArchiveStorage(swh_storage_with_objects)
 
 
 @pytest.fixture(params=["archive", "db"])
-def archive(request, swh_storage_with_objects):
+def archive(request, swh_storage_with_objects: Storage) -> Iterator[ArchiveInterface]:
     """Return a ArchivePostgreSQL based StorageInterface object"""
     # this is a workaround to prevent tests from hanging because of an unclosed
     # transaction.
     # TODO: refactor the ArchivePostgreSQL to properly deal with
-    # transactions and get rif of this fixture
+    # transactions and get rid of this fixture
     if request.param == "db":
         archive = ArchivePostgreSQL(conn=swh_storage_with_objects.get_db().conn)
         yield archive
@@ -88,12 +100,12 @@ def archive(request, swh_storage_with_objects):
         yield ArchiveStorage(swh_storage_with_objects)
 
 
-def get_datafile(fname):
+def get_datafile(fname: str) -> str:
     return path.join(path.dirname(__file__), "data", fname)
 
 
-def load_repo_data(repo):
-    data = {}
+def load_repo_data(repo: str) -> Dict[str, Any]:
+    data: Dict[str, Any] = {}
     with open(get_datafile(f"{repo}.msgpack"), "rb") as fobj:
         unpacker = msgpack.Unpacker(
             fobj,
@@ -107,11 +119,11 @@ def load_repo_data(repo):
     return data
 
 
-def filter_dict(d, keys):
+def filter_dict(d: Dict[Any, Any], keys: Iterable[Any]) -> Dict[Any, Any]:
     return {k: v for (k, v) in d.items() if k in keys}
 
 
-def fill_storage(storage, data):
+def fill_storage(storage: Storage, data: Dict[str, Any]) -> None:
     process_replay_objects(data, storage=storage)
 
 
@@ -184,7 +196,7 @@ def _parse_synthetic_file(fobj: Iterable[str]) -> Iterator[SynthRevision]:
         yield _mk_synth_rev(current_rev)
 
 
-def _mk_synth_rev(synth_rev) -> SynthRevision:
+def _mk_synth_rev(synth_rev: List[Dict[str, str]]) -> SynthRevision:
     assert synth_rev[0]["type"] == "R"
     rev = SynthRevision(
         sha1=hash_to_bytes(synth_rev[0]["sha1"]),

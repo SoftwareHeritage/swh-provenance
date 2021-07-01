@@ -5,19 +5,23 @@
 
 from copy import deepcopy
 from datetime import datetime, timezone
+from typing import Any, Dict
 
 import pytest
 import yaml
 
 from swh.model.hashutil import hash_to_bytes
+from swh.provenance.archive import ArchiveInterface
 from swh.provenance.graph import IsochroneNode, build_isochrone_graph
 from swh.provenance.model import DirectoryEntry, RevisionEntry
+from swh.provenance.provenance import ProvenanceInterface
 from swh.provenance.revision import revision_add
 from swh.provenance.tests.conftest import fill_storage, get_datafile, load_repo_data
 from swh.provenance.tests.test_provenance_db import ts2dt
+from swh.storage.postgresql.storage import Storage
 
 
-def isochrone_graph_from_dict(d, depth=0) -> IsochroneNode:
+def isochrone_graph_from_dict(d: Dict[str, Any], depth: int = 0) -> IsochroneNode:
     """Takes a dictionary representing a tree of IsochroneNode objects, and
     recursively builds the corresponding graph."""
     d = deepcopy(d)
@@ -58,8 +62,14 @@ def isochrone_graph_from_dict(d, depth=0) -> IsochroneNode:
 )
 @pytest.mark.parametrize("batch", (True, False))
 def test_isochrone_graph(
-    provenance, swh_storage, archive, repo, lower, mindepth, batch
-):
+    provenance: ProvenanceInterface,
+    swh_storage: Storage,
+    archive: ArchiveInterface,
+    repo: str,
+    lower: bool,
+    mindepth: int,
+    batch: bool,
+) -> None:
     # read data/README.md for more details on how these datasets are generated
     data = load_repo_data(repo)
     fill_storage(swh_storage, data)
@@ -80,6 +90,7 @@ def test_isochrone_graph(
             print("Expected graph:", expected_graph)
 
             # Create graph for current revision and check it has the expected structure.
+            assert entry.root is not None
             computed_graph = build_isochrone_graph(
                 archive,
                 provenance,

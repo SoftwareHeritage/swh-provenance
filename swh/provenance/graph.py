@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 from datetime import datetime, timezone
 import logging
 import os
-from typing import Dict, Optional, Set
+from typing import Any, Dict, Optional, Set
 
 from swh.model.model import Sha1Git
 
@@ -15,7 +17,7 @@ UTCMIN = datetime.min.replace(tzinfo=timezone.utc)
 class HistoryNode:
     def __init__(
         self, entry: RevisionEntry, visited: bool = False, in_history: bool = False
-    ):
+    ) -> None:
         self.entry = entry
         # A revision is `visited` if it is directly pointed by an origin (ie. a head
         # revision for some snapshot)
@@ -27,21 +29,21 @@ class HistoryNode:
 
     def add_parent(
         self, parent: RevisionEntry, visited: bool = False, in_history: bool = False
-    ) -> "HistoryNode":
+    ) -> HistoryNode:
         node = HistoryNode(parent, visited=visited, in_history=in_history)
         self.parents.add(node)
         return node
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f"<{self.entry}: visited={self.visited}, in_history={self.in_history}, "
             f"parents=[{', '.join(str(parent) for parent in self.parents)}]>"
         )
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         return isinstance(other, HistoryNode) and self.__dict__ == other.__dict__
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash((self.entry, self.visited, self.in_history))
 
 
@@ -86,7 +88,7 @@ class IsochroneNode:
         dbdate: Optional[datetime] = None,
         depth: int = 0,
         prefix: bytes = b"",
-    ):
+    ) -> None:
         self.entry = entry
         self.depth = depth
 
@@ -105,11 +107,11 @@ class IsochroneNode:
         self.children: Set[IsochroneNode] = set()
 
     @property
-    def dbdate(self):
+    def dbdate(self) -> Optional[datetime]:
         # use a property to make this attribute (mostly) read-only
         return self._dbdate
 
-    def invalidate(self):
+    def invalidate(self) -> None:
         self._dbdate = None
         self.maxdate = None
         self.known = False
@@ -117,7 +119,7 @@ class IsochroneNode:
 
     def add_directory(
         self, child: DirectoryEntry, date: Optional[datetime] = None
-    ) -> "IsochroneNode":
+    ) -> IsochroneNode:
         # we should not be processing this node (ie add subdirectories or files) if it's
         # actually known by the provenance DB
         assert self.dbdate is None
@@ -125,18 +127,18 @@ class IsochroneNode:
         self.children.add(node)
         return node
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f"<{self.entry}: depth={self.depth}, "
             f"dbdate={self.dbdate}, maxdate={self.maxdate}, "
-            f"known={self.known}, invalid={self.invalid}, path={self.path}, "
+            f"known={self.known}, invalid={self.invalid}, path={self.path!r}, "
             f"children=[{', '.join(str(child) for child in self.children)}]>"
         )
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         return isinstance(other, IsochroneNode) and self.__dict__ == other.__dict__
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         # only immutable attributes are considered to compute hash
         return hash((self.entry, self.depth, self.path))
 

@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from itertools import islice
 import logging
 import os
 import time
@@ -33,6 +32,8 @@ class CSVRevisionIterator:
     ) -> None:
         self.revisions: Iterator[Tuple[Sha1Git, datetime, Sha1Git]]
         if limit is not None:
+            from itertools import islice
+
             self.revisions = islice(revisions, limit)
         else:
             self.revisions = iter(revisions)

@@ -77,7 +77,7 @@ PROVENANCE_HELP = f"""Software Heritage Scanner tools.
     help="""Enable profiling to specified file.""",
 )
 @click.pass_context
-def cli(ctx, config_file: Optional[str], profile: str) -> None:
+def cli(ctx: click.core.Context, config_file: Optional[str], profile: str) -> None:
     if config_file is None and config.config_exists(DEFAULT_PATH):
         config_file = DEFAULT_PATH
 
@@ -116,7 +116,7 @@ def cli(ctx, config_file: Optional[str], profile: str) -> None:
 @click.option("-r", "--reuse", default=True, type=bool)
 @click.pass_context
 def iter_revisions(
-    ctx,
+    ctx: click.core.Context,
     filename: str,
     track_all: bool,
     limit: Optional[int],
@@ -161,7 +161,7 @@ def generate_revision_tuples(
 @click.argument("filename")
 @click.option("-l", "--limit", type=int)
 @click.pass_context
-def iter_origins(ctx, filename: str, limit: Optional[int]) -> None:
+def iter_origins(ctx: click.core.Context, filename: str, limit: Optional[int]) -> None:
     """Process a provided list of origins."""
     from . import get_archive, get_provenance
     from .origin import CSVOriginIterator, origin_add
@@ -185,7 +185,7 @@ def generate_origin_tuples(filename: str) -> Generator[Tuple[str, bytes], None, 
 @cli.command(name="find-first")
 @click.argument("swhid")
 @click.pass_context
-def find_first(ctx, swhid: str) -> None:
+def find_first(ctx: click.core.Context, swhid: str) -> None:
     """Find first occurrence of the requested blob."""
     from . import get_provenance
 
@@ -208,7 +208,7 @@ def find_first(ctx, swhid: str) -> None:
 @click.argument("swhid")
 @click.option("-l", "--limit", type=int)
 @click.pass_context
-def find_all(ctx, swhid: str, limit: Optional[int]) -> None:
+def find_all(ctx: click.core.Context, swhid: str, limit: Optional[int]) -> None:
     """Find all occurrences of the requested blob."""
     from . import get_provenance
 

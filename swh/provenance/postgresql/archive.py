@@ -8,16 +8,16 @@ from swh.storage.postgresql.storage import Storage
 
 
 class ArchivePostgreSQL:
-    def __init__(self, conn: psycopg2.extensions.connection):
+    def __init__(self, conn: psycopg2.extensions.connection) -> None:
         self.conn = conn
         self.storage = Storage(conn, objstorage={"cls": "memory"})
 
     def directory_ls(self, id: Sha1Git) -> Iterable[Dict[str, Any]]:
-        entries = self.directory_ls_internal(id)
+        entries = self._directory_ls(id)
         yield from entries
 
     @lru_cache(maxsize=100000)
-    def directory_ls_internal(self, id: Sha1Git) -> List[Dict[str, Any]]:
+    def _directory_ls(self, id: Sha1Git) -> List[Dict[str, Any]]:
         # TODO: add file size filtering
         with self.conn.cursor() as cursor:
             cursor.execute(

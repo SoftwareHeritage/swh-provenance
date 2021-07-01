@@ -58,7 +58,7 @@ def new_cache() -> ProvenanceCache:
 
 # TODO: maybe move this to a separate file
 class ProvenanceBackend:
-    def __init__(self, storage: ProvenanceStorageInterface):
+    def __init__(self, storage: ProvenanceStorageInterface) -> None:
         self.storage = storage
         self.cache = new_cache()
 

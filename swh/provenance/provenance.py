@@ -9,6 +9,13 @@ from swh.model.model import Sha1Git
 from .model import DirectoryEntry, FileEntry, OriginEntry, RevisionEntry
 
 
+class EntityType(enum.Enum):
+    CONTENT = "content"
+    DIRECTORY = "directory"
+    REVISION = "revision"
+    ORIGIN = "origin"
+
+
 class RelationType(enum.Enum):
     CNT_EARLY_IN_REV = "content_in_revision"
     CNT_IN_DIR = "content_in_directory"
@@ -72,6 +79,16 @@ class ProvenanceStorageInterface(Protocol):
         """
         ...
 
+    def entity_get_all(self, entity: EntityType) -> Set[Sha1Git]:
+        """Retrieve all sha1 ids for entities of type `entity` present in the provenance
+        model.
+        """
+        ...
+
+    def location_get(self) -> Set[bytes]:
+        """Retrieve all paths present in the provenance model."""
+        ...
+
     def origin_set_url(self, urls: Dict[Sha1Git, str]) -> bool:
         """Associate urls to origins identified by sha1 ids, as paired in `urls`. Return
         a boolean stating whether the information was successfully stored.
@@ -123,6 +140,15 @@ class ProvenanceStorageInterface(Protocol):
         """Retrieve all tuples in the selected `relation` whose source entities are
         identified by some sha1 id in `ids`. If `reverse` is set, destination entities
         are matched instead.
+        """
+        ...
+
+    def relation_get_all(
+        self, relation: RelationType
+    ) -> Set[Tuple[Sha1Git, Sha1Git, Optional[bytes]]]:
+        """Retrieve all tuples of the form (`src`, `dst`, `path`) present in the
+        provenance model, where `src` and `dst` are the sha1 ids of the entities being
+        related, and `path` is optional depending on the selected `relation`.
         """
         ...
 

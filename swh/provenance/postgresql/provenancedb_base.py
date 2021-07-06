@@ -10,7 +10,7 @@ from typing_extensions import Literal
 from swh.core.db import BaseDb
 from swh.model.model import Sha1Git
 
-from ..provenance import ProvenanceResult, RelationType
+from ..provenance import EntityType, ProvenanceResult, RelationType
 
 
 class ProvenanceDBBase:
@@ -59,6 +59,16 @@ class ProvenanceDBBase:
 
     def directory_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, datetime]:
         return self._entity_get_date("directory", ids)
+
+    def entity_get_all(self, entity: EntityType) -> Set[Sha1Git]:
+        sql = f"SELECT sha1 FROM {entity.value}"
+        self.cursor.execute(sql)
+        return {row["sha1"] for row in self.cursor.fetchall()}
+
+    def location_get(self) -> Set[bytes]:
+        sql = "SELECT encode(location.path::bytea, 'escape') AS path FROM location"
+        self.cursor.execute(sql)
+        return {row["path"] for row in self.cursor.fetchall()}
 
     def origin_set_url(self, urls: Dict[Sha1Git, str]) -> bool:
         try:
@@ -202,44 +212,12 @@ class ProvenanceDBBase:
     def relation_get(
         self, relation: RelationType, ids: Iterable[Sha1Git], reverse: bool = False
     ) -> Set[Tuple[Sha1Git, Sha1Git, Optional[bytes]]]:
-        result: Set[Tuple[Sha1Git, Sha1Git, Optional[bytes]]] = set()
-        sha1s = tuple(ids)
-        if sha1s:
-            table = relation.value
-            src, *_, dst = table.split("_")
+        return self._relation_get(relation, ids, reverse)
 
-            # TODO: improve this!
-            if src == "revision" and dst == "revision":
-                src_field = "prev"
-                dst_field = "next"
-            else:
-                src_field = src
-                dst_field = dst
-
-            joins = [
-                f"INNER JOIN {src} AS S ON (S.id=R.{src_field})",
-                f"INNER JOIN {dst} AS D ON (D.id=R.{dst_field})",
-            ]
-            selected = ["S.sha1 AS src", "D.sha1 AS dst"]
-            selector = "S.sha1" if not reverse else "D.sha1"
-
-            if self._relation_uses_location_table(relation):
-                joins.append("INNER JOIN location AS L ON (L.id=R.location)")
-                selected.append("L.path AS path")
-            else:
-                selected.append("NULL AS path")
-
-            sql = f"""
-                SELECT {", ".join(selected)}
-                  FROM {table} AS R
-                  {" ".join(joins)}
-                  WHERE {selector} IN %s
-                """
-            self.cursor.execute(sql, (sha1s,))
-            result.update(
-                (row["src"], row["dst"], row["path"]) for row in self.cursor.fetchall()
-            )
-        return result
+    def relation_get_all(
+        self, relation: RelationType
+    ) -> Set[Tuple[Sha1Git, Sha1Git, Optional[bytes]]]:
+        return self._relation_get(relation, None)
 
     def _entity_get_date(
         self,
@@ -280,6 +258,58 @@ class ProvenanceDBBase:
             if self.raise_on_commit:
                 raise
         return False
+
+    def _relation_get(
+        self,
+        relation: RelationType,
+        ids: Optional[Iterable[Sha1Git]],
+        reverse: bool = False,
+    ) -> Set[Tuple[Sha1Git, Sha1Git, Optional[bytes]]]:
+        result: Set[Tuple[Sha1Git, Sha1Git, Optional[bytes]]] = set()
+
+        sha1s: Optional[Tuple[Tuple[bytes, ...]]]
+        if ids is not None:
+            sha1s = (tuple(ids),)
+            where = f"WHERE {'S.sha1' if not reverse else 'D.sha1'} IN %s"
+        else:
+            sha1s = None
+            where = ""
+
+        if sha1s is None or sha1s[0]:
+            table = relation.value
+            src, *_, dst = table.split("_")
+
+            # TODO: improve this!
+            if src == "revision" and dst == "revision":
+                src_field = "prev"
+                dst_field = "next"
+            else:
+                src_field = src
+                dst_field = dst
+
+            joins = [
+                f"INNER JOIN {src} AS S ON (S.id=R.{src_field})",
+                f"INNER JOIN {dst} AS D ON (D.id=R.{dst_field})",
+            ]
+            selected = ["S.sha1 AS src", "D.sha1 AS dst"]
+
+            if self._relation_uses_location_table(relation):
+                joins.append("INNER JOIN location AS L ON (L.id=R.location)")
+                selected.append("L.path AS path")
+            else:
+                selected.append("NULL AS path")
+
+            sql = f"""
+                SELECT {", ".join(selected)}
+                  FROM {table} AS R
+                  {" ".join(joins)}
+                  {where}
+                """
+            self.cursor.execute(sql, sha1s)
+            result.update(
+                (row["src"], row["dst"], row["path"]) for row in self.cursor.fetchall()
+            )
+        return result
 
     def _relation_uses_location_table(self, relation: RelationType) -> bool:
         ...

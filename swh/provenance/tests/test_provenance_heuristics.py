@@ -169,6 +169,7 @@ def test_provenance_heuristics(
         ("out-of-order", True, 1),
     ),
 )
+@pytest.mark.parametrize("batch", (True, False))
 def test_provenance_heuristics_content_find_all(
     provenance: ProvenanceInterface,
     swh_storage: Storage,
@@ -176,6 +177,7 @@ def test_provenance_heuristics_content_find_all(
     repo: str,
     lower: bool,
     mindepth: int,
+    batch: bool,
 ) -> None:
     # read data/README.md for more details on how these datasets are generated
     data = load_repo_data(repo)
@@ -195,11 +197,13 @@ def test_provenance_heuristics_content_find_all(
             return path
         return ""
 
-    # XXX adding all revisions at once should be working just fine, but it does not...
-    # revision_add(provenance, archive, revisions, lower=lower, mindepth=mindepth)
-    # ...so add revisions one at a time for now
-    for revision in revisions:
-        revision_add(provenance, archive, [revision], lower=lower, mindepth=mindepth)
+    if batch:
+        revision_add(provenance, archive, revisions, lower=lower, mindepth=mindepth)
+    else:
+        for revision in revisions:
+            revision_add(
+                provenance, archive, [revision], lower=lower, mindepth=mindepth
+            )
 
     syntheticfile = get_datafile(
         f"synthetic_{repo}_{'lower' if lower else 'upper'}_{mindepth}.txt"
@@ -250,6 +254,7 @@ def test_provenance_heuristics_content_find_all(
         ("out-of-order", True, 1),
     ),
 )
+@pytest.mark.parametrize("batch", (True, False))
 def test_provenance_heuristics_content_find_first(
     provenance: ProvenanceInterface,
     swh_storage: Storage,
@@ -257,6 +262,7 @@ def test_provenance_heuristics_content_find_first(
     repo: str,
     lower: bool,
     mindepth: int,
+    batch: bool,
 ) -> None:
     # read data/README.md for more details on how these datasets are generated
     data = load_repo_data(repo)
@@ -270,11 +276,13 @@ def test_provenance_heuristics_content_find_first(
         for revision in data["revision"]
     ]
 
-    # XXX adding all revisions at once should be working just fine, but it does not...
-    # revision_add(provenance, archive, revisions, lower=lower, mindepth=mindepth)
-    # ...so add revisions one at a time for now
-    for revision in revisions:
-        revision_add(provenance, archive, [revision], lower=lower, mindepth=mindepth)
+    if batch:
+        revision_add(provenance, archive, revisions, lower=lower, mindepth=mindepth)
+    else:
+        for revision in revisions:
+            revision_add(
+                provenance, archive, [revision], lower=lower, mindepth=mindepth
+            )
 
     syntheticfile = get_datafile(
         f"synthetic_{repo}_{'lower' if lower else 'upper'}_{mindepth}.txt"

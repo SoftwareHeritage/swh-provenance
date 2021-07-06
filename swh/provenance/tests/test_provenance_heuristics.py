@@ -82,10 +82,12 @@ def test_provenance_heuristics(
         ), synth_rev["msg"]
         # check the timestamp of the revision
         rev_ts = synth_rev["date"]
-        rev_date, _ = provenance.storage.revision_get([synth_rev["sha1"]])[
+        rev_data = provenance.storage.revision_get([synth_rev["sha1"]])[
             synth_rev["sha1"]
         ]
-        assert rev_date is not None and rev_ts == rev_date.timestamp(), synth_rev["msg"]
+        assert (
+            rev_data.date is not None and rev_ts == rev_data.date.timestamp()
+        ), synth_rev["msg"]
 
         # this revision might have added new content objects
         rows["content"] |= set(x["dst"] for x in synth_rev["R_C"])
@@ -99,9 +101,12 @@ def test_provenance_heuristics(
         rows["content_in_revision"] |= set(
             (x["dst"], x["src"], maybe_path(x["path"])) for x in synth_rev["R_C"]
         )
-        assert rows["content_in_revision"] == provenance.storage.relation_get_all(
-            RelationType.CNT_EARLY_IN_REV
-        ), synth_rev["msg"]
+        assert rows["content_in_revision"] == {
+            (rel.src, rel.dst, rel.path)
+            for rel in provenance.storage.relation_get_all(
+                RelationType.CNT_EARLY_IN_REV
+            )
+        }, synth_rev["msg"]
         # check timestamps
         for rc in synth_rev["R_C"]:
             assert (
@@ -122,9 +127,10 @@ def test_provenance_heuristics(
         rows["directory_in_revision"] |= set(
             (x["dst"], x["src"], maybe_path(x["path"])) for x in synth_rev["R_D"]
         )
-        assert rows["directory_in_revision"] == provenance.storage.relation_get_all(
-            RelationType.DIR_IN_REV
-        ), synth_rev["msg"]
+        assert rows["directory_in_revision"] == {
+            (rel.src, rel.dst, rel.path)
+            for rel in provenance.storage.relation_get_all(RelationType.DIR_IN_REV)
+        }, synth_rev["msg"]
         # check timestamps
         for rd in synth_rev["R_D"]:
             assert (
@@ -138,9 +144,10 @@ def test_provenance_heuristics(
         rows["content_in_directory"] |= set(
             (x["dst"], x["src"], maybe_path(x["path"])) for x in synth_rev["D_C"]
         )
-        assert rows["content_in_directory"] == provenance.storage.relation_get_all(
-            RelationType.CNT_IN_DIR
-        ), synth_rev["msg"]
+        assert rows["content_in_directory"] == {
+            (rel.src, rel.dst, rel.path)
+            for rel in provenance.storage.relation_get_all(RelationType.CNT_IN_DIR)
+        }, synth_rev["msg"]
         # check timestamps
         for dc in synth_rev["D_C"]:
             assert (

@@ -1,6 +1,7 @@
+from dataclasses import dataclass
 from datetime import datetime
 import enum
-from typing import Dict, Generator, Iterable, Optional, Set, Tuple
+from typing import Dict, Generator, Iterable, Optional, Set
 
 from typing_extensions import Protocol, runtime_checkable
 
@@ -24,20 +25,37 @@ class RelationType(enum.Enum):
     REV_BEFORE_REV = "revision_before_revision"
 
 
+@dataclass(eq=True, frozen=True)
 class ProvenanceResult:
-    def __init__(
-        self,
-        content: Sha1Git,
-        revision: Sha1Git,
-        date: datetime,
-        origin: Optional[str],
-        path: bytes,
-    ) -> None:
-        self.content = content
-        self.revision = revision
-        self.date = date
-        self.origin = origin
-        self.path = path
+    content: Sha1Git
+    revision: Sha1Git
+    date: datetime
+    origin: Optional[str]
+    path: bytes
+
+
+@dataclass(eq=True, frozen=True)
+class RevisionData:
+    """Object representing the data associated to a revision in the provenance model,
+    where `date` is the optional date of the revision (specifying it acknowledges that
+    the revision was already processed by the revision-content algorithm); and `origin`
+    identifies the preferred origin for the revision, if any.
+    """
+
+    date: Optional[datetime]
+    origin: Optional[Sha1Git]
+
+
+@dataclass(eq=True, frozen=True)
+class RelationData:
+    """Object representing a relation entry in the provenance model, where `src` and
+    `dst` are the sha1 ids of the entities being related, and `path` is optional
+    depending on the relation being represented.
+    """
+
+    src: Sha1Git
+    dst: Sha1Git
+    path: Optional[bytes]
 
 
 @runtime_checkable
@@ -114,9 +132,7 @@ class ProvenanceStorageInterface(Protocol):
         """
         ...
 
-    def revision_get(
-        self, ids: Iterable[Sha1Git]
-    ) -> Dict[Sha1Git, Tuple[Optional[datetime], Optional[Sha1Git]]]:
+    def revision_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, RevisionData]:
         """Retrieve the associated date and origin for each revision sha1 in `ids`. If
         some revision has no associated date nor origin, it is not present in the
         resulting dictionary.
@@ -124,31 +140,23 @@ class ProvenanceStorageInterface(Protocol):
         ...
 
     def relation_add(
-        self,
-        relation: RelationType,
-        data: Iterable[Tuple[Sha1Git, Sha1Git, Optional[bytes]]],
+        self, relation: RelationType, data: Iterable[RelationData]
     ) -> bool:
-        """Add entries in the selected `relation`. Each tuple in `data` is of the from
-        (`src`, `dst`, `path`), where `src` and `dst` are the sha1 ids of the entities
-        being related, and `path` is optional depending on the selected `relation`.
-        """
+        """Add entries in the selected `relation`."""
         ...
 
     def relation_get(
         self, relation: RelationType, ids: Iterable[Sha1Git], reverse: bool = False
-    ) -> Set[Tuple[Sha1Git, Sha1Git, Optional[bytes]]]:
-        """Retrieve all tuples in the selected `relation` whose source entities are
+    ) -> Set[RelationData]:
+        """Retrieve all entries in the selected `relation` whose source entities are
         identified by some sha1 id in `ids`. If `reverse` is set, destination entities
         are matched instead.
         """
         ...
 
-    def relation_get_all(
-        self, relation: RelationType
-    ) -> Set[Tuple[Sha1Git, Sha1Git, Optional[bytes]]]:
-        """Retrieve all tuples of the form (`src`, `dst`, `path`) present in the
-        provenance model, where `src` and `dst` are the sha1 ids of the entities being
-        related, and `path` is optional depending on the selected `relation`.
+    def relation_get_all(self, relation: RelationType) -> Set[RelationData]:
+        """Retrieve all entries in the selected `relation` that are present in the
+        provenance model.
         """
         ...
 

@@ -8,7 +8,12 @@ from typing_extensions import Literal, TypedDict
 from swh.model.model import Sha1Git
 
 from .model import DirectoryEntry, FileEntry, OriginEntry, RevisionEntry
-from .provenance import ProvenanceResult, ProvenanceStorageInterface, RelationType
+from .provenance import (
+    ProvenanceResult,
+    ProvenanceStorageInterface,
+    RelationData,
+    RelationType,
+)
 
 
 class DatetimeCache(TypedDict):
@@ -71,7 +76,11 @@ class ProvenanceBackend:
         # For this layer, relations need to be inserted first so that, in case of
         # failure, reprocessing the input does not generated an inconsistent database.
         while not self.storage.relation_add(
-            RelationType.CNT_EARLY_IN_REV, self.cache["content_in_revision"]
+            RelationType.CNT_EARLY_IN_REV,
+            (
+                RelationData(src=src, dst=dst, path=path)
+                for src, dst, path in self.cache["content_in_revision"]
+            ),
         ):
             logging.warning(
                 f"Unable to write {RelationType.CNT_EARLY_IN_REV} rows to the storage. "
@@ -79,7 +88,11 @@ class ProvenanceBackend:
             )
 
         while not self.storage.relation_add(
-            RelationType.CNT_IN_DIR, self.cache["content_in_directory"]
+            RelationType.CNT_IN_DIR,
+            (
+                RelationData(src=src, dst=dst, path=path)
+                for src, dst, path in self.cache["content_in_directory"]
+            ),
         ):
             logging.warning(
                 f"Unable to write {RelationType.CNT_IN_DIR} rows to the storage. "
@@ -87,7 +100,11 @@ class ProvenanceBackend:
             )
 
         while not self.storage.relation_add(
-            RelationType.DIR_IN_REV, self.cache["directory_in_revision"]
+            RelationType.DIR_IN_REV,
+            (
+                RelationData(src=src, dst=dst, path=path)
+                for src, dst, path in self.cache["directory_in_revision"]
+            ),
         ):
             logging.warning(
                 f"Unable to write {RelationType.DIR_IN_REV} rows to the storage. "
@@ -145,31 +162,34 @@ class ProvenanceBackend:
             )
 
         # Second, flat models for revisions' histories (ie. revision-before-revision).
-        rbr_data: Iterable[Tuple[Sha1Git, Sha1Git, Optional[bytes]]] = sum(
+        data: Iterable[RelationData] = sum(
             [
                 [
-                    (prev, next, None)
+                    RelationData(src=prev, dst=next, path=None)
                     for next in self.cache["revision_before_revision"][prev]
                 ]
                 for prev in self.cache["revision_before_revision"]
             ],
             [],
         )
-        while not self.storage.relation_add(RelationType.REV_BEFORE_REV, rbr_data):
+        while not self.storage.relation_add(RelationType.REV_BEFORE_REV, data):
             logging.warning(
                 f"Unable to write {RelationType.REV_BEFORE_REV} rows to the storage. "
-                f"Data: {rbr_data}. Retrying..."
+                f"Data: {data}. Retrying..."
             )
 
         # Heads (ie. revision-in-origin entries) should be inserted once flat models for
         # their histories were already added. This is to guarantee consistent results if
         # something needs to be reprocessed due to a failure: already inserted heads
         # won't get reprocessed in such a case.
-        rio_data = [(rev, org, None) for rev, org in self.cache["revision_in_origin"]]
-        while not self.storage.relation_add(RelationType.REV_IN_ORG, rio_data):
+        data = (
+            RelationData(src=rev, dst=org, path=None)
+            for rev, org in self.cache["revision_in_origin"]
+        )
+        while not self.storage.relation_add(RelationType.REV_IN_ORG, data):
             logging.warning(
                 f"Unable to write {RelationType.REV_IN_ORG} rows to the storage. "
-                f"Data: {rio_data}. Retrying..."
+                f"Data: {data}. Retrying..."
             )
 
         # Finally, preferred origins for the visited revisions are set (this step can be
@@ -254,9 +274,9 @@ class ProvenanceBackend:
         if missing_ids:
             if entity == "revision":
                 updated = {
-                    id: date
-                    for id, (date, _) in self.storage.revision_get(missing_ids).items()
-                    if date is not None
+                    id: rev.date
+                    for id, rev in self.storage.revision_get(missing_ids).items()
+                    if rev.date is not None
                 }
             else:
                 updated = getattr(self.storage, f"{entity}_get")(missing_ids)
@@ -298,7 +318,7 @@ class ProvenanceBackend:
         if revision.id not in cache:
             ret = self.storage.revision_get([revision.id])
             if revision.id in ret:
-                origin = ret[revision.id][1]  # TODO: make this not a tuple
+                origin = ret[revision.id].origin
                 if origin is not None:
                     cache[revision.id] = origin
         return cache.get(revision.id)

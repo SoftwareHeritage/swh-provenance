@@ -10,7 +10,13 @@ from typing_extensions import Literal
 from swh.core.db import BaseDb
 from swh.model.model import Sha1Git
 
-from ..provenance import EntityType, ProvenanceResult, RelationType
+from ..provenance import (
+    EntityType,
+    ProvenanceResult,
+    RelationData,
+    RelationType,
+    RevisionData,
+)
 
 
 class ProvenanceDBBase:
@@ -125,10 +131,8 @@ class ProvenanceDBBase:
                 raise
         return False
 
-    def revision_get(
-        self, ids: Iterable[Sha1Git]
-    ) -> Dict[Sha1Git, Tuple[Optional[datetime], Optional[Sha1Git]]]:
-        result: Dict[Sha1Git, Tuple[Optional[datetime], Optional[Sha1Git]]] = {}
+    def revision_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, RevisionData]:
+        result: Dict[Sha1Git, RevisionData] = {}
         sha1s = tuple(ids)
         if sha1s:
             values = ", ".join(itertools.repeat("%s", len(sha1s)))
@@ -139,25 +143,24 @@ class ProvenanceDBBase:
                 """
             self.cursor.execute(sql, sha1s)
             result.update(
-                (row["sha1"], (row["date"], row["origin"]))
+                (row["sha1"], RevisionData(date=row["date"], origin=row["origin"]))
                 for row in self.cursor.fetchall()
             )
         return result
 
     def relation_add(
-        self,
-        relation: RelationType,
-        data: Iterable[Tuple[Sha1Git, Sha1Git, Optional[bytes]]],
+        self, relation: RelationType, data: Iterable[RelationData]
     ) -> bool:
         try:
-            if data:
+            rows = tuple((rel.src, rel.dst, rel.path) for rel in data)
+            if rows:
                 table = relation.value
                 src, *_, dst = table.split("_")
 
                 if src != "origin":
                     # Origin entries should be inserted previously as they require extra
                     # non-null information
-                    srcs = tuple(set((sha1,) for (sha1, _, _) in data))
+                    srcs = tuple(set((sha1,) for (sha1, _, _) in rows))
                     sql = f"""
                         LOCK TABLE ONLY {src};
                         INSERT INTO {src}(sha1) VALUES %s
@@ -167,7 +170,7 @@ class ProvenanceDBBase:
                 if dst != "origin":
                     # Origin entries should be inserted previously as they require extra
                     # non-null information
-                    dsts = tuple(set((sha1,) for (_, sha1, _) in data))
+                    dsts = tuple(set((sha1,) for (_, sha1, _) in rows))
                     sql = f"""
                         LOCK TABLE ONLY {dst};
                         INSERT INTO {dst}(sha1) VALUES %s
@@ -181,7 +184,7 @@ class ProvenanceDBBase:
                 selected = ["S.id", "D.id"]
 
                 if self._relation_uses_location_table(relation):
-                    locations = tuple(set((path,) for (_, _, path) in data))
+                    locations = tuple(set((path,) for (_, _, path) in rows))
                     sql = """
                         LOCK TABLE ONLY location;
                         INSERT INTO location(path) VALUES %s
@@ -200,7 +203,7 @@ class ProvenanceDBBase:
                        '''.join(joins)})
                        ON CONFLICT DO NOTHING
                     """
-                psycopg2.extras.execute_values(self.cursor, sql, data)
+                psycopg2.extras.execute_values(self.cursor, sql, rows)
             return True
         except:  # noqa: E722
             # Unexpected error occurred, rollback all changes and log message
@@ -211,12 +214,10 @@ class ProvenanceDBBase:
 
     def relation_get(
         self, relation: RelationType, ids: Iterable[Sha1Git], reverse: bool = False
-    ) -> Set[Tuple[Sha1Git, Sha1Git, Optional[bytes]]]:
+    ) -> Set[RelationData]:
         return self._relation_get(relation, ids, reverse)
 
-    def relation_get_all(
-        self, relation: RelationType
-    ) -> Set[Tuple[Sha1Git, Sha1Git, Optional[bytes]]]:
+    def relation_get_all(self, relation: RelationType) -> Set[RelationData]:
         return self._relation_get(relation, None)
 
     def _entity_get_date(
@@ -264,10 +265,10 @@ class ProvenanceDBBase:
         relation: RelationType,
         ids: Optional[Iterable[Sha1Git]],
         reverse: bool = False,
-    ) -> Set[Tuple[Sha1Git, Sha1Git, Optional[bytes]]]:
-        result: Set[Tuple[Sha1Git, Sha1Git, Optional[bytes]]] = set()
+    ) -> Set[RelationData]:
+        result: Set[RelationData] = set()
 
-        sha1s: Optional[Tuple[Tuple[bytes, ...]]]
+        sha1s: Optional[Tuple[Tuple[Sha1Git, ...]]]
         if ids is not None:
             sha1s = (tuple(ids),)
             where = f"WHERE {'S.sha1' if not reverse else 'D.sha1'} IN %s"
@@ -306,9 +307,7 @@ class ProvenanceDBBase:
                   {where}
                 """
             self.cursor.execute(sql, sha1s)
-            result.update(
-                (row["src"], row["dst"], row["path"]) for row in self.cursor.fetchall()
-            )
+            result.update(RelationData(**row) for row in self.cursor.fetchall())
         return result
 
     def _relation_uses_location_table(self, relation: RelationType) -> bool:

@@ -9,9 +9,9 @@ import pytest
 
 from swh.model.hashutil import hash_to_bytes
 from swh.provenance.archive import ArchiveInterface
+from swh.provenance.interface import EntityType, ProvenanceInterface, RelationType
 from swh.provenance.model import RevisionEntry
 from swh.provenance.postgresql.provenancedb_base import ProvenanceDBBase
-from swh.provenance.provenance import EntityType, ProvenanceInterface, RelationType
 from swh.provenance.revision import revision_add
 from swh.provenance.tests.conftest import (
     fill_storage,

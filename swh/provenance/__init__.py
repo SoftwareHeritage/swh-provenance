@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .archive import ArchiveInterface
-    from .provenance import ProvenanceInterface, ProvenanceStorageInterface
+    from .interface import ProvenanceInterface, ProvenanceStorageInterface
 
 
 def get_archive(cls: str, **kwargs) -> ArchiveInterface:
@@ -19,7 +19,7 @@ def get_archive(cls: str, **kwargs) -> ArchiveInterface:
         queries to the archive's database)
 
     Raises:
-         :cls:`ValueError` if passed an unknown archive class.
+        :cls:`ValueError` if passed an unknown archive class.
     """
     if cls == "api":
         from swh.storage import get_storage
@@ -47,9 +47,9 @@ def get_provenance(**kwargs) -> ProvenanceInterface:
     Returns:
         an instance of provenance object
     """
-    from .backend import ProvenanceBackend
+    from .provenance import Provenance
 
-    return ProvenanceBackend(get_provenance_storage(**kwargs))
+    return Provenance(get_provenance_storage(**kwargs))
 
 
 def get_provenance_storage(cls: str, **kwargs) -> ProvenanceStorageInterface:
@@ -63,7 +63,7 @@ def get_provenance_storage(cls: str, **kwargs) -> ProvenanceStorageInterface:
         an instance of storage object
 
     Raises:
-         :cls:`ValueError` if passed an unknown archive class.
+        :cls:`ValueError` if passed an unknown archive class.
     """
     if cls == "local":
         from swh.core.db import BaseDb

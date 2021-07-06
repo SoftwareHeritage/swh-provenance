@@ -8,8 +8,8 @@ from typing import Any, Dict, Optional, Set
 from swh.model.model import Sha1Git
 
 from .archive import ArchiveInterface
+from .interface import ProvenanceInterface
 from .model import DirectoryEntry, RevisionEntry
-from .provenance import ProvenanceInterface
 
 UTCMIN = datetime.min.replace(tzinfo=timezone.utc)
 

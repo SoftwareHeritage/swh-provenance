@@ -2,7 +2,7 @@ from typing import Generator, Optional
 
 from swh.model.model import Sha1Git
 
-from ..provenance import ProvenanceResult, RelationType
+from ..interface import ProvenanceResult, RelationType
 from .provenancedb_base import ProvenanceDBBase
 
 

@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from swh.provenance.provenance import ProvenanceInterface
+from swh.provenance.interface import ProvenanceInterface
 from swh.storage.postgresql.storage import Storage
 
 

@@ -19,9 +19,9 @@ from swh.model.model import Sha1Git
 from swh.model.tests.swh_model_data import TEST_OBJECTS
 from swh.provenance import get_provenance
 from swh.provenance.archive import ArchiveInterface
+from swh.provenance.interface import ProvenanceInterface
 from swh.provenance.postgresql.archive import ArchivePostgreSQL
 from swh.provenance.postgresql.provenancedb_base import ProvenanceDBBase
-from swh.provenance.provenance import ProvenanceInterface
 from swh.provenance.storage.archive import ArchiveStorage
 from swh.storage.postgresql.storage import Storage
 from swh.storage.replay import process_replay_objects

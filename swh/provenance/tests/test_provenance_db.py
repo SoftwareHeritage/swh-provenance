@@ -8,12 +8,12 @@ from typing import Type
 
 from swh.model.model import OriginVisitStatus
 from swh.model.tests.swh_model_data import TEST_OBJECTS
+from swh.provenance.interface import ProvenanceInterface, ProvenanceStorageInterface
 from swh.provenance.model import OriginEntry
 from swh.provenance.origin import origin_add
 from swh.provenance.postgresql.provenancedb_base import ProvenanceDBBase
 from swh.provenance.postgresql.provenancedb_with_path import ProvenanceWithPathDB
 from swh.provenance.postgresql.provenancedb_without_path import ProvenanceWithoutPathDB
-from swh.provenance.provenance import ProvenanceInterface, ProvenanceStorageInterface
 from swh.provenance.storage.archive import ArchiveStorage
 from swh.storage.postgresql.storage import Storage
 

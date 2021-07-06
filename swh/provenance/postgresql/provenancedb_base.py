@@ -10,7 +10,7 @@ from typing_extensions import Literal
 from swh.core.db import BaseDb
 from swh.model.model import Sha1Git
 
-from ..provenance import (
+from ..interface import (
     EntityType,
     ProvenanceResult,
     RelationData,

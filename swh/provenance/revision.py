@@ -8,8 +8,8 @@ from swh.model.model import Sha1Git
 
 from .archive import ArchiveInterface
 from .graph import IsochroneNode, build_isochrone_graph
+from .interface import ProvenanceInterface
 from .model import DirectoryEntry, RevisionEntry
-from .provenance import ProvenanceInterface
 
 
 class CSVRevisionIterator:

@@ -7,8 +7,8 @@ from swh.model.model import Sha1Git
 
 from .archive import ArchiveInterface
 from .graph import HistoryNode, build_history_graph
+from .interface import ProvenanceInterface
 from .model import OriginEntry, RevisionEntry
-from .provenance import ProvenanceInterface
 
 
 class CSVOriginIterator:

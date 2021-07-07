@@ -66,7 +66,7 @@ def generate_repo(repo_desc, output_dir):
             # move at the proper (first) parent position, if any
             check_call(["git", "checkout", parents[0]], stdout=PIPE)
 
-        # give a branch name (the msg) to each commit to make it esier to
+        # give a branch name (the msg) to each commit to make it easier to
         # navigate in history
         check_call(["git", "checkout", "-b", rev_d["msg"]], stdout=PIPE)
 

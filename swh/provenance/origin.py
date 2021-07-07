@@ -71,6 +71,11 @@ def origin_add_revision(
     origin: OriginEntry,
     graph: HistoryNode,
 ) -> None:
+    # XXX: simplified version of the origin-revision algorithm. This is generating flat
+    # models for the history of all head revisions. No previous result is reused now!
+    # The previous implementation was missing some paths from origins to certain
+    # revisions due to a wrong reuse logic.
+
     # head is treated separately since it should always be added to the given origin
     head = graph.entry
     check_preferred_origin(provenance, origin, head)
@@ -82,16 +87,10 @@ def origin_add_revision(
         current = stack.pop()
         check_preferred_origin(provenance, origin, current.entry)
 
-        if current.visited:
-            # if current revision was already visited just add it to the current origin
-            # and stop recursion (its history has already been flattened)
-            provenance.revision_add_to_origin(origin, current.entry)
-        else:
-            # if current revision was not visited before create a link between it and
-            # the head, and recursively walk its history
-            provenance.revision_add_before_revision(head, current.entry)
-            for parent in current.parents:
-                stack.append(parent)
+        # create a link between it and the head, and recursively walk its history
+        provenance.revision_add_before_revision(head, current.entry)
+        for parent in current.parents:
+            stack.append(parent)
 
 
 def check_preferred_origin(

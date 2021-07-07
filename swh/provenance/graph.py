@@ -70,16 +70,15 @@ def build_history_graph(
     )
     while stack:
         current = stack.pop()
-        if not current.visited:
-            current.entry.retrieve_parents(archive)
 
-            for rev in current.entry.parents:
-                node = current.add_parent(
-                    rev,
-                    visited=provenance.revision_visited(rev),
-                    in_history=provenance.revision_in_history(rev),
-                )
-                stack.append(node)
+        current.entry.retrieve_parents(archive)
+        for rev in current.entry.parents:
+            node = current.add_parent(
+                rev,
+                visited=provenance.revision_visited(rev),
+                in_history=provenance.revision_in_history(rev),
+            )
+            stack.append(node)
     logging.debug(
         f"History graph for revision {revision.id.hex()} successfully created!"
     )

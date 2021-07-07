@@ -11,7 +11,6 @@ from swh.model.hashutil import hash_to_bytes
 from swh.provenance.archive import ArchiveInterface
 from swh.provenance.interface import EntityType, ProvenanceInterface, RelationType
 from swh.provenance.model import RevisionEntry
-from swh.provenance.postgresql.provenancedb_base import ProvenanceDBBase
 from swh.provenance.revision import revision_add
 from swh.provenance.tests.conftest import (
     fill_storage,
@@ -61,8 +60,7 @@ def test_provenance_heuristics(
     }
 
     def maybe_path(path: str) -> Optional[bytes]:
-        assert isinstance(provenance.storage, ProvenanceDBBase)
-        if provenance.storage.with_path:
+        if provenance.storage.with_path():
             return path.encode("utf-8")
         return None
 
@@ -155,8 +153,7 @@ def test_provenance_heuristics(
                 == provenance.storage.content_get([dc["dst"]])[dc["dst"]].timestamp()
             ), synth_rev["msg"]
 
-        assert isinstance(provenance.storage, ProvenanceDBBase)
-        if provenance.storage.with_path:
+        if provenance.storage.with_path():
             # check for location entries
             rows["location"] |= set(x["path"] for x in synth_rev["R_C"])
             rows["location"] |= set(x["path"] for x in synth_rev["D_C"])
@@ -199,8 +196,7 @@ def test_provenance_heuristics_content_find_all(
     ]
 
     def maybe_path(path: str) -> str:
-        assert isinstance(provenance.storage, ProvenanceDBBase)
-        if provenance.storage.with_path:
+        if provenance.storage.with_path():
             return path
         return ""
 
@@ -230,7 +226,6 @@ def test_provenance_heuristics_content_find_all(
                 (rev_id, rev_ts, None, maybe_path(dc["prefix"] + "/" + dc["path"]))
             )
 
-    assert isinstance(provenance.storage, ProvenanceDBBase)
     for content_id, results in expected_occurrences.items():
         expected = [(content_id, *result) for result in results]
         db_occurrences = [
@@ -243,7 +238,7 @@ def test_provenance_heuristics_content_find_all(
             )
             for occur in provenance.content_find_all(hash_to_bytes(content_id))
         ]
-        if provenance.storage.with_path:
+        if provenance.storage.with_path():
             # this is not true if the db stores no path, because a same content
             # that appears several times in a given revision may be reported
             # only once by content_find_all()
@@ -319,7 +314,6 @@ def test_provenance_heuristics_content_find_first(
             assert sha1 in expected_first
             # nothing to do there, this content cannot be a "first seen file"
 
-    assert isinstance(provenance.storage, ProvenanceDBBase)
     for content_id, (rev_id, ts, paths) in expected_first.items():
         occur = provenance.content_find_first(hash_to_bytes(content_id))
         assert occur is not None
@@ -327,5 +321,5 @@ def test_provenance_heuristics_content_find_first(
         assert occur.revision.hex() == rev_id
         assert occur.date.timestamp() == ts
         assert occur.origin is None
-        if provenance.storage.with_path:
+        if provenance.storage.with_path():
             assert occur.path.decode() in paths

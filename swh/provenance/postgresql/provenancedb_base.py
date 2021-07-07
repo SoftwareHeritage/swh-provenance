@@ -47,7 +47,6 @@ class ProvenanceDBBase:
         assert self._flavor is not None
         return self._flavor
 
-    @property
     def with_path(self) -> bool:
         return self.flavor == "with-path"
 

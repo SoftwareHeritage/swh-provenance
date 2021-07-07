@@ -165,6 +165,9 @@ class ProvenanceStorageInterface(Protocol):
         """
         ...
 
+    def with_path(self) -> bool:
+        ...
+
 
 @runtime_checkable
 class ProvenanceInterface(Protocol):

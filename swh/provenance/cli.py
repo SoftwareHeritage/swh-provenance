@@ -20,25 +20,30 @@ from swh.model.hashutil import hash_to_bytes, hash_to_hex
 from swh.model.model import Sha1Git
 
 # All generic config code should reside in swh.core.config
-CONFIG_ENVVAR = "SWH_CONFIG_FILE"
+CONFIG_ENVVAR = "SWH_CONFIG_FILENAME"
 DEFAULT_CONFIG_PATH = os.path.join(click.get_app_dir("swh"), "global.yml")
 DEFAULT_PATH = os.environ.get(CONFIG_ENVVAR, DEFAULT_CONFIG_PATH)
 
 DEFAULT_CONFIG: Dict[str, Any] = {
-    "archive": {
-        "cls": "api",
+    "provenance": {
+        "archive": {
+            # "cls": "api",
+            # "storage": {
+            #     "cls": "remote",
+            #     "url": "http://uffizi.internal.softwareheritage.org:5002",
+            # }
+            "cls": "direct",
+            "db": {
+                "host": "db.internal.softwareheritage.org",
+                "dbname": "softwareheritage",
+                "user": "guest",
+            },
+        },
         "storage": {
-            "cls": "remote",
-            "url": "http://uffizi.internal.softwareheritage.org:5002",
-        }
-        # "cls": "direct",
-        # "db": {
-        #     "host": "db.internal.softwareheritage.org",
-        #     "dbname": "softwareheritage",
-        #     "user": "guest"
-        # }
-    },
-    "provenance": {"cls": "local", "db": {"host": "localhost", "dbname": "provenance"}},
+            "cls": "local",
+            "db": {"host": "localhost", "dbname": "provenance"},
+        },
+    }
 }
 
 
@@ -128,8 +133,8 @@ def iter_revisions(
     from . import get_archive, get_provenance
     from .revision import CSVRevisionIterator, revision_add
 
-    archive = get_archive(**ctx.obj["config"]["archive"])
-    provenance = get_provenance(**ctx.obj["config"]["provenance"])
+    archive = get_archive(**ctx.obj["config"]["provenance"]["archive"])
+    provenance = get_provenance(**ctx.obj["config"]["provenance"]["storage"])
     revisions_provider = generate_revision_tuples(filename)
     revisions = CSVRevisionIterator(revisions_provider, limit=limit)
 
@@ -166,8 +171,8 @@ def iter_origins(ctx: click.core.Context, filename: str, limit: Optional[int]) -
     from . import get_archive, get_provenance
     from .origin import CSVOriginIterator, origin_add
 
-    archive = get_archive(**ctx.obj["config"]["archive"])
-    provenance = get_provenance(**ctx.obj["config"]["provenance"])
+    archive = get_archive(**ctx.obj["config"]["provenance"]["archive"])
+    provenance = get_provenance(**ctx.obj["config"]["provenance"]["storage"])
     origins_provider = generate_origin_tuples(filename)
     origins = CSVOriginIterator(origins_provider, limit=limit)
 
@@ -189,7 +194,7 @@ def find_first(ctx: click.core.Context, swhid: str) -> None:
     """Find first occurrence of the requested blob."""
     from . import get_provenance
 
-    provenance = get_provenance(**ctx.obj["config"]["provenance"])
+    provenance = get_provenance(**ctx.obj["config"]["provenance"]["storage"])
     # TODO: return a dictionary with proper keys for each field
     occur = provenance.content_find_first(hash_to_bytes(swhid))
     if occur is not None:
@@ -212,7 +217,7 @@ def find_all(ctx: click.core.Context, swhid: str, limit: Optional[int]) -> None:
     """Find all occurrences of the requested blob."""
     from . import get_provenance
 
-    provenance = get_provenance(**ctx.obj["config"]["provenance"])
+    provenance = get_provenance(**ctx.obj["config"]["provenance"]["storage"])
     # TODO: return a dictionary with proper keys for each field
     for occur in provenance.content_find_all(hash_to_bytes(swhid), limit=limit):
         print(

@@ -41,11 +41,11 @@ def test_provenance_origin_add(
 
 
 def test_provenance_flavor(provenance: ProvenanceInterface) -> None:
-    assert isinstance(provenance.storage, ProvenanceDBBase)
-    assert provenance.storage.flavor in ("with-path", "without-path")
-    backend_class: Type[ProvenanceStorageInterface]
-    if provenance.storage.flavor == "with-path":
-        backend_class = ProvenanceWithPathDB
-    else:
-        backend_class = ProvenanceWithoutPathDB
-    assert isinstance(provenance.storage, backend_class)
+    if isinstance(provenance.storage, ProvenanceDBBase):
+        assert provenance.storage.flavor in ("with-path", "without-path")
+        backend_class: Type[ProvenanceStorageInterface]
+        if provenance.storage.flavor == "with-path":
+            backend_class = ProvenanceWithPathDB
+        else:
+            backend_class = ProvenanceWithoutPathDB
+        assert isinstance(provenance.storage, backend_class)

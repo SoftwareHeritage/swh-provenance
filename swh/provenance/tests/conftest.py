@@ -12,44 +12,69 @@ import psycopg2
 import pytest
 from typing_extensions import TypedDict
 
-from swh.core.db import BaseDb
 from swh.journal.serializers import msgpack_ext_hook
 from swh.model.hashutil import hash_to_bytes
 from swh.model.model import Sha1Git
 from swh.model.tests.swh_model_data import TEST_OBJECTS
-from swh.provenance import get_provenance
+from swh.provenance import get_provenance, get_provenance_storage
+from swh.provenance.api.client import RemoteProvenanceStorage
+import swh.provenance.api.server as server
 from swh.provenance.archive import ArchiveInterface
-from swh.provenance.interface import ProvenanceInterface
+from swh.provenance.interface import ProvenanceInterface, ProvenanceStorageInterface
 from swh.provenance.postgresql.archive import ArchivePostgreSQL
-from swh.provenance.postgresql.provenancedb_base import ProvenanceDBBase
 from swh.provenance.storage.archive import ArchiveStorage
 from swh.storage.postgresql.storage import Storage
 from swh.storage.replay import process_replay_objects
 
 
 @pytest.fixture(params=["with-path", "without-path"])
-def provenance(
+def populated_db(
     request,  # TODO: add proper type annotation
     postgresql: psycopg2.extensions.connection,
-) -> ProvenanceInterface:
-    """return a working and initialized provenance db"""
+) -> Dict[str, str]:
     from swh.core.cli.db import populate_database_for_package
 
-    flavor = request.param
+    flavor = "with-path" if request.param == "client-server" else request.param
     populate_database_for_package("swh.provenance", postgresql.dsn, flavor=flavor)
-
-    BaseDb.adapt_conn(postgresql)
-
-    args: Dict[str, str] = {
+    return {
         item.split("=")[0]: item.split("=")[1]
         for item in postgresql.dsn.split()
         if item.split("=")[0] != "options"
     }
-    # in test sessions, we DO want to raise any exception occurring at commit time
-    prov = get_provenance(cls="local", db=args, raise_on_commit=True)
-    assert isinstance(prov.storage, ProvenanceDBBase)
-    assert prov.storage.flavor == flavor
-    return prov
+
+
+# the Flask app used as server in these tests
+@pytest.fixture
+def app(populated_db: Dict[str, str]):
+    assert hasattr(server, "storage")
+    server.storage = get_provenance_storage(cls="local", db=populated_db)
+    yield server.app
+
+
+# the RPCClient class used as client used in these tests
+@pytest.fixture
+def swh_rpc_client_class():
+    return RemoteProvenanceStorage
+
+
+@pytest.fixture(params=["local", "remote"])
+def provenance(
+    request,  # TODO: add proper type annotation
+    populated_db: Dict[str, str],
+    swh_rpc_client: RemoteProvenanceStorage,
+) -> ProvenanceInterface:
+    """return a working and initialized provenance db"""
+
+    if request.param == "remote":
+        from swh.provenance.provenance import Provenance
+
+        assert isinstance(swh_rpc_client, ProvenanceStorageInterface)
+        return Provenance(swh_rpc_client)
+
+    else:
+        # in test sessions, we DO want to raise any exception occurring at commit time
+        prov = get_provenance(cls=request.param, db=populated_db, raise_on_commit=True)
+        return prov
 
 
 @pytest.fixture

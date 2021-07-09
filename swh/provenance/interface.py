@@ -10,6 +10,7 @@ from typing import Dict, Generator, Iterable, Optional, Set
 
 from typing_extensions import Protocol, runtime_checkable
 
+from swh.core.api import remote_api_endpoint
 from swh.model.model import Sha1Git
 
 from .model import DirectoryEntry, FileEntry, OriginEntry, RevisionEntry
@@ -65,28 +66,33 @@ class RelationData:
 
 @runtime_checkable
 class ProvenanceStorageInterface(Protocol):
+    @remote_api_endpoint("content_find_first")
     def content_find_first(self, id: Sha1Git) -> Optional[ProvenanceResult]:
         """Retrieve the first occurrence of the blob identified by `id`."""
         ...
 
+    @remote_api_endpoint("content_find_all")
     def content_find_all(
         self, id: Sha1Git, limit: Optional[int] = None
     ) -> Generator[ProvenanceResult, None, None]:
         """Retrieve all the occurrences of the blob identified by `id`."""
         ...
 
+    @remote_api_endpoint("content_set_date")
     def content_set_date(self, dates: Dict[Sha1Git, datetime]) -> bool:
         """Associate dates to blobs identified by sha1 ids, as paired in `dates`. Return
         a boolean stating whether the information was successfully stored.
         """
         ...
 
+    @remote_api_endpoint("content_get")
     def content_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, datetime]:
         """Retrieve the associated date for each blob sha1 in `ids`. If some blob has
         no associated date, it is not present in the resulting dictionary.
         """
         ...
 
+    @remote_api_endpoint("directory_set_date")
     def directory_set_date(self, dates: Dict[Sha1Git, datetime]) -> bool:
         """Associate dates to directories identified by sha1 ids, as paired in
         `dates`. Return a boolean stating whether the information was successfully
@@ -94,40 +100,47 @@ class ProvenanceStorageInterface(Protocol):
         """
         ...
 
+    @remote_api_endpoint("directory_get")
     def directory_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, datetime]:
         """Retrieve the associated date for each directory sha1 in `ids`. If some
         directory has no associated date, it is not present in the resulting dictionary.
         """
         ...
 
+    @remote_api_endpoint("entity_get_all")
     def entity_get_all(self, entity: EntityType) -> Set[Sha1Git]:
         """Retrieve all sha1 ids for entities of type `entity` present in the provenance
         model.
         """
         ...
 
+    @remote_api_endpoint("location_get")
     def location_get(self) -> Set[bytes]:
         """Retrieve all paths present in the provenance model."""
         ...
 
+    @remote_api_endpoint("origin_set_url")
     def origin_set_url(self, urls: Dict[Sha1Git, str]) -> bool:
         """Associate urls to origins identified by sha1 ids, as paired in `urls`. Return
         a boolean stating whether the information was successfully stored.
         """
         ...
 
+    @remote_api_endpoint("origin_get")
     def origin_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, str]:
         """Retrieve the associated url for each origin sha1 in `ids`. If some origin has
         no associated date, it is not present in the resulting dictionary.
         """
         ...
 
+    @remote_api_endpoint("revision_set_date")
     def revision_set_date(self, dates: Dict[Sha1Git, datetime]) -> bool:
         """Associate dates to revisions identified by sha1 ids, as paired in `dates`.
         Return a boolean stating whether the information was successfully stored.
         """
         ...
 
+    @remote_api_endpoint("revision_set_origin")
     def revision_set_origin(self, origins: Dict[Sha1Git, Sha1Git]) -> bool:
         """Associate origins to revisions identified by sha1 ids, as paired in
         `origins` (revision ids are keys and origin ids, values). Return a boolean
@@ -135,6 +148,7 @@ class ProvenanceStorageInterface(Protocol):
         """
         ...
 
+    @remote_api_endpoint("revision_get")
     def revision_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, RevisionData]:
         """Retrieve the associated date and origin for each revision sha1 in `ids`. If
         some revision has no associated date nor origin, it is not present in the
@@ -142,12 +156,14 @@ class ProvenanceStorageInterface(Protocol):
         """
         ...
 
+    @remote_api_endpoint("relation_add")
     def relation_add(
         self, relation: RelationType, data: Iterable[RelationData]
     ) -> bool:
         """Add entries in the selected `relation`."""
         ...
 
+    @remote_api_endpoint("relation_get")
     def relation_get(
         self, relation: RelationType, ids: Iterable[Sha1Git], reverse: bool = False
     ) -> Set[RelationData]:
@@ -157,12 +173,14 @@ class ProvenanceStorageInterface(Protocol):
         """
         ...
 
+    @remote_api_endpoint("relation_get_all")
     def relation_get_all(self, relation: RelationType) -> Set[RelationData]:
         """Retrieve all entries in the selected `relation` that are present in the
         provenance model.
         """
         ...
 
+    @remote_api_endpoint("with_path")
     def with_path(self) -> bool:
         ...
 

@@ -85,5 +85,13 @@ def get_provenance_storage(cls: str, **kwargs) -> ProvenanceStorageInterface:
             from .postgresql.provenancedb_without_path import ProvenanceWithoutPathDB
 
             return ProvenanceWithoutPathDB(conn, raise_on_commit)
+
+    elif cls == "remote":
+        from .api.client import RemoteProvenanceStorage
+
+        storage = RemoteProvenanceStorage(**kwargs)
+        assert isinstance(storage, ProvenanceStorageInterface)
+        return storage
+
     else:
         raise ValueError

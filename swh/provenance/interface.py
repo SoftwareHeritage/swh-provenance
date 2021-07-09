@@ -65,8 +65,6 @@ class RelationData:
 
 @runtime_checkable
 class ProvenanceStorageInterface(Protocol):
-    raise_on_commit: bool = False
-
     def content_find_first(self, id: Sha1Git) -> Optional[ProvenanceResult]:
         """Retrieve the first occurrence of the blob identified by `id`."""
         ...

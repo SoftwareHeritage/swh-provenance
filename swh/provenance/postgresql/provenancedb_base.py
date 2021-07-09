@@ -25,9 +25,9 @@ from ..interface import (
 
 
 class ProvenanceDBBase:
-    raise_on_commit: bool = False
-
-    def __init__(self, conn: psycopg2.extensions.connection):
+    def __init__(
+        self, conn: psycopg2.extensions.connection, raise_on_commit: bool = False
+    ):
         BaseDb.adapt_conn(conn)
         conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
         conn.set_session(autocommit=True)
@@ -37,6 +37,7 @@ class ProvenanceDBBase:
         sql = "SET timezone TO 'UTC'"
         self.cursor.execute(sql)
         self._flavor: Optional[str] = None
+        self.raise_on_commit = raise_on_commit
 
     @property
     def flavor(self) -> str:

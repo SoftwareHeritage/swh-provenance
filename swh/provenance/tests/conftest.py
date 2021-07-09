@@ -45,11 +45,10 @@ def provenance(
         for item in postgresql.dsn.split()
         if item.split("=")[0] != "options"
     }
-    prov = get_provenance(cls="local", db=args)
+    # in test sessions, we DO want to raise any exception occurring at commit time
+    prov = get_provenance(cls="local", db=args, raise_on_commit=True)
     assert isinstance(prov.storage, ProvenanceDBBase)
     assert prov.storage.flavor == flavor
-    # in test sessions, we DO want to raise any exception occurring at commit time
-    prov.storage.raise_on_commit = True
     return prov
 
 

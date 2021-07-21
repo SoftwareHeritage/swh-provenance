@@ -4,16 +4,13 @@
 # See top-level LICENSE file for more information
 
 from datetime import datetime, timedelta, timezone
-from typing import Type
 
 from swh.model.model import OriginVisitStatus
 from swh.model.tests.swh_model_data import TEST_OBJECTS
-from swh.provenance.interface import ProvenanceInterface, ProvenanceStorageInterface
+from swh.provenance.interface import ProvenanceInterface
 from swh.provenance.model import OriginEntry
 from swh.provenance.origin import origin_add
-from swh.provenance.postgresql.provenancedb_base import ProvenanceDBBase
-from swh.provenance.postgresql.provenancedb_with_path import ProvenanceWithPathDB
-from swh.provenance.postgresql.provenancedb_without_path import ProvenanceWithoutPathDB
+from swh.provenance.postgresql.provenancedb import ProvenanceDB
 from swh.provenance.storage.archive import ArchiveStorage
 from swh.storage.postgresql.storage import Storage
 
@@ -41,16 +38,10 @@ def test_provenance_origin_add(
 
 
 def test_provenance_flavor(provenance: ProvenanceInterface) -> None:
-    if isinstance(provenance.storage, ProvenanceDBBase):
+    if isinstance(provenance.storage, ProvenanceDB):
         assert provenance.storage.flavor in (
             "with-path",
             "without-path",
             "with-path-denormalized",
             "without-path-denormalized",
         )
-        backend_class: Type[ProvenanceStorageInterface]
-        if "with-path" in provenance.storage.flavor:
-            backend_class = ProvenanceWithPathDB
-        else:
-            backend_class = ProvenanceWithoutPathDB
-        assert isinstance(provenance.storage, backend_class)

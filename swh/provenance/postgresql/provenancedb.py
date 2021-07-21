@@ -24,7 +24,7 @@ from ..interface import (
 )
 
 
-class ProvenanceDBBase:
+class ProvenanceDB:
     def __init__(
         self, conn: psycopg2.extensions.connection, raise_on_commit: bool = False
     ):
@@ -359,4 +359,7 @@ class ProvenanceDBBase:
         return result
 
     def _relation_uses_location_table(self, relation: RelationType) -> bool:
-        ...
+        if self.with_path():
+            src = relation.value.split("_")[0]
+            return src in ("content", "directory")
+        return False

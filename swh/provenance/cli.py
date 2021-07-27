@@ -21,8 +21,7 @@ from swh.model.model import Sha1Git
 
 # All generic config code should reside in swh.core.config
 CONFIG_ENVVAR = "SWH_CONFIG_FILENAME"
-DEFAULT_CONFIG_PATH = os.path.join(click.get_app_dir("swh"), "global.yml")
-DEFAULT_PATH = os.environ.get(CONFIG_ENVVAR, DEFAULT_CONFIG_PATH)
+DEFAULT_PATH = os.environ.get(CONFIG_ENVVAR, None)
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "provenance": {
@@ -47,21 +46,17 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 }
 
 
-CONFIG_FILE_HELP = f"""Configuration file:
-
-\b
-The CLI option or the environment variable will fail if invalid.
-CLI option is checked first.
-Then, environment variable {CONFIG_ENVVAR} is checked.
-Then, if cannot load the default path, a set of default values are used.
-Default config path is {DEFAULT_CONFIG_PATH}.
-Default config values are:
+CONFIG_FILE_HELP = f"""
+\b Configuration can be loaded from a yaml file given either as --config-file
+option or the {CONFIG_ENVVAR} environment variable. If no configuration file
+is specified, use the following default configuration::
 
 \b
 {yaml.dump(DEFAULT_CONFIG)}"""
-PROVENANCE_HELP = f"""Software Heritage Scanner tools.
+PROVENANCE_HELP = f"""Software Heritage provenance index database tools
 
-{CONFIG_FILE_HELP}"""
+{CONFIG_FILE_HELP}
+"""
 
 
 @swh_cli_group.group(
@@ -71,7 +66,7 @@ PROVENANCE_HELP = f"""Software Heritage Scanner tools.
     "-C",
     "--config-file",
     default=None,
-    type=click.Path(exists=False, dir_okay=False, path_type=str),
+    type=click.Path(exists=True, dir_okay=False, path_type=str),
     help="""YAML configuration file.""",
 )
 @click.option(
@@ -83,17 +78,20 @@ PROVENANCE_HELP = f"""Software Heritage Scanner tools.
 )
 @click.pass_context
 def cli(ctx: click.core.Context, config_file: Optional[str], profile: str) -> None:
-    if config_file is None and config.config_exists(DEFAULT_PATH):
+    if (
+        config_file is None
+        and DEFAULT_PATH is not None
+        and config.config_exists(DEFAULT_PATH)
+    ):
         config_file = DEFAULT_PATH
 
     if config_file is None:
         conf = DEFAULT_CONFIG
     else:
         # read_raw_config do not fail on ENOENT
-        if not config.config_exists(config_file):
+        if not os.path.exists(config_file):
             raise FileNotFoundError(config_file)
-        conf = config.read_raw_config(config.config_basepath(config_file))
-        conf = config.merge_configs(DEFAULT_CONFIG, conf)
+        conf = yaml.safe_load(open(config_file, "rb"))
 
     ctx.ensure_object(dict)
     ctx.obj["config"] = conf

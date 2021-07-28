@@ -3,23 +3,145 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Any, Dict, List, Optional, Set, Tuple
+import re
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Set, Tuple
 
 import pytest
+from typing_extensions import TypedDict
 
 from swh.model.hashutil import hash_to_bytes
+from swh.model.model import Sha1Git
 from swh.provenance.archive import ArchiveInterface
 from swh.provenance.interface import EntityType, ProvenanceInterface, RelationType
 from swh.provenance.model import RevisionEntry
 from swh.provenance.revision import revision_add
-from swh.provenance.tests.conftest import (
-    fill_storage,
-    get_datafile,
-    load_repo_data,
-    synthetic_result,
-)
+from swh.provenance.tests.conftest import fill_storage, get_datafile, load_repo_data
 from swh.provenance.tests.test_provenance_db import ts2dt
 from swh.storage.postgresql.storage import Storage
+
+
+class SynthRelation(TypedDict):
+    prefix: Optional[str]
+    path: str
+    src: Sha1Git
+    dst: Sha1Git
+    rel_ts: float
+
+
+class SynthRevision(TypedDict):
+    sha1: Sha1Git
+    date: float
+    msg: str
+    R_C: List[SynthRelation]
+    R_D: List[SynthRelation]
+    D_C: List[SynthRelation]
+
+
+def synthetic_revision_content_result(filename: str) -> Iterator[SynthRevision]:
+    """Generates dict representations of synthetic revisions found in the synthetic
+    file (from the data/ directory) given as argument of the generator.
+
+    Generated SynthRevision (typed dict) with the following elements:
+
+      "sha1": (Sha1Git) sha1 of the revision,
+      "date": (float) timestamp of the revision,
+      "msg": (str) commit message of the revision,
+      "R_C": (list) new R---C relations added by this revision
+      "R_D": (list) new R-D   relations added by this revision
+      "D_C": (list) new   D-C relations added by this revision
+
+    Each relation above is a SynthRelation typed dict with:
+
+      "path": (str) location
+      "src": (Sha1Git) sha1 of the source of the relation
+      "dst": (Sha1Git) sha1 of the destination of the relation
+      "rel_ts": (float) timestamp of the target of the relation
+                (related to the timestamp of the revision)
+
+    """
+
+    with open(get_datafile(filename), "r") as fobj:
+        yield from _parse_synthetic_revision_content_file(fobj)
+
+
+def _parse_synthetic_revision_content_file(
+    fobj: Iterable[str],
+) -> Iterator[SynthRevision]:
+    """Read a 'synthetic' file and generate a dict representation of the synthetic
+    revision for each revision listed in the synthetic file.
+    """
+    regs = [
+        "(?P<revname>R[0-9]{2,4})?",
+        "(?P<reltype>[^| ]*)",
+        "([+] )?(?P<path>[^| +]*?)[/]?",
+        "(?P<type>[RDC]) (?P<sha1>[0-9a-f]{40})",
+        "(?P<ts>-?[0-9]+(.[0-9]+)?)",
+    ]
+    regex = re.compile("^ *" + r" *[|] *".join(regs) + r" *(#.*)?$")
+    current_rev: List[dict] = []
+    for m in (regex.match(line) for line in fobj):
+        if m:
+            d = m.groupdict()
+            if d["revname"]:
+                if current_rev:
+                    yield _mk_synth_rev(current_rev)
+                current_rev.clear()
+            current_rev.append(d)
+    if current_rev:
+        yield _mk_synth_rev(current_rev)
+
+
+def _mk_synth_rev(synth_rev: List[Dict[str, str]]) -> SynthRevision:
+    assert synth_rev[0]["type"] == "R"
+    rev = SynthRevision(
+        sha1=hash_to_bytes(synth_rev[0]["sha1"]),
+        date=float(synth_rev[0]["ts"]),
+        msg=synth_rev[0]["revname"],
+        R_C=[],
+        R_D=[],
+        D_C=[],
+    )
+    current_path = None
+    # path of the last R-D relation we parsed, used a prefix for next D-C
+    # relations
+
+    for row in synth_rev[1:]:
+        if row["reltype"] == "R---C":
+            assert row["type"] == "C"
+            rev["R_C"].append(
+                SynthRelation(
+                    prefix=None,
+                    path=row["path"],
+                    src=rev["sha1"],
+                    dst=hash_to_bytes(row["sha1"]),
+                    rel_ts=float(row["ts"]),
+                )
+            )
+            current_path = None
+        elif row["reltype"] == "R-D":
+            assert row["type"] == "D"
+            rev["R_D"].append(
+                SynthRelation(
+                    prefix=None,
+                    path=row["path"],
+                    src=rev["sha1"],
+                    dst=hash_to_bytes(row["sha1"]),
+                    rel_ts=float(row["ts"]),
+                )
+            )
+            current_path = row["path"]
+        elif row["reltype"] == "D-C":
+            assert row["type"] == "C"
+            rev["D_C"].append(
+                SynthRelation(
+                    prefix=current_path,
+                    path=row["path"],
+                    src=rev["R_D"][-1]["dst"],
+                    dst=hash_to_bytes(row["sha1"]),
+                    rel_ts=float(row["ts"]),
+                )
+            )
+    return rev
 
 
 @pytest.mark.parametrize(
@@ -32,7 +154,7 @@ from swh.storage.postgresql.storage import Storage
         ("out-of-order", True, 1),
     ),
 )
-def test_provenance_heuristics(
+def test_revision_content_result(
     provenance: ProvenanceInterface,
     swh_storage: Storage,
     archive: ArchiveInterface,
@@ -64,7 +186,7 @@ def test_provenance_heuristics(
             return path.encode("utf-8")
         return None
 
-    for synth_rev in synthetic_result(syntheticfile):
+    for synth_rev in synthetic_revision_content_result(syntheticfile):
         revision = revisions[synth_rev["sha1"]]
         entry = RevisionEntry(
             id=revision["id"],
@@ -212,7 +334,7 @@ def test_provenance_heuristics_content_find_all(
         f"synthetic_{repo}_{'lower' if lower else 'upper'}_{mindepth}.txt"
     )
     expected_occurrences: Dict[str, List[Tuple[str, float, Optional[str], str]]] = {}
-    for synth_rev in synthetic_result(syntheticfile):
+    for synth_rev in synthetic_revision_content_result(syntheticfile):
         rev_id = synth_rev["sha1"].hex()
         rev_ts = synth_rev["date"]
 
@@ -294,7 +416,7 @@ def test_provenance_heuristics_content_find_first(
     # is a list because a content can be added at several places in a single
     # revision, in which case the result of content_find_first() is one of
     # those path, but we have no guarantee which one it will return.
-    for synth_rev in synthetic_result(syntheticfile):
+    for synth_rev in synthetic_revision_content_result(syntheticfile):
         rev_id = synth_rev["sha1"].hex()
         rev_ts = synth_rev["date"]
 

@@ -1,0 +1,67 @@
+1000000015 3acef14580ea7fd42840ee905c5ce2b0ef9e8175 http://repo_with_merges/1/
+http://repo_with_merges/1/    |       |         | O 3acef14580ea7fd42840ee905c5ce2b0ef9e8175
+                              |       |         | S 8d6b9ac022cae46a59b4f5b9285f0eea9736dae4
+                              | O-R   | R01     | R 1444db96cbd8cd791abe83527becee73d3c64e86
+                              |   R-R | R00     | R c0d8929936631ecbcf9147be6b8aa13b13b014e4
+
+1000000025 3acef14580ea7fd42840ee905c5ce2b0ef9e8175 http://repo_with_merges/1/
+http://repo_with_merges/1/    |       |         | O 3acef14580ea7fd42840ee905c5ce2b0ef9e8175
+                              |       |         | S 537a4f35fc36eb08a065952210958c8095fea3c7
+                              | O-R   | R03     | R 20f4da0f48609d9f7f908ebbcac3b3741a0f25cb
+                              |   R-R | R02     | R 1c533587277731236616cac0d44f3b46c1da0f8a
+                              |   R-R | R01     | R 1444db96cbd8cd791abe83527becee73d3c64e86
+                              |   R-R | R00     | R c0d8929936631ecbcf9147be6b8aa13b13b014e4
+                              | O-R   | R06     | R 72d92d41a9095db2dd6b8fb1c62d92c8251753ff
+                              |   R-R | R01     | R 1444db96cbd8cd791abe83527becee73d3c64e86
+                              |   R-R | R00     | R c0d8929936631ecbcf9147be6b8aa13b13b014e4
+
+1000000035 ed02cb79ed65a650cee6907323f986cff4a8428f http://repo_with_merges/2/
+http://repo_with_merges/2/    |       |         | O ed02cb79ed65a650cee6907323f986cff4a8428f
+                              |       |         | S 5aa910026ddbbea2971fe1b89725bc5f076637e3
+                              | O-R   | R05     | R 65e58853df939b318c106c4c1f55acaf8b41c74c
+                              |   R-R | R04     | R 0d66eadcc15e0d7f6cfd4289329a7749a1309982
+                              |   R-R | R03     | R 20f4da0f48609d9f7f908ebbcac3b3741a0f25cb
+                              |   R-R | R02     | R 1c533587277731236616cac0d44f3b46c1da0f8a
+                              |   R-R | R01     | R 1444db96cbd8cd791abe83527becee73d3c64e86
+                              |   R-R | R00     | R c0d8929936631ecbcf9147be6b8aa13b13b014e4
+                              | O-R   | R06     | R 72d92d41a9095db2dd6b8fb1c62d92c8251753ff
+                              |   R-R | R01     | R 1444db96cbd8cd791abe83527becee73d3c64e86
+                              |   R-R | R00     | R c0d8929936631ecbcf9147be6b8aa13b13b014e4
+
+1000000045 3acef14580ea7fd42840ee905c5ce2b0ef9e8175 http://repo_with_merges/1/
+http://repo_with_merges/1/    |       |         | O 3acef14580ea7fd42840ee905c5ce2b0ef9e8175
+                              |       |         | S 8193e0324e7a21181331c13588b3e348022b3268
+                              | O-R   | R06     | R 72d92d41a9095db2dd6b8fb1c62d92c8251753ff
+                              |   R-R | R01     | R 1444db96cbd8cd791abe83527becee73d3c64e86
+                              |   R-R | R00     | R c0d8929936631ecbcf9147be6b8aa13b13b014e4
+                              | O-R   | R07     | R fff0089fad98e8f5b46ec5c9025a20a602851ba6
+                              |   R-R | R03     | R 20f4da0f48609d9f7f908ebbcac3b3741a0f25cb
+                              |   R-R | R02     | R 1c533587277731236616cac0d44f3b46c1da0f8a
+                              |   R-R | R01     | R 1444db96cbd8cd791abe83527becee73d3c64e86
+                              |   R-R | R00     | R c0d8929936631ecbcf9147be6b8aa13b13b014e4
+
+1000000055 3acef14580ea7fd42840ee905c5ce2b0ef9e8175 http://repo_with_merges/1/
+http://repo_with_merges/1/    |       |         | O 3acef14580ea7fd42840ee905c5ce2b0ef9e8175
+                              |       |         | S ee9ea8b0ba40c9012d7d8103234946a21b66a729
+                              | O-R   | R08     | R 7c8f29237dded4f9d265e46ec7066503e7858e87
+                              |   R-R | R07     | R fff0089fad98e8f5b46ec5c9025a20a602851ba6
+                              |   R-R | R06     | R 72d92d41a9095db2dd6b8fb1c62d92c8251753ff
+                              |   R-R | R05     | R 65e58853df939b318c106c4c1f55acaf8b41c74c
+                              |   R-R | R04     | R 0d66eadcc15e0d7f6cfd4289329a7749a1309982
+                              |   R-R | R03     | R 20f4da0f48609d9f7f908ebbcac3b3741a0f25cb
+                              |   R-R | R02     | R 1c533587277731236616cac0d44f3b46c1da0f8a
+                              |   R-R | R01     | R 1444db96cbd8cd791abe83527becee73d3c64e86
+                              |   R-R | R00     | R c0d8929936631ecbcf9147be6b8aa13b13b014e4
+
+1000000065 ed02cb79ed65a650cee6907323f986cff4a8428f http://repo_with_merges/2/
+http://repo_with_merges/2/    |       |         | O ed02cb79ed65a650cee6907323f986cff4a8428f
+                              |       |         | S ee9ea8b0ba40c9012d7d8103234946a21b66a729
+                              | O-R   | R08     | R 7c8f29237dded4f9d265e46ec7066503e7858e87
+                              |   R-R | R07     | R fff0089fad98e8f5b46ec5c9025a20a602851ba6
+                              |   R-R | R06     | R 72d92d41a9095db2dd6b8fb1c62d92c8251753ff
+                              |   R-R | R05     | R 65e58853df939b318c106c4c1f55acaf8b41c74c
+                              |   R-R | R04     | R 0d66eadcc15e0d7f6cfd4289329a7749a1309982
+                              |   R-R | R03     | R 20f4da0f48609d9f7f908ebbcac3b3741a0f25cb
+                              |   R-R | R02     | R 1c533587277731236616cac0d44f3b46c1da0f8a
+                              |   R-R | R01     | R 1444db96cbd8cd791abe83527becee73d3c64e86
+                              |   R-R | R00     | R c0d8929936631ecbcf9147be6b8aa13b13b014e4

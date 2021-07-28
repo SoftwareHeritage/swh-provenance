@@ -98,7 +98,7 @@ Wrote 86 objects in repo2.msgpack
 ### Adding extra visits/snapshots
 
 It is also possible to generate a storage from a git repo with extra origin
-visits, using the `--visit` option of the `generate_repo_from_git` tool.
+visits, using the `--visit` option of the `generate_storage_from_git` tool.
 
 This option expect a yaml file as argument. This file contains a description of
 extra visits (and snapshots) you want to add to the storage.

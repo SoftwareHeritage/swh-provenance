@@ -105,14 +105,16 @@ class ProvenanceDB:
                   WHERE sha1 IN ({values})
                 """
             self.cursor.execute(sql, sha1s)
-            urls.update((row["sha1"], row["url"]) for row in self.cursor.fetchall())
+            urls.update(
+                (row["sha1"], row["url"].decode()) for row in self.cursor.fetchall()
+            )
         return urls
 
     def revision_set_date(self, dates: Dict[Sha1Git, datetime]) -> bool:
         return self._entity_set_date("revision", dates)
 
     def content_find_first(self, id: Sha1Git) -> Optional[ProvenanceResult]:
-        sql = "select * from swh_provenance_content_find_first(%s)"
+        sql = "SELECT * FROM swh_provenance_content_find_first(%s)"
         self.cursor.execute(sql, (id,))
         row = self.cursor.fetchone()
         return ProvenanceResult(**row) if row is not None else None
@@ -120,7 +122,7 @@ class ProvenanceDB:
     def content_find_all(
         self, id: Sha1Git, limit: Optional[int] = None
     ) -> Generator[ProvenanceResult, None, None]:
-        sql = "select * from swh_provenance_content_find_all(%s, %s)"
+        sql = "SELECT * FROM swh_provenance_content_find_all(%s, %s)"
         self.cursor.execute(sql, (id, limit))
         yield from (ProvenanceResult(**row) for row in self.cursor.fetchall())
 

@@ -8,10 +8,13 @@ from typing import Any, Dict, Iterable
 from typing_extensions import Protocol, runtime_checkable
 
 from swh.model.model import Sha1Git
+from swh.storage.interface import StorageInterface
 
 
 @runtime_checkable
 class ArchiveInterface(Protocol):
+    storage: StorageInterface
+
     def directory_ls(self, id: Sha1Git) -> Iterable[Dict[str, Any]]:
         """List entries for one directory.
 

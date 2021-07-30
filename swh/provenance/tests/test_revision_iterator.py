@@ -6,9 +6,8 @@
 import pytest
 
 from swh.provenance.revision import CSVRevisionIterator
-from swh.provenance.tests.conftest import fill_storage, load_repo_data
-from swh.provenance.tests.test_provenance_db import ts2dt
-from swh.storage.postgresql.storage import Storage
+from swh.provenance.tests.conftest import fill_storage, load_repo_data, ts2dt
+from swh.storage.interface import StorageInterface
 
 
 @pytest.mark.parametrize(
@@ -18,13 +17,15 @@ from swh.storage.postgresql.storage import Storage
         "out-of-order",
     ),
 )
-def test_archive_direct_revision_iterator(swh_storage: Storage, repo: str) -> None:
+def test_revision_iterator(swh_storage: StorageInterface, repo: str) -> None:
     """Test CSVRevisionIterator"""
     data = load_repo_data(repo)
     fill_storage(swh_storage, data)
+
     revisions_csv = [
         (rev["id"], ts2dt(rev["date"]), rev["directory"]) for rev in data["revision"]
     ]
     revisions = list(CSVRevisionIterator(revisions_csv))
+
     assert revisions
     assert len(revisions) == len(data["revision"])

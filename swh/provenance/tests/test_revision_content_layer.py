@@ -15,9 +15,12 @@ from swh.provenance.archive import ArchiveInterface
 from swh.provenance.interface import EntityType, ProvenanceInterface, RelationType
 from swh.provenance.model import RevisionEntry
 from swh.provenance.revision import revision_add
-from swh.provenance.tests.conftest import fill_storage, get_datafile, load_repo_data
-from swh.provenance.tests.test_provenance_db import ts2dt
-from swh.storage.postgresql.storage import Storage
+from swh.provenance.tests.conftest import (
+    fill_storage,
+    get_datafile,
+    load_repo_data,
+    ts2dt,
+)
 
 
 class SynthRelation(TypedDict):
@@ -156,7 +159,6 @@ def _mk_synth_rev(synth_rev: List[Dict[str, str]]) -> SynthRevision:
 )
 def test_revision_content_result(
     provenance: ProvenanceInterface,
-    swh_storage: Storage,
     archive: ArchiveInterface,
     repo: str,
     lower: bool,
@@ -164,7 +166,7 @@ def test_revision_content_result(
 ) -> None:
     # read data/README.md for more details on how these datasets are generated
     data = load_repo_data(repo)
-    fill_storage(swh_storage, data)
+    fill_storage(archive.storage, data)
     syntheticfile = get_datafile(
         f"synthetic_{repo}_{'lower' if lower else 'upper'}_{mindepth}.txt"
     )
@@ -298,7 +300,6 @@ def test_revision_content_result(
 @pytest.mark.parametrize("batch", (True, False))
 def test_provenance_heuristics_content_find_all(
     provenance: ProvenanceInterface,
-    swh_storage: Storage,
     archive: ArchiveInterface,
     repo: str,
     lower: bool,
@@ -307,7 +308,7 @@ def test_provenance_heuristics_content_find_all(
 ) -> None:
     # read data/README.md for more details on how these datasets are generated
     data = load_repo_data(repo)
-    fill_storage(swh_storage, data)
+    fill_storage(archive.storage, data)
     revisions = [
         RevisionEntry(
             id=revision["id"],
@@ -381,7 +382,6 @@ def test_provenance_heuristics_content_find_all(
 @pytest.mark.parametrize("batch", (True, False))
 def test_provenance_heuristics_content_find_first(
     provenance: ProvenanceInterface,
-    swh_storage: Storage,
     archive: ArchiveInterface,
     repo: str,
     lower: bool,
@@ -390,7 +390,7 @@ def test_provenance_heuristics_content_find_first(
 ) -> None:
     # read data/README.md for more details on how these datasets are generated
     data = load_repo_data(repo)
-    fill_storage(swh_storage, data)
+    fill_storage(archive.storage, data)
     revisions = [
         RevisionEntry(
             id=revision["id"],

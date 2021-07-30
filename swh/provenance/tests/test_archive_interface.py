@@ -12,6 +12,7 @@ from swh.core.db import BaseDb
 from swh.provenance.postgresql.archive import ArchivePostgreSQL
 from swh.provenance.storage.archive import ArchiveStorage
 from swh.provenance.tests.conftest import fill_storage, load_repo_data
+from swh.storage.interface import StorageInterface
 from swh.storage.postgresql.storage import Storage
 
 
@@ -19,8 +20,9 @@ from swh.storage.postgresql.storage import Storage
     "repo",
     ("cmdbts2", "out-of-order", "with-merges"),
 )
-def test_archive_interface(repo: str, swh_storage: Storage) -> None:
+def test_archive_interface(repo: str, swh_storage: StorageInterface) -> None:
     archive_api = ArchiveStorage(swh_storage)
+    assert isinstance(swh_storage, Storage)
     dsn = swh_storage.get_db().conn.dsn
     with BaseDb.connect(dsn).conn as conn:
         BaseDb.adapt_conn(conn)

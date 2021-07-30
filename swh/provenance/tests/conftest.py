@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from datetime import datetime, timedelta, timezone
 from os import path
 from typing import Any, Dict, Iterable, Iterator
 
@@ -12,15 +13,13 @@ import psycopg2.extensions
 import pytest
 
 from swh.journal.serializers import msgpack_ext_hook
-from swh.model.tests.swh_model_data import TEST_OBJECTS
 from swh.provenance import get_provenance, get_provenance_storage
 from swh.provenance.api.client import RemoteProvenanceStorage
 import swh.provenance.api.server as server
 from swh.provenance.archive import ArchiveInterface
 from swh.provenance.interface import ProvenanceInterface, ProvenanceStorageInterface
-from swh.provenance.postgresql.archive import ArchivePostgreSQL
 from swh.provenance.storage.archive import ArchiveStorage
-from swh.storage.postgresql.storage import Storage
+from swh.storage.interface import StorageInterface
 from swh.storage.replay import process_replay_objects
 
 
@@ -80,50 +79,9 @@ def provenance(
 
 
 @pytest.fixture
-def swh_storage_with_objects(swh_storage: Storage) -> Storage:
-    """return a Storage object (postgresql-based by default) with a few of each
-    object type in it
-
-    The inserted content comes from swh.model.tests.swh_model_data.
-    """
-    for obj_type in (
-        "content",
-        "skipped_content",
-        "directory",
-        "revision",
-        "release",
-        "snapshot",
-        "origin",
-        "origin_visit",
-        "origin_visit_status",
-    ):
-        getattr(swh_storage, f"{obj_type}_add")(TEST_OBJECTS[obj_type])
-    return swh_storage
-
-
-@pytest.fixture
-def archive_direct(swh_storage_with_objects: Storage) -> ArchiveInterface:
-    return ArchivePostgreSQL(swh_storage_with_objects.get_db().conn)
-
-
-@pytest.fixture
-def archive_api(swh_storage_with_objects: Storage) -> ArchiveInterface:
-    return ArchiveStorage(swh_storage_with_objects)
-
-
-@pytest.fixture(params=["archive", "db"])
-def archive(request, swh_storage_with_objects: Storage) -> Iterator[ArchiveInterface]:
-    """Return a ArchivePostgreSQL based StorageInterface object"""
-    # this is a workaround to prevent tests from hanging because of an unclosed
-    # transaction.
-    # TODO: refactor the ArchivePostgreSQL to properly deal with
-    # transactions and get rid of this fixture
-    if request.param == "db":
-        archive = ArchivePostgreSQL(conn=swh_storage_with_objects.get_db().conn)
-        yield archive
-        archive.conn.rollback()
-    else:
-        yield ArchiveStorage(swh_storage_with_objects)
+def archive(swh_storage: StorageInterface) -> ArchiveInterface:
+    """Return an ArchiveStorage-based ArchiveInterface object"""
+    return ArchiveStorage(swh_storage)
 
 
 def get_datafile(fname: str) -> str:
@@ -149,5 +107,14 @@ def filter_dict(d: Dict[Any, Any], keys: Iterable[Any]) -> Dict[Any, Any]:
     return {k: v for (k, v) in d.items() if k in keys}
 
 
-def fill_storage(storage: Storage, data: Dict[str, Any]) -> None:
+def fill_storage(storage: StorageInterface, data: Dict[str, Any]) -> None:
     process_replay_objects(data, storage=storage)
+
+
+# TODO: remove this function in favour of TimestampWithTimezone.to_datetime
+#       from swh.model.model
+def ts2dt(ts: Dict[str, Any]) -> datetime:
+    timestamp = datetime.fromtimestamp(
+        ts["timestamp"]["seconds"], timezone(timedelta(minutes=ts["offset"]))
+    )
+    return timestamp.replace(microsecond=ts["timestamp"]["microseconds"])

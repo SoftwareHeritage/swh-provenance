@@ -9,13 +9,15 @@ from methodtools import lru_cache
 import psycopg2.extensions
 
 from swh.model.model import Sha1Git
-from swh.storage.postgresql.storage import Storage
+from swh.storage import get_storage
 
 
 class ArchivePostgreSQL:
     def __init__(self, conn: psycopg2.extensions.connection) -> None:
+        self.storage = get_storage(
+            "postgresql", db=conn.dsn, objstorage={"cls": "memory"}
+        )
         self.conn = conn
-        self.storage = Storage(conn, objstorage={"cls": "memory"})
 
     def directory_ls(self, id: Sha1Git) -> Iterable[Dict[str, Any]]:
         entries = self._directory_ls(id)

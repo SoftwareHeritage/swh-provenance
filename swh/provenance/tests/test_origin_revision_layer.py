@@ -16,7 +16,6 @@ from swh.provenance.interface import EntityType, ProvenanceInterface, RelationTy
 from swh.provenance.model import OriginEntry
 from swh.provenance.origin import origin_add
 from swh.provenance.tests.conftest import fill_storage, get_datafile, load_repo_data
-from swh.storage.postgresql.storage import Storage
 
 
 class SynthRelation(TypedDict):
@@ -119,14 +118,13 @@ def _mk_synth_org(synth_org: List[Dict[str, str]]) -> SynthOrigin:
 )
 def test_origin_revision_layer(
     provenance: ProvenanceInterface,
-    swh_storage: Storage,
     archive: ArchiveInterface,
     repo: str,
     visit: str,
 ) -> None:
     # read data/README.md for more details on how these datasets are generated
     data = load_repo_data(repo)
-    fill_storage(swh_storage, data)
+    fill_storage(archive.storage, data)
     syntheticfile = get_datafile(f"origin-revision_{repo}_{visit}.txt")
 
     origins = [

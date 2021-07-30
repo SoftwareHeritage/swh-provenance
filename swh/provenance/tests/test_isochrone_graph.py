@@ -16,9 +16,12 @@ from swh.provenance.graph import IsochroneNode, build_isochrone_graph
 from swh.provenance.interface import ProvenanceInterface
 from swh.provenance.model import DirectoryEntry, RevisionEntry
 from swh.provenance.revision import revision_add
-from swh.provenance.tests.conftest import fill_storage, get_datafile, load_repo_data
-from swh.provenance.tests.test_provenance_db import ts2dt
-from swh.storage.postgresql.storage import Storage
+from swh.provenance.tests.conftest import (
+    fill_storage,
+    get_datafile,
+    load_repo_data,
+    ts2dt,
+)
 
 
 def isochrone_graph_from_dict(d: Dict[str, Any], depth: int = 0) -> IsochroneNode:
@@ -63,7 +66,6 @@ def isochrone_graph_from_dict(d: Dict[str, Any], depth: int = 0) -> IsochroneNod
 @pytest.mark.parametrize("batch", (True, False))
 def test_isochrone_graph(
     provenance: ProvenanceInterface,
-    swh_storage: Storage,
     archive: ArchiveInterface,
     repo: str,
     lower: bool,
@@ -72,7 +74,7 @@ def test_isochrone_graph(
 ) -> None:
     # read data/README.md for more details on how these datasets are generated
     data = load_repo_data(repo)
-    fill_storage(swh_storage, data)
+    fill_storage(archive.storage, data)
 
     revisions = {rev["id"]: rev for rev in data["revision"]}
     filename = f"graphs_{repo}_{'lower' if lower else 'upper'}_{mindepth}.yaml"

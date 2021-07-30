@@ -15,7 +15,6 @@ from swh.provenance.interface import ProvenanceInterface
 from swh.provenance.model import OriginEntry, RevisionEntry
 from swh.provenance.origin import origin_add_revision
 from swh.provenance.tests.conftest import fill_storage, get_datafile, load_repo_data
-from swh.storage.postgresql.storage import Storage
 
 
 def history_graph_from_dict(d: Dict[str, Any]) -> HistoryNode:
@@ -39,7 +38,6 @@ def history_graph_from_dict(d: Dict[str, Any]) -> HistoryNode:
 @pytest.mark.parametrize("batch", (True, False))
 def test_history_graph(
     provenance: ProvenanceInterface,
-    swh_storage: Storage,
     archive: ArchiveInterface,
     repo: str,
     visit: str,
@@ -47,7 +45,7 @@ def test_history_graph(
 ) -> None:
     # read data/README.md for more details on how these datasets are generated
     data = load_repo_data(repo)
-    fill_storage(swh_storage, data)
+    fill_storage(archive.storage, data)
 
     filename = f"history_graphs_{repo}_{visit}.yaml"
 

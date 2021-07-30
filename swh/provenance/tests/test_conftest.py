@@ -4,7 +4,8 @@
 # See top-level LICENSE file for more information
 
 from swh.provenance.interface import ProvenanceInterface
-from swh.storage.postgresql.storage import Storage
+from swh.provenance.tests.conftest import fill_storage, load_repo_data
+from swh.storage.interface import StorageInterface
 
 
 def test_provenance_fixture(provenance: ProvenanceInterface) -> None:
@@ -13,10 +14,13 @@ def test_provenance_fixture(provenance: ProvenanceInterface) -> None:
     provenance.flush()  # should be a noop
 
 
-def test_storage(swh_storage_with_objects: Storage) -> None:
-    """Check the 'swh_storage_with_objects' fixture produce a working Storage
+def test_fill_storage(swh_storage: StorageInterface) -> None:
+    """Check the 'fill_storage' test utility produces a working Storage
     object with at least some Content, Revision and Directory in it"""
-    assert swh_storage_with_objects
-    assert swh_storage_with_objects.content_get_random()
-    assert swh_storage_with_objects.directory_get_random()
-    assert swh_storage_with_objects.revision_get_random()
+    data = load_repo_data("cmdbts2")
+    fill_storage(swh_storage, data)
+
+    assert swh_storage
+    assert swh_storage.content_get_random()
+    assert swh_storage.directory_get_random()
+    assert swh_storage.revision_get_random()

@@ -3,36 +3,40 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from swh.model.model import OriginVisitStatus
-from swh.model.tests.swh_model_data import TEST_OBJECTS
+import pytest
+
 from swh.provenance.origin import CSVOriginIterator
+from swh.provenance.tests.conftest import fill_storage, load_repo_data
 from swh.storage.algos.origin import (
     iter_origin_visit_statuses,
     iter_origin_visits,
     iter_origins,
 )
-from swh.storage.postgresql.storage import Storage
+from swh.storage.interface import StorageInterface
 
 
-def test_origin_iterator(swh_storage_with_objects: Storage) -> None:
+@pytest.mark.parametrize(
+    "repo",
+    (
+        "cmdbts2",
+        "out-of-order",
+    ),
+)
+def test_origin_iterator(swh_storage: StorageInterface, repo: str) -> None:
     """Test CSVOriginIterator"""
+    data = load_repo_data(repo)
+    fill_storage(swh_storage, data)
+
     origins_csv = []
-    for origin in iter_origins(swh_storage_with_objects):
-        for visit in iter_origin_visits(swh_storage_with_objects, origin.url):
+    for origin in iter_origins(swh_storage):
+        for visit in iter_origin_visits(swh_storage, origin.url):
             if visit.visit is not None:
                 for status in iter_origin_visit_statuses(
-                    swh_storage_with_objects, origin.url, visit.visit
+                    swh_storage, origin.url, visit.visit
                 ):
                     if status.snapshot is not None:
                         origins_csv.append((status.origin, status.snapshot))
     origins = list(CSVOriginIterator(origins_csv))
+
     assert origins
-    assert len(origins) == len(
-        list(
-            {
-                status.origin
-                for status in TEST_OBJECTS["origin_visit_status"]
-                if isinstance(status, OriginVisitStatus) and status.snapshot is not None
-            }
-        )
-    )
+    assert len(origins) == len(data["origin"])

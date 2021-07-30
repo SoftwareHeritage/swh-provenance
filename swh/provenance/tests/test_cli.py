@@ -5,8 +5,9 @@
 
 from typing import Set
 
+from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
-import psycopg2
+import psycopg2.extensions
 import pytest
 
 from swh.core.cli import swh as swhmain
@@ -50,7 +51,7 @@ TABLES = {
     "flavor, dbtables", (("with-path", TABLES | {"location"}), ("without-path", TABLES))
 )
 def test_cli_db_create_and_init_db_with_flavor(
-    monkeypatch,  # TODO: add proper type annotation
+    monkeypatch: MonkeyPatch,
     postgresql: psycopg2.extensions.connection,
     flavor: str,
     dbtables: Set[str],

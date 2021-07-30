@@ -6,8 +6,9 @@
 from os import path
 from typing import Any, Dict, Iterable, Iterator
 
+from _pytest.fixtures import SubRequest
 import msgpack
-import psycopg2
+import psycopg2.extensions
 import pytest
 
 from swh.journal.serializers import msgpack_ext_hook
@@ -32,26 +33,21 @@ from swh.storage.replay import process_replay_objects
     ]
 )
 def populated_db(
-    request,  # TODO: add proper type annotation
+    request: SubRequest,
     postgresql: psycopg2.extensions.connection,
 ) -> Dict[str, str]:
     """return a working and initialized provenance db"""
     from swh.core.cli.db import populate_database_for_package
 
-    # flavor = "with-path" if request.param == "client-server" else request.param
     populate_database_for_package(
         "swh.provenance", postgresql.dsn, flavor=request.param
     )
-    return {
-        k: v
-        for (k, v) in (item.split("=") for item in postgresql.dsn.split())
-        if k != "options"
-    }
+    return postgresql.get_dsn_parameters()
 
 
 # the Flask app used as server in these tests
 @pytest.fixture
-def app(populated_db: Dict[str, str]):
+def app(populated_db: Dict[str, str]) -> Iterator[server.ProvenanceStorageServerApp]:
     assert hasattr(server, "storage")
     server.storage = get_provenance_storage(cls="local", db=populated_db)
     yield server.app
@@ -59,17 +55,17 @@ def app(populated_db: Dict[str, str]):
 
 # the RPCClient class used as client used in these tests
 @pytest.fixture
-def swh_rpc_client_class():
+def swh_rpc_client_class() -> type:
     return RemoteProvenanceStorage
 
 
 @pytest.fixture(params=["local", "remote"])
 def provenance(
-    request,  # TODO: add proper type annotation
+    request: SubRequest,
     populated_db: Dict[str, str],
     swh_rpc_client: RemoteProvenanceStorage,
 ) -> ProvenanceInterface:
-    """return a working and initialized provenance db"""
+    """Return a working and initialized ProvenanceInterface object"""
 
     if request.param == "remote":
         from swh.provenance.provenance import Provenance

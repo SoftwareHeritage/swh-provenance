@@ -6,6 +6,7 @@
 
 from io import open
 from os import path
+from typing import List, Optional
 
 from setuptools import find_packages, setup
 
@@ -16,7 +17,7 @@ with open(path.join(here, "README.md"), encoding="utf-8") as f:
     long_description = f.read()
 
 
-def parse_requirements(name=None):
+def parse_requirements(name: Optional[str] = None) -> List[str]:
     if name:
         reqf = "requirements-%s.txt" % name
     else:

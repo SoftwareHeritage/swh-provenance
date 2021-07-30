@@ -5,6 +5,9 @@
 
 import logging
 import os
+from typing import Any, Dict, List, Optional
+
+from werkzeug.routing import Rule
 
 from swh.core import config
 from swh.core.api import JSONFormatter, MsgpackFormatter, RPCServerApp, negotiate
@@ -13,12 +16,12 @@ from swh.provenance.interface import ProvenanceStorageInterface
 
 from .serializers import DECODERS, ENCODERS
 
-storage = None
+storage: Optional[ProvenanceStorageInterface] = None
 
 
-def get_global_provenance_storage():
+def get_global_provenance_storage() -> ProvenanceStorageInterface:
     global storage
-    if not storage:
+    if storage is None:
         storage = get_provenance_storage(**app.config["provenance"]["storage"])
     return storage
 
@@ -35,12 +38,12 @@ app = ProvenanceStorageServerApp(
 )
 
 
-def has_no_empty_params(rule):
+def has_no_empty_params(rule: Rule) -> bool:
     return len(rule.defaults or ()) >= len(rule.arguments or ())
 
 
 @app.route("/")
-def index():
+def index() -> str:
     return """<html>
 <head><title>Software Heritage provenance storage RPC server</title></head>
 <body>
@@ -57,7 +60,7 @@ and API</a> for more information</p>
 @app.route("/site-map")
 @negotiate(MsgpackFormatter)
 @negotiate(JSONFormatter)
-def site_map():
+def site_map() -> List[Dict[str, Any]]:
     links = []
     for rule in app.url_map.iter_rules():
         if has_no_empty_params(rule) and hasattr(
@@ -75,7 +78,9 @@ def site_map():
     return links
 
 
-def load_and_check_config(config_path, type="local"):
+def load_and_check_config(
+    config_path: Optional[str], type: str = "local"
+) -> Dict[str, Any]:
     """Check the minimal configuration is set to run the api or raise an
        error explanation.
 
@@ -91,7 +96,7 @@ def load_and_check_config(config_path, type="local"):
         configuration as a dict
 
     """
-    if not config_path:
+    if config_path is None:
         raise EnvironmentError("Configuration file must be defined")
 
     if not os.path.exists(config_path):
@@ -99,12 +104,12 @@ def load_and_check_config(config_path, type="local"):
 
     cfg = config.read(config_path)
 
-    pcfg = cfg.get("provenance")
-    if not pcfg:
+    pcfg: Optional[Dict[str, Any]] = cfg.get("provenance")
+    if pcfg is None:
         raise KeyError("Missing 'provenance' configuration")
 
-    scfg = pcfg.get("storage")
-    if not scfg:
+    scfg: Optional[Dict[str, Any]] = pcfg.get("storage")
+    if scfg is None:
         raise KeyError("Missing 'provenance.storage' configuration")
 
     if type == "local":
@@ -122,10 +127,10 @@ def load_and_check_config(config_path, type="local"):
     return cfg
 
 
-api_cfg = None
+api_cfg: Optional[Dict[str, Any]] = None
 
 
-def make_app_from_configfile():
+def make_app_from_configfile() -> ProvenanceStorageServerApp:
     """Run the WSGI app from the webserver, loading the configuration from
     a configuration file.
 
@@ -134,7 +139,7 @@ def make_app_from_configfile():
 
     """
     global api_cfg
-    if not api_cfg:
+    if api_cfg is None:
         config_path = os.environ.get("SWH_CONFIG_FILENAME")
         api_cfg = load_and_check_config(config_path)
         app.config.update(api_cfg)

@@ -4,30 +4,31 @@
 # See top-level LICENSE file for more information
 
 from dataclasses import asdict
-from typing import Callable, Dict, List, Tuple
+from enum import Enum
+from typing import Any, Callable, Dict, List, Tuple
 
 from .. import interface
 
 
-def _encode_dataclass(obj):
+def _encode_dataclass(obj: Any) -> Dict[str, Any]:
     return {
         **asdict(obj),
         "__type__": type(obj).__name__,
     }
 
 
-def _decode_dataclass(d):
+def _decode_dataclass(d: Dict[str, Any]) -> Any:
     return getattr(interface, d.pop("__type__"))(**d)
 
 
-def _encode_enum(obj):
+def _encode_enum(obj: Enum) -> Dict[str, Any]:
     return {
         "value": obj.value,
         "__type__": type(obj).__name__,
     }
 
 
-def _decode_enum(d):
+def _decode_enum(d: Dict[str, Any]) -> Enum:
     return getattr(interface, d.pop("__type__"))(d["value"])
 
 

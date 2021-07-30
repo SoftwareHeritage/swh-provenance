@@ -6,7 +6,7 @@
 from typing import Any, Dict, Iterable, List
 
 from methodtools import lru_cache
-import psycopg2
+import psycopg2.extensions
 
 from swh.model.model import Sha1Git
 from swh.storage.postgresql.storage import Storage

@@ -11,7 +11,7 @@ from swh.storage.interface import StorageInterface
 
 
 class ArchiveStorage:
-    def __init__(self, storage: StorageInterface):
+    def __init__(self, storage: StorageInterface) -> None:
         self.storage = storage
 
     def directory_ls(self, id: Sha1Git) -> Iterable[Dict[str, Any]]:

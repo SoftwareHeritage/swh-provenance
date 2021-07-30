@@ -2,12 +2,13 @@ import os
 import pathlib
 import shutil
 from subprocess import PIPE, check_call, check_output
+from typing import Any, Dict, List
 
 import click
 import yaml
 
 
-def clean_wd():
+def clean_wd() -> None:
     _, dirnames, filenames = next(os.walk("."))
     for d in dirnames:
         if not d.startswith(".git"):
@@ -17,7 +18,7 @@ def clean_wd():
             os.unlink(f)
 
 
-def print_ids():
+def print_ids() -> None:
     revid = check_output(["git", "rev-parse", "HEAD"]).decode().strip()
     ts, msg = (
         check_output(["git", "log", "-1", '--format="%at %s"'])
@@ -48,7 +49,7 @@ def print_ids():
             dirnames.remove(".git")
 
 
-def generate_repo(repo_desc, output_dir):
+def generate_repo(repo_desc: List[Dict[str, Any]], output_dir: str) -> None:
     check_call(["git", "init", output_dir], stdout=PIPE, stderr=PIPE)
     os.chdir(output_dir)
     os.environ.update(
@@ -104,7 +105,7 @@ def generate_repo(repo_desc, output_dir):
 @click.argument("input-file")
 @click.argument("output-dir")
 @click.option("-C", "--clean-output/--no-clean-output", default=False)
-def main(input_file, output_dir, clean_output):
+def main(input_file: str, output_dir: str, clean_output: bool) -> None:
     repo_desc = yaml.load(open(input_file))
     if clean_output and os.path.exists(output_dir):
         shutil.rmtree(output_dir)

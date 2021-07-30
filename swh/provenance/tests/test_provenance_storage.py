@@ -8,7 +8,7 @@ import inspect
 from ..interface import ProvenanceInterface, ProvenanceStorageInterface
 
 
-def test_types(provenance: ProvenanceInterface):
+def test_types(provenance: ProvenanceInterface) -> None:
     """Checks all methods of ProvenanceStorageInterface are implemented by this
     backend, and that they have the same signature."""
     # Create an instance of the protocol (which cannot be instantiated

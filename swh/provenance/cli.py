@@ -193,7 +193,6 @@ def find_first(ctx: click.core.Context, swhid: str) -> None:
     from . import get_provenance
 
     provenance = get_provenance(**ctx.obj["config"]["provenance"]["storage"])
-    # TODO: return a dictionary with proper keys for each field
     occur = provenance.content_find_first(hash_to_bytes(swhid))
     if occur is not None:
         print(
@@ -216,7 +215,6 @@ def find_all(ctx: click.core.Context, swhid: str, limit: Optional[int]) -> None:
     from . import get_provenance
 
     provenance = get_provenance(**ctx.obj["config"]["provenance"]["storage"])
-    # TODO: return a dictionary with proper keys for each field
     for occur in provenance.content_find_all(hash_to_bytes(swhid), limit=limit):
         print(
             f"swh:1:cnt:{hash_to_hex(occur.content)}, "

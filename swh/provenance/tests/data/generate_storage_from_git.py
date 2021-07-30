@@ -6,6 +6,7 @@
 from datetime import datetime, timezone
 import os
 from subprocess import check_output
+from typing import Dict, Optional
 
 import click
 import yaml
@@ -21,9 +22,12 @@ from swh.model.model import (
     TargetType,
 )
 from swh.storage import get_storage
+from swh.storage.interface import StorageInterface
 
 
-def load_git_repo(url, directory, storage):
+def load_git_repo(
+    url: str, directory: str, storage: StorageInterface
+) -> Dict[str, str]:
     visit_date = datetime.now(tz=timezone.utc)
     loader = GitLoaderFromDisk(
         url=url,
@@ -32,11 +36,6 @@ def load_git_repo(url, directory, storage):
         storage=storage,
     )
     return loader.load()
-
-
-def pop_key(d, k):
-    d.pop(k)
-    return d
 
 
 @click.command()
@@ -49,7 +48,7 @@ def pop_key(d, k):
     help="additional visits to generate.",
 )
 @click.argument("git-repo", type=click.Path(exists=True, file_okay=False))
-def main(output, visits, git_repo):
+def main(output: Optional[str], visits: bytes, git_repo: str) -> None:
     "simple tool to generate the git_repo.msgpack dataset file used in some tests"
     if output is None:
         output = f"{git_repo}.msgpack"
@@ -79,15 +78,20 @@ def main(output, visits, git_repo):
                 # add the origin (if it already exists, this is a noop)
                 sto.origin_add([Origin(url=visit["origin"])])
                 # add a new visit for this origin
-                visit_id = sto.origin_visit_add(
-                    [
-                        OriginVisit(
-                            origin=visit["origin"],
-                            date=datetime.fromtimestamp(visit["date"], tz=timezone.utc),
-                            type="git",
-                        )
-                    ]
+                visit_id = list(
+                    sto.origin_visit_add(
+                        [
+                            OriginVisit(
+                                origin=visit["origin"],
+                                date=datetime.fromtimestamp(
+                                    visit["date"], tz=timezone.utc
+                                ),
+                                type="git",
+                            )
+                        ]
+                    )
                 )[0].visit
+                assert visit_id is not None
                 # add a snapshot with branches from the input file
                 branches = {
                     f"refs/heads/{name}".encode(): SnapshotBranch(

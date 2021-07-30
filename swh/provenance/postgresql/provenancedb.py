@@ -8,7 +8,7 @@ import itertools
 import logging
 from typing import Dict, Generator, Iterable, Optional, Set, Tuple
 
-import psycopg2
+import psycopg2.extensions
 import psycopg2.extras
 from typing_extensions import Literal
 
@@ -27,7 +27,7 @@ from ..interface import (
 class ProvenanceDB:
     def __init__(
         self, conn: psycopg2.extensions.connection, raise_on_commit: bool = False
-    ):
+    ) -> None:
         BaseDb.adapt_conn(conn)
         conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
         conn.set_session(autocommit=True)

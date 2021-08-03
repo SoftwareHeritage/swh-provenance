@@ -5,12 +5,14 @@
 
 from datetime import datetime, timedelta, timezone
 from os import path
+import tempfile
 from typing import Any, Dict, Iterable, Iterator
 
 from _pytest.fixtures import SubRequest
 import msgpack
 import psycopg2.extensions
 import pytest
+from pytest_postgresql import factories
 
 from swh.journal.serializers import msgpack_ext_hook
 from swh.provenance import get_provenance, get_provenance_storage
@@ -59,23 +61,42 @@ def swh_rpc_client_class() -> type:
 
 
 @pytest.fixture(params=["local", "remote"])
-def provenance(
+def storage(
     request: SubRequest,
     populated_db: Dict[str, str],
     swh_rpc_client: RemoteProvenanceStorage,
-) -> ProvenanceInterface:
-    """Return a working and initialized ProvenanceInterface object"""
+) -> ProvenanceStorageInterface:
+    """Return a working and initialized ProvenanceStorageInterface object"""
 
     if request.param == "remote":
-        from swh.provenance.provenance import Provenance
-
         assert isinstance(swh_rpc_client, ProvenanceStorageInterface)
-        return Provenance(swh_rpc_client)
+        return swh_rpc_client
 
     else:
         # in test sessions, we DO want to raise any exception occurring at commit time
-        prov = get_provenance(cls=request.param, db=populated_db, raise_on_commit=True)
-        return prov
+        storage = get_provenance_storage(
+            cls=request.param, db=populated_db, raise_on_commit=True
+        )
+        return storage
+
+
+# using the factory to create a postgresql instance
+socket_dir = tempfile.TemporaryDirectory()
+postgresql2_proc = factories.postgresql_proc(port=None, unixsocketdir=socket_dir.name)
+postgresql2 = factories.postgresql("postgresql2_proc")
+
+
+@pytest.fixture
+def provenance(postgresql2: psycopg2.extensions.connection) -> ProvenanceInterface:
+    """Return a working and initialized ProvenanceInterface object"""
+
+    from swh.core.cli.db import populate_database_for_package
+
+    populate_database_for_package("swh.provenance", postgresql2.dsn, flavor="with-path")
+    # in test sessions, we DO want to raise any exception occurring at commit time
+    return get_provenance(
+        cls="local", db=postgresql2.get_dsn_parameters(), raise_on_commit=True
+    )
 
 
 @pytest.fixture

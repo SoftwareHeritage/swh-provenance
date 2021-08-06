@@ -341,8 +341,9 @@ class ProvenanceDB:
             SELECT S.sha1 AS src, {revloc}
             FROM {table} AS R
             INNER JOIN {src} AS S ON (S.id=R.{src_field})
-            {where}
             """
+            if where != "" and not reverse:
+                inner_sql += where
 
             if self._relation_uses_location_table(relation):
                 loc = "L.path AS path"
@@ -355,6 +356,8 @@ class ProvenanceDB:
             """
             if self._relation_uses_location_table(relation):
                 sql += "INNER JOIN location AS L ON (L.id=CL.path)"
+            if where != "" and reverse:
+                sql += where
 
             self.cursor.execute(sql, sha1s)
             result.update(RelationData(**row) for row in self.cursor.fetchall())

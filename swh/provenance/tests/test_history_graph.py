@@ -3,32 +3,16 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Any, Dict
-
 import pytest
 import yaml
 
 from swh.model.hashutil import hash_to_bytes
 from swh.provenance.archive import ArchiveInterface
-from swh.provenance.graph import HistoryNode, build_history_graph
+from swh.provenance.graph import HistoryGraph
 from swh.provenance.interface import ProvenanceInterface
 from swh.provenance.model import OriginEntry, RevisionEntry
 from swh.provenance.origin import origin_add_revision
 from swh.provenance.tests.conftest import fill_storage, get_datafile, load_repo_data
-
-
-def history_graph_from_dict(d: Dict[str, Any]) -> HistoryNode:
-    """Takes a dictionary representing a tree of HistoryNode objects, and
-    recursively builds the corresponding graph."""
-    node = HistoryNode(
-        entry=RevisionEntry(hash_to_bytes(d["rev"])),
-        visited=d.get("visited", False),
-        in_history=d.get("in_history", False),
-    )
-    node.parents = set(
-        history_graph_from_dict(parent) for parent in d.get("parents", [])
-    )
-    return node
 
 
 @pytest.mark.parametrize(
@@ -54,17 +38,16 @@ def test_history_graph(
             entry = OriginEntry(expected["origin"], hash_to_bytes(expected["snapshot"]))
             provenance.origin_add(entry)
 
-            for graph_as_dict in expected["graphs"]:
-                expected_graph = history_graph_from_dict(graph_as_dict)
-                print("Expected graph:", expected_graph)
+            for expected_graph_as_dict in expected["graphs"]:
+                print("Expected graph:", expected_graph_as_dict)
 
-                computed_graph = build_history_graph(
+                computed_graph = HistoryGraph(
                     archive,
                     provenance,
-                    RevisionEntry(hash_to_bytes(graph_as_dict["rev"])),
+                    RevisionEntry(hash_to_bytes(expected_graph_as_dict["head"]["rev"])),
                 )
-                print("Computed graph:", computed_graph)
-                assert computed_graph == expected_graph
+                print("Computed graph:", computed_graph.as_dict())
+                assert computed_graph.as_dict() == expected_graph_as_dict
 
                 origin_add_revision(provenance, entry, computed_graph)
 

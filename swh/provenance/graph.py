@@ -10,6 +10,7 @@ import logging
 import os
 from typing import Any, Dict, Optional, Set
 
+from swh.model.hashutil import hash_to_hex
 from swh.model.model import Sha1Git
 
 from .archive import ArchiveInterface
@@ -21,68 +22,83 @@ UTCMIN = datetime.min.replace(tzinfo=timezone.utc)
 
 class HistoryNode:
     def __init__(
-        self, entry: RevisionEntry, visited: bool = False, in_history: bool = False
+        self, entry: RevisionEntry, is_head: bool = False, in_history: bool = False
     ) -> None:
         self.entry = entry
-        # A revision is `visited` if it is directly pointed by an origin (ie. a head
+        # A revision is `is_head` if it is directly pointed by an origin (ie. a head
         # revision for some snapshot)
-        self.visited = visited
+        self.is_head = is_head
         # A revision is `in_history` if it appears in the history graph of an already
         # processed revision in the provenance database
         self.in_history = in_history
-        self.parents: Set[HistoryNode] = set()
-
-    def add_parent(
-        self, parent: RevisionEntry, visited: bool = False, in_history: bool = False
-    ) -> HistoryNode:
-        node = HistoryNode(parent, visited=visited, in_history=in_history)
-        self.parents.add(node)
-        return node
+        # XXX: the current simplified version of the origin-revision layer algorithm
+        # does not use this previous two flags at all. They are kept for now but might
+        # be removed in the future (hence, RevisionEntry might be used instead of
+        # HistoryNode).
 
     def __str__(self) -> str:
-        return (
-            f"<{self.entry}: visited={self.visited}, in_history={self.in_history}, "
-            f"parents=[{', '.join(str(parent) for parent in self.parents)}]>"
+        return f"<{self.entry}: is_head={self.is_head}, in_history={self.in_history}>"
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {
+            "rev": hash_to_hex(self.entry.id),
+            "is_head": self.is_head,
+            "in_history": self.in_history,
+        }
+
+
+class HistoryGraph:
+    def __init__(
+        self,
+        archive: ArchiveInterface,
+        provenance: ProvenanceInterface,
+        revision: RevisionEntry,
+    ) -> None:
+        self._head = HistoryNode(
+            revision,
+            is_head=provenance.revision_visited(revision),
+            in_history=provenance.revision_in_history(revision),
         )
+        self._graph: Dict[HistoryNode, Set[HistoryNode]] = {}
 
-    def __eq__(self, other: Any) -> bool:
-        return isinstance(other, HistoryNode) and self.__dict__ == other.__dict__
+        stack = [self._head]
+        while stack:
+            current = stack.pop()
 
-    def __hash__(self) -> int:
-        return hash((self.entry, self.visited, self.in_history))
+            if current not in self._graph:
+                self._graph[current] = set()
+                current.entry.retrieve_parents(archive)
+                for parent in current.entry.parents:
+                    node = HistoryNode(
+                        parent,
+                        is_head=provenance.revision_visited(parent),
+                        in_history=provenance.revision_in_history(parent),
+                    )
+                    self._graph[current].add(node)
+                    stack.append(node)
 
+    @property
+    def head(self) -> HistoryNode:
+        return self._head
 
-def build_history_graph(
-    archive: ArchiveInterface,
-    provenance: ProvenanceInterface,
-    revision: RevisionEntry,
-) -> HistoryNode:
-    """Recursively build the history graph from the given revision"""
+    @property
+    def parents(self) -> Dict[HistoryNode, Set[HistoryNode]]:
+        return self._graph
 
-    root = HistoryNode(
-        revision,
-        visited=provenance.revision_visited(revision),
-        in_history=provenance.revision_in_history(revision),
-    )
-    stack = [root]
-    logging.debug(
-        f"Recursively creating history graph for revision {revision.id.hex()}..."
-    )
-    while stack:
-        current = stack.pop()
+    def __str__(self) -> str:
+        return f"<HistoryGraph: head={self._head}, graph={self._graph}"
 
-        current.entry.retrieve_parents(archive)
-        for rev in current.entry.parents:
-            node = current.add_parent(
-                rev,
-                visited=provenance.revision_visited(rev),
-                in_history=provenance.revision_in_history(rev),
-            )
-            stack.append(node)
-    logging.debug(
-        f"History graph for revision {revision.id.hex()} successfully created!"
-    )
-    return root
+    def as_dict(self) -> Dict[str, Any]:
+        return {
+            "head": self.head.as_dict(),
+            "graph": {
+                hash_to_hex(node.entry.id): sorted(
+                    [parent.as_dict() for parent in parents],
+                    key=lambda d: d["rev"],
+                )
+                for node, parents in self._graph.items()
+            },
+        }
 
 
 class IsochroneNode:

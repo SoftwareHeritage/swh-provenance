@@ -39,7 +39,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
             },
         },
         "storage": {
-            "cls": "local",
+            "cls": "postgresql",
             "db": {"host": "localhost", "dbname": "provenance"},
         },
     }

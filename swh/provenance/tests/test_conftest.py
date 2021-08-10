@@ -9,7 +9,8 @@ from swh.storage.interface import StorageInterface
 
 
 def test_provenance_fixture(provenance: ProvenanceInterface) -> None:
-    """Check the 'provenance' fixture produce a working ProvenanceDB object"""
+    """Check the 'provenance' fixture produce a working
+    ProvenanceStoragePostgreSql object"""
     assert provenance
     provenance.flush()  # should be a noop
 

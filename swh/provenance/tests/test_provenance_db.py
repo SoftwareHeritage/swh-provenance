@@ -4,11 +4,11 @@
 # See top-level LICENSE file for more information
 
 from swh.provenance.interface import ProvenanceInterface
-from swh.provenance.postgresql.provenancedb import ProvenanceDB
+from swh.provenance.postgresql.provenance import ProvenanceStoragePostgreSql
 
 
 def test_provenance_flavor(provenance: ProvenanceInterface) -> None:
-    if isinstance(provenance.storage, ProvenanceDB):
+    if isinstance(provenance.storage, ProvenanceStoragePostgreSql):
         assert provenance.storage.flavor in (
             "with-path",
             "without-path",

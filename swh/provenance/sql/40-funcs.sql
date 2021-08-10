@@ -28,10 +28,10 @@ as $$
            L.path as path
     from content as C
     inner join content_in_revision as CR on (CR.content = C.id)
-    inner join location as L on (CR.location = L.id)
-    inner join revision as R on (CR.revision = R.id)
-    left join origin as O on (R.origin=O.id)
-    where C.sha1=content_id
+    inner join location as L on (L.id = CR.location)
+    inner join revision as R on (R.id = CR.revision)
+    left join origin as O on (O.id = R.origin)
+    where C.sha1 = content_id
     order by date, revision, origin, path asc limit 1
 $$;
 
@@ -47,34 +47,34 @@ create or replace function swh_provenance_content_find_all(content_id sha1_git, 
     stable
 as $$
   (select C.sha1 as content,
-          r.sha1 as revision,
-          r.date as date,
+          R.sha1 as revision,
+          R.date as date,
           O.url as origin,
-          l.path as path
-   from content as c
-   inner join content_in_revision as cr on (cr.content = c.id)
-   inner join location as l on (cr.location = l.id)
-   inner join revision as r on (cr.revision = r.id)
-   left join origin AS O on (R.origin=O.id)
-   where c.sha1=content_id)
+          L.path as path
+   from content as C
+   inner join content_in_revision as CR on (CR.content = C.id)
+   inner join location as L on (L.id = CR.location)
+   inner join revision as R on (R.id = CR.revision)
+   left join origin as O on (O.id = R.origin)
+   where C.sha1 = content_id)
   union
-  (select c.sha1 as content,
-          r.sha1 as revision,
-          r.date as date,
+  (select C.sha1 as content,
+          R.sha1 as revision,
+          R.date as date,
           O.url as origin,
-          case dirloc.path
-            when '' then cntloc.path
-            when '.' then cntloc.path
-            else (dirloc.path || '/' || cntloc.path)::unix_path
+          case DL.path
+            when '' then CL.path
+            when '.' then CL.path
+            else (DL.path || '/' || CL.path)::unix_path
           end as path
-   from content as c
-   inner join content_in_directory as cd on (c.id = cd.content)
-   inner join directory_in_revision as dr on (cd.directory = dr.directory)
-   inner join revision as r on (dr.revision = r.id)
-   inner join location as cntloc on (cd.location = cntloc.id)
-   inner join location as dirloc on (dr.location = dirloc.id)
-   left join origin as O on (R.origin=O.id)
-   where C.sha1=content_id)
+   from content as C
+   inner join content_in_directory as CD on (CD.content = C.id)
+   inner join directory_in_revision as DR on (DR.directory = CD.directory)
+   inner join revision as R on (R.id = DR.revision)
+   inner join location as CL on (CL.id = CD.location)
+   inner join location as DL on (DL.id = DR.location)
+   left join origin as O on (O.id = R.origin)
+   where C.sha1 = content_id)
    order by date, revision, origin, path limit early_cut
 $$;
 
@@ -100,9 +100,9 @@ as $$
             '\x'::unix_path as path
      from content as C
      inner join content_in_revision as CR on (CR.content = C.id)
-     inner join revision as R on (CR.revision = R.id)
-     left join origin as O on (R.origin=O.id)
-     where C.sha1=content_id
+     inner join revision as R on (R.id = CR.revision)
+     left join origin as O on (O.id = R.origin)
+     where C.sha1 = content_id
      order by date, revision, origin asc limit 1
 $$;
 
@@ -118,27 +118,27 @@ create or replace function swh_provenance_content_find_all(content_id sha1_git, 
     stable
 as $$
   (select C.sha1 as content,
-          r.sha1 as revision,
-          r.date as date,
+          R.sha1 as revision,
+          R.date as date,
           O.url as origin,
           '\x'::unix_path as path
-   from content as c
-   inner join content_in_revision as cr on (cr.content = c.id)
-   inner join revision as r on (cr.revision = r.id)
-   left join origin as O on (R.origin=O.id)
-   where c.sha1=content_id)
+   from content as C
+   inner join content_in_revision as CR on (CR.content = C.id)
+   inner join revision as R on (R.id = CR.revision)
+   left join origin as O on (O.id = R.origin)
+   where C.sha1 = content_id)
   union
-  (select c.sha1 as content,
-          r.sha1 as revision,
-          r.date as date,
+  (select C.sha1 as content,
+          R.sha1 as revision,
+          R.date as date,
           O.url as origin,
           '\x'::unix_path as path
-   from content as c
-   inner join content_in_directory as cd on (c.id = cd.content)
-   inner join directory_in_revision as dr on (cd.directory = dr.directory)
-   inner join revision as r on (dr.revision = r.id)
-   left join origin as O on (R.origin=O.id)
-   where C.sha1=content_id)
+   from content as C
+   inner join content_in_directory as CD on (CD.content = C.id)
+   inner join directory_in_revision as DR on (DR.directory = CD.directory)
+   inner join revision as R on (R.id = DR.revision)
+   left join origin as O on (O.id = R.origin)
+   where C.sha1 = content_id)
    order by date, revision, origin, path limit early_cut
 $$;
 
@@ -164,22 +164,22 @@ create or replace function swh_provenance_content_find_first(content_id sha1_git
     language sql
     stable
 as $$
-    select C_L.sha1 as content,
+    select CL.sha1 as content,
            R.sha1 as revision,
            R.date as date,
            O.url as origin,
            L.path as path
     from (
       select C.sha1 as sha1,
-             unnest(revision) as revision,
-             unnest(location) as location
-      from content_in_revision as C_R
-      inner join content as C on (C.id=C_R.content)
-      where C.sha1=content_id
-    ) as C_L
-    inner join revision as R on (R.id=C_L.revision)
-    inner join location as L on (L.id=C_L.location)
-    left join origin as O on (R.origin=O.id)
+             unnest(CR.revision) as revision,
+             unnest(CR.location) as location
+      from content_in_revision as CR
+      inner join content as C on (C.id = CR.content)
+      where C.sha1 = content_id
+    ) as CL
+    inner join revision as R on (R.id = CL.revision)
+    inner join location as L on (L.id = CL.location)
+    left join origin as O on (O.id = R.origin)
     order by date, revision, origin, path asc limit 1
 $$;
 
@@ -194,55 +194,55 @@ create or replace function swh_provenance_content_find_all(content_id sha1_git, 
     language sql
     stable
 as $$
-   (with cnt as (
-      select c.sha1 as sha1,
-             unnest(c_r.revision) as revision,
-             unnest(c_r.location) as location
-      from content_in_revision as c_r
-      inner join content as c on (c.id = c_r.content)
-      where c.sha1 = content_id
+   (with cntrev as (
+      select C.sha1 as sha1,
+             unnest(CR.revision) as revision,
+             unnest(CR.location) as location
+      from content_in_revision as CR
+      inner join content as C on (C.id = CR.content)
+      where C.sha1 = content_id
     )
-    select cnt.sha1 as content,
-           r.sha1 as revision,
-           r.date as date,
+    select CR.sha1 as content,
+           R.sha1 as revision,
+           R.date as date,
            O.url as origin,
-           l.path as path
-    from cnt
-    inner join revision as r on (r.id = cnt.revision)
-    inner join location as l on (l.id = cnt.location)
-    left join origin as O on (R.origin=O.id)
+           L.path as path
+    from cntrev as CR
+    inner join revision as R on (R.id = CR.revision)
+    inner join location as L on (L.id = CR.location)
+    left join origin as O on (O.id = R.origin)
     )
    union
-   (with cnt as (
-     select c.sha1 as content_sha1,
-            unnest(cd.directory) as directory,
-            unnest(cd.location) as location
-     from content as c
-     inner join content_in_directory as cd on (cd.content = c.id)
-     where c.sha1 = content_id
+   (with cntdir as (
+     select C.sha1 as sha1,
+            unnest(CD.directory) as directory,
+            unnest(CD.location) as location
+     from content as C
+     inner join content_in_directory as CD on (CD.content = C.id)
+     where C.sha1 = content_id
      ),
-    cntdir as (
-     select cnt.content_sha1 as content_sha1,
-            cntloc.path as file_path,
-            unnest(dr.revision) as revision,
-            unnest(dr.location) as prefix_location
-     from cnt
-     inner join directory_in_revision as dr on (dr.directory = cnt.directory)
-     inner join location as cntloc on (cntloc.id = cnt.location)
+    cntrev as (
+     select CD.sha1 as sha1,
+            L.path as path,
+            unnest(DR.revision) as revision,
+            unnest(DR.location) as prefix
+     from cntdir as CD
+     inner join directory_in_revision as DR on (DR.directory = CD.directory)
+     inner join location as L on (L.id = CD.location)
      )
-   select cntdir.content_sha1 as content,
-          r.sha1 as revision,
-          r.date as date,
+   select CR.sha1 as content,
+          R.sha1 as revision,
+          R.date as date,
           O.url as origin,
-          case dirloc.path
-             when ''  then cntdir.file_path
-             when '.' then cntdir.file_path
-             else (dirloc.path || '/' || cntdir.file_path)::unix_path
+          case DL.path
+             when ''  then CR.path
+             when '.' then CR.path
+             else (DL.path || '/' || CR.path)::unix_path
           end as path
-   from cntdir
-   inner join location as dirloc on (cntdir.prefix_location = dirloc.id)
-   inner join revision as r on (cntdir.revision = r.id)
-   left join origin as O on (R.origin=O.id)
+   from cntrev as CR
+   inner join revision as R on (R.id = CR.revision)
+   inner join location as DL on (DL.id = CR.prefix)
+   left join origin as O on (O.id = R.origin)
    )
    order by date, revision, origin, path limit early_cut
 $$;
@@ -262,19 +262,19 @@ create or replace function swh_provenance_content_find_first(content_id sha1_git
     language sql
     stable
 as $$
-    select C_L.sha1 as content,
+    select CL.sha1 as content,
            R.sha1 as revision,
            R.date as date,
            O.url as origin,
            '\x'::unix_path as path
     from (
       select C.sha1, unnest(revision) as revision
-      from content_in_revision as C_R
-      inner join content as C on (C.id=C_R.content)
+      from content_in_revision as CR
+      inner join content as C on (C.id = CR.content)
       where C.sha1=content_id
-    ) as C_L
-    inner join revision as R on (R.id=C_L.revision)
-    left join origin as O on (R.origin=O.id)
+    ) as CL
+    inner join revision as R on (R.id = CL.revision)
+    left join origin as O on (O.id = R.origin)
     order by date, revision, origin, path asc limit 1
 $$;
 
@@ -290,44 +290,44 @@ create or replace function swh_provenance_content_find_all(content_id sha1_git, 
     language sql
     stable
 as $$
-   (with cnt as (
-      select c.sha1 as sha1,
-             unnest(c_r.revision) as revision
-      from content_in_revision as c_r
-      inner join content as c on (c.id = c_r.content)
-      where c.sha1 = content_id
+   (with cntrev as (
+      select C.sha1 as sha1,
+             unnest(CR.revision) as revision
+      from content_in_revision as CR
+      inner join content as C on (C.id = CR.content)
+      where C.sha1 = content_id
     )
-    select cnt.sha1 as content,
-           r.sha1 as revision,
-           r.date as date,
+    select CR.sha1 as content,
+           R.sha1 as revision,
+           R.date as date,
            O.url as origin,
           '\x'::unix_path as path
-    from cnt
-    inner join revision as r on (r.id = cnt.revision)
-    left join origin as O on (r.origin=O.id)
+    from cntrev as CR
+    inner join revision as R on (R.id = CR.revision)
+    left join origin as O on (O.id = R.origin)
     )
    union
-   (with cnt as (
-     select c.sha1 as content_sha1,
-            unnest(cd.directory) as directory
-     from content as c
-     inner join content_in_directory as cd on (cd.content = c.id)
-     where c.sha1 = content_id
+   (with cntdir as (
+     select C.sha1 as sha1,
+            unnest(CD.directory) as directory
+     from content as C
+     inner join content_in_directory as CD on (CD.content = C.id)
+     where C.sha1 = content_id
      ),
-    cntdir as (
-     select cnt.content_sha1 as content_sha1,
-            unnest(dr.revision) as revision
-     from cnt
-     inner join directory_in_revision as dr on (dr.directory = cnt.directory)
+    cntrev as (
+     select CD.sha1 as sha1,
+            unnest(DR.revision) as revision
+     from cntdir as CD
+     inner join directory_in_revision as DR on (DR.directory = CD.directory)
      )
-   select cntdir.content_sha1 as content,
-          r.sha1 as revision,
-          r.date as date,
+   select CR.sha1 as content,
+          R.sha1 as revision,
+          R.date as date,
           O.url as origin,
           '\x'::unix_path as path
-   from cntdir
-   inner join revision as r on (cntdir.revision = r.id)
-   left join origin as O on (r.origin=O.id)
+   from cntrev as CR
+   inner join revision as R on (R.id = CR.revision)
+   left join origin as O on (O.id = R.origin)
    )
    order by date, revision, origin, path limit early_cut
 $$;

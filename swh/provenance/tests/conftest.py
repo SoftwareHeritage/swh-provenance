@@ -49,7 +49,7 @@ def populated_db(
 @pytest.fixture
 def app(populated_db: Dict[str, str]) -> Iterator[server.ProvenanceStorageServerApp]:
     assert hasattr(server, "storage")
-    server.storage = get_provenance_storage(cls="local", db=populated_db)
+    server.storage = get_provenance_storage(cls="postgresql", db=populated_db)
     yield server.app
 
 
@@ -59,7 +59,7 @@ def swh_rpc_client_class() -> type:
     return RemoteProvenanceStorage
 
 
-@pytest.fixture(params=["local", "remote"])
+@pytest.fixture(params=["postgresql", "remote"])
 def provenance_storage(
     request: SubRequest,
     populated_db: Dict[str, str],
@@ -94,7 +94,9 @@ def provenance(
     )
     # in test sessions, we DO want to raise any exception occurring at commit time
     return get_provenance(
-        cls="local", db=provenance_postgresql.get_dsn_parameters(), raise_on_commit=True
+        cls="postgresql",
+        db=provenance_postgresql.get_dsn_parameters(),
+        raise_on_commit=True,
     )
 
 

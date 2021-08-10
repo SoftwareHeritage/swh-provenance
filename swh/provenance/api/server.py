@@ -114,9 +114,9 @@ def load_and_check_config(
 
     if type == "local":
         cls = scfg.get("cls")
-        if cls != "local":
+        if cls != "postgresql":
             raise ValueError(
-                "The provenance backend can only be started with a 'local' "
+                "The provenance backend can only be started with a 'postgresql' "
                 "configuration"
             )
 

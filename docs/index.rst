@@ -66,7 +66,7 @@ You need a configuration file, like:
   # config.yaml
   provenance:
     storage:
-      cls: local
+      cls: postgresql
       db:
         host: /tmp/tmpifn2ov_j
         port: 9824

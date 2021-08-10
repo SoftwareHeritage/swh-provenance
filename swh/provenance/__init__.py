@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+import warnings
 
 if TYPE_CHECKING:
     from .archive import ArchiveInterface
@@ -70,14 +71,21 @@ def get_provenance_storage(cls: str, **kwargs) -> ProvenanceStorageInterface:
     Raises:
         :cls:`ValueError` if passed an unknown archive class.
     """
-    if cls == "local":
+    if cls in ["local", "postgresql"]:
         from swh.core.db import BaseDb
 
-        from .postgresql.provenancedb import ProvenanceDB
+        from .postgresql.provenance import ProvenanceStoragePostgreSql
+
+        if cls == "local":
+            warnings.warn(
+                '"local" class is deprecated for provenance storage, please '
+                'use "postgresql" class instead.',
+                DeprecationWarning,
+            )
 
         conn = BaseDb.connect(**kwargs["db"]).conn
         raise_on_commit = kwargs.get("raise_on_commit", False)
-        return ProvenanceDB(conn, raise_on_commit)
+        return ProvenanceStoragePostgreSql(conn, raise_on_commit)
 
     elif cls == "remote":
         from .api.client import RemoteProvenanceStorage

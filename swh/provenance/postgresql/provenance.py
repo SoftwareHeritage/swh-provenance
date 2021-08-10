@@ -24,7 +24,7 @@ from ..interface import (
 )
 
 
-class ProvenanceDB:
+class ProvenanceStoragePostgreSql:
     def __init__(
         self, conn: psycopg2.extensions.connection, raise_on_commit: bool = False
     ) -> None:
@@ -98,6 +98,7 @@ class ProvenanceDB:
         urls: Dict[Sha1Git, str] = {}
         sha1s = tuple(ids)
         if sha1s:
+            # TODO: consider splitting this query in several ones if sha1s is too big!
             values = ", ".join(itertools.repeat("%s", len(sha1s)))
             sql = f"""
                 SELECT sha1, url
@@ -151,6 +152,7 @@ class ProvenanceDB:
         result: Dict[Sha1Git, RevisionData] = {}
         sha1s = tuple(ids)
         if sha1s:
+            # TODO: consider splitting this query in several ones if sha1s is too big!
             values = ", ".join(itertools.repeat("%s", len(sha1s)))
             sql = f"""
                 SELECT sha1, date, origin
@@ -230,10 +232,11 @@ class ProvenanceDB:
                     sql_l.append(
                         f"""ON CONFLICT ({src}) DO UPDATE
                         SET {dst}=ARRAY(
-                          SELECT UNNEST({table}.{dst} || excluded.{dst})),
-                        location=ARRAY(
-                          SELECT UNNEST({relation.value}.location || excluded.location))
-                    """
+                          SELECT UNNEST({table}.{dst} || EXCLUDED.{dst})
+                        ), location=ARRAY(
+                          SELECT UNNEST({relation.value}.location || EXCLUDED.location)
+                        )
+                        """
                     )
                 else:
                     sql_l.append("ON CONFLICT DO NOTHING")
@@ -263,6 +266,7 @@ class ProvenanceDB:
         dates: Dict[Sha1Git, datetime] = {}
         sha1s = tuple(ids)
         if sha1s:
+            # TODO: consider splitting this query in several ones if sha1s is too big!
             values = ", ".join(itertools.repeat("%s", len(sha1s)))
             sql = f"""
                 SELECT sha1, date

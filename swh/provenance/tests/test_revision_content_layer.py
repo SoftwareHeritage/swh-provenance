@@ -279,9 +279,9 @@ def test_revision_content_result(
 
         if provenance.storage.with_path():
             # check for location entries
-            rows["location"] |= set(x["path"] for x in synth_rev["R_C"])
-            rows["location"] |= set(x["path"] for x in synth_rev["D_C"])
-            rows["location"] |= set(x["path"] for x in synth_rev["R_D"])
+            rows["location"] |= set(x["path"].encode() for x in synth_rev["R_C"])
+            rows["location"] |= set(x["path"].encode() for x in synth_rev["D_C"])
+            rows["location"] |= set(x["path"].encode() for x in synth_rev["R_D"])
             assert rows["location"] == provenance.storage.location_get(), synth_rev[
                 "msg"
             ]

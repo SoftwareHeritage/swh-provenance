@@ -73,7 +73,7 @@ class ProvenanceStoragePostgreSql:
         return {row["sha1"] for row in self.cursor.fetchall()}
 
     def location_get(self) -> Set[bytes]:
-        sql = "SELECT encode(location.path::bytea, 'escape') AS path FROM location"
+        sql = "SELECT location.path AS path FROM location"
         self.cursor.execute(sql)
         return {row["path"] for row in self.cursor.fetchall()}
 
@@ -155,9 +155,10 @@ class ProvenanceStoragePostgreSql:
             # TODO: consider splitting this query in several ones if sha1s is too big!
             values = ", ".join(itertools.repeat("%s", len(sha1s)))
             sql = f"""
-                SELECT sha1, date, origin
-                  FROM revision
-                  WHERE sha1 IN ({values})
+                SELECT R.sha1, R.date, O.sha1 AS origin
+                  FROM revision AS R
+                  LEFT JOIN origin AS O ON (O.id=R.origin)
+                  WHERE R.sha1 IN ({values})
                 """
             self.cursor.execute(sql, sha1s)
             result.update(

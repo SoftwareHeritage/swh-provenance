@@ -181,6 +181,7 @@ class ProvenanceStoragePostgreSql:
                           ON CONFLICT DO NOTHING
                         """
                     psycopg2.extras.execute_values(self.cursor, sql, srcs)
+
                 if dst != "origin":
                     # Origin entries should be inserted previously as they require extra
                     # non-null information
@@ -191,51 +192,116 @@ class ProvenanceStoragePostgreSql:
                           ON CONFLICT DO NOTHING
                         """
                     psycopg2.extras.execute_values(self.cursor, sql, dsts)
-                joins = [
-                    f"INNER JOIN {src} AS S ON (S.sha1=V.src)",
-                    f"INNER JOIN {dst} AS D ON (D.sha1=V.dst)",
-                ]
-                nope = (RelationType.REV_BEFORE_REV, RelationType.REV_IN_ORG)
-                selected = ["S.id"]
-                if self.denormalized and relation not in nope:
-                    selected.append("ARRAY_AGG(D.id)")
-                else:
-                    selected.append("D.id")
 
-                if self._relation_uses_location_table(relation):
-                    locations = tuple(set((path,) for (_, _, path) in rows))
-                    sql = """
-                        LOCK TABLE ONLY location;
-                        INSERT INTO location(path) VALUES %s
-                          ON CONFLICT (path) DO NOTHING
-                        """
-                    psycopg2.extras.execute_values(self.cursor, sql, locations)
+                ########################################################################
+                if self.denormalized:
+                    if self.with_path():
+                        if src in ("content", "directory"):
+                            locations = tuple(set((path,) for (_, _, path) in rows))
+                            sql = """
+                                LOCK TABLE ONLY location;
+                                INSERT INTO location(path) VALUES %s
+                                ON CONFLICT (path) DO NOTHING
+                                """
+                            psycopg2.extras.execute_values(self.cursor, sql, locations)
 
-                    joins.append("INNER JOIN location AS L ON (L.path=V.path)")
-                    if self.denormalized:
-                        selected.append("ARRAY_AGG(L.id)")
+                            selected = "ARRAY_AGG(D.id), ARRAY_AGG(L.id)"
+                            join_location = (
+                                "INNER JOIN location AS L ON (L.path=V.path)"
+                            )
+                            grouped_by = "GROUP BY S.id"
+                            on_conflict = f"""
+                                ({src}) DO UPDATE
+                                SET {dst}=ARRAY(
+                                    SELECT UNNEST({table}.{dst} || EXCLUDED.{dst})
+                                ), location=ARRAY(
+                                    SELECT UNNEST({table}.location || EXCLUDED.location)
+                                )
+                            """
+                        else:
+                            selected = "D.id"
+                            join_location = ""
+                            grouped_by = ""
+                            on_conflict = "DO NOTHING"
+
+                        sql_l = [
+                            f"INSERT INTO {table}",
+                            f"  SELECT S.id, {selected}",
+                            "   FROM (VALUES %s) AS V(src, dst, path)",
+                            f"  INNER JOIN {src} AS S ON (S.sha1=V.src)",
+                            f"  INNER JOIN {dst} AS D ON (D.sha1=V.dst)",
+                            join_location,
+                            grouped_by,
+                            f"  ON CONFLICT {on_conflict}",
+                        ]
+
                     else:
-                        selected.append("L.id")
-                sql_l = [
-                    f"INSERT INTO {table}",
-                    f" SELECT {', '.join(selected)}",
-                    "  FROM (VALUES %s) AS V(src, dst, path)",
-                    *joins,
-                ]
+                        if src in ("content", "directory"):
+                            select_dst = "ARRAY_AGG(D.id)"
+                            grouped_by = "GROUP BY S.id"
+                            on_conflict = f"""
+                                ({src}) DO UPDATE
+                                SET {dst}=ARRAY(
+                                    SELECT UNNEST({table}.{dst} || EXCLUDED.{dst})
+                                ), location=ARRAY(
+                                    SELECT UNNEST({table}.location || EXCLUDED.location)
+                                )
+                            """
+                        else:
+                            select_dst = "D.id"
+                            grouped_by = ""
+                            on_conflict = "DO NOTHING"
 
-                if self.denormalized and relation not in nope:
-                    sql_l.append("GROUP BY S.id")
-                    sql_l.append(
-                        f"""ON CONFLICT ({src}) DO UPDATE
-                        SET {dst}=ARRAY(
-                          SELECT UNNEST({table}.{dst} || EXCLUDED.{dst})
-                        ), location=ARRAY(
-                          SELECT UNNEST({relation.value}.location || EXCLUDED.location)
-                        )
-                        """
-                    )
+                        sql_l = [
+                            f"INSERT INTO {table}",
+                            f"  SELECT S.id, {select_dst}",
+                            "   FROM (VALUES %s) AS V(src, dst, path)",
+                            f"  INNER JOIN {src} AS S ON (S.sha1=V.src)",
+                            f"  INNER JOIN {dst} AS D ON (D.sha1=V.dst)",
+                            grouped_by,
+                            f"  ON CONFLICT {on_conflict}",
+                        ]
+
                 else:
-                    sql_l.append("ON CONFLICT DO NOTHING")
+                    if self.with_path():
+                        if src in ("content", "directory"):
+                            locations = tuple(set((path,) for (_, _, path) in rows))
+                            sql = """
+                                LOCK TABLE ONLY location;
+                                INSERT INTO location(path) VALUES %s
+                                ON CONFLICT (path) DO NOTHING
+                                """
+                            psycopg2.extras.execute_values(self.cursor, sql, locations)
+
+                            select_location = ", L.id"
+                            join_location = (
+                                "INNER JOIN location AS L ON (L.path=V.path)"
+                            )
+                        else:
+                            select_location = ""
+                            join_location = ""
+
+                        sql_l = [
+                            f"INSERT INTO {table}",
+                            f"  SELECT S.id, D.id{select_location}",
+                            "   FROM (VALUES %s) AS V(src, dst, path)",
+                            f"  INNER JOIN {src} AS S ON (S.sha1=V.src)",
+                            f"  INNER JOIN {dst} AS D ON (D.sha1=V.dst)",
+                            join_location,
+                            " ON CONFLICT DO NOTHING",
+                        ]
+
+                    else:
+                        sql_l = [
+                            f"INSERT INTO {table}",
+                            "   SELECT S.id, D.id",
+                            "   FROM (VALUES %s) AS V(src, dst, path)",
+                            f"  INNER JOIN {src} AS S ON (S.sha1=V.src)",
+                            f"  INNER JOIN {dst} AS D ON (D.sha1=V.dst)",
+                            " ON CONFLICT DO NOTHING",
+                        ]
+                ########################################################################
+
                 sql = "\n".join(sql_l)
                 psycopg2.extras.execute_values(self.cursor, sql, rows)
             return True
@@ -320,12 +386,6 @@ class ProvenanceStoragePostgreSql:
             self.cursor.execute(sql, (rel_table, src_table, dst_table, filter, sha1s))
             result.update(RelationData(**row) for row in self.cursor.fetchall())
         return result
-
-    def _relation_uses_location_table(self, relation: RelationType) -> bool:
-        if self.with_path():
-            src = relation.value.split("_")[0]
-            return src in ("content", "directory")
-        return False
 
     def with_path(self) -> bool:
         return "with-path" in self.flavor

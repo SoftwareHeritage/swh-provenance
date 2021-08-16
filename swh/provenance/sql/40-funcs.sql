@@ -329,14 +329,13 @@ as $$
            L.path as path
     from (
       select C.sha1 as sha1,
-             unnest(CR.revision) as revision,
-             unnest(CR.location) as location
+             unnest(CR.revision) as revision
       from content_in_revision as CR
       inner join content as C on (C.id = CR.content)
       where C.sha1 = content_id
     ) as CL
-    inner join revision as R on (R.id = CL.revision)
-    inner join location as L on (L.id = CL.location)
+    inner join revision as R on (R.id = (CL.revision).id)
+    inner join location as L on (L.id = (CL.revision).loc)
     left join origin as O on (O.id = R.origin)
     order by date, revision, origin, path asc limit 1
 $$;
@@ -355,8 +354,7 @@ as $$
     (with
      cntrev as (
       select C.sha1 as sha1,
-             unnest(CR.revision) as revision,
-             unnest(CR.location) as location
+             unnest(CR.revision) as revision
       from content_in_revision as CR
       inner join content as C on (C.id = CR.content)
       where C.sha1 = content_id)
@@ -366,26 +364,24 @@ as $$
             O.url as origin,
             L.path as path
      from cntrev as CR
-     inner join revision as R on (R.id = CR.revision)
-     inner join location as L on (L.id = CR.location)
+     inner join revision as R on (R.id = (CR.revision).id)
+     inner join location as L on (L.id = (CR.revision).loc)
      left join origin as O on (O.id = R.origin))
     union
     (with
      cntdir as (
      select C.sha1 as sha1,
-            unnest(CD.directory) as directory,
-            unnest(CD.location) as location
+            unnest(CD.directory) as directory
      from content as C
      inner join content_in_directory as CD on (CD.content = C.id)
      where C.sha1 = content_id),
      cntrev as (
       select CD.sha1 as sha1,
              L.path as path,
-             unnest(DR.revision) as revision,
-             unnest(DR.location) as prefix
+             unnest(DR.revision) as revision
       from cntdir as CD
-      inner join directory_in_revision as DR on (DR.directory = CD.directory)
-      inner join location as L on (L.id = CD.location))
+      inner join directory_in_revision as DR on (DR.directory = (CD.directory).id)
+      inner join location as L on (L.id = (CD.directory).loc))
      select CR.sha1 as content,
             R.sha1 as revision,
             R.date as date,
@@ -396,8 +392,8 @@ as $$
                 else (DL.path || '/' || CR.path)::unix_path
             end as path
      from cntrev as CR
-     inner join revision as R on (R.id = CR.revision)
-     inner join location as DL on (DL.id = CR.prefix)
+     inner join revision as R on (R.id = (CR.revision).id)
+     inner join location as DL on (DL.id = (CR.revision).loc)
      left join origin as O on (O.id = R.origin))
     order by date, revision, origin, path limit early_cut
 $$;
@@ -422,18 +418,14 @@ as $$
               from unnest(rel_data) as V
             on conflict (path) do nothing;
 
-            select_fields := 'array_agg(D.id), array_agg(L.id)';
+            select_fields := 'array_agg((D.id, L.id)::rel_dst)';
             join_location := 'inner join location as L on (L.path = V.path)';
             group_entries := 'group by S.id';
             on_conflict := format('
                 (%s) do update
                 set %s=array(
-                  select unnest(
+                  select distinct unnest(
                     %s.' || dst_table::text || ' || excluded.' || dst_table::text || '
-                  )
-                ), location=array(
-                  select unnest(
-                    %s.location || excluded.location
                   )
                 )',
                 src_table, dst_table, rel_table, rel_table, rel_table
@@ -474,6 +466,7 @@ as $$
     declare
         src_field text;
         dst_field text;
+        proj_dst_id text;
         proj_unnested text;
         proj_location text;
         join_location text;
@@ -489,11 +482,13 @@ as $$
         end if;
 
         if src_table in ('content'::regclass, 'directory'::regclass) then
-            proj_unnested := 'unnest(R.' || dst_field || ') as dst, unnest(R.location) as loc';
-            join_location := 'inner join location as L on (L.id = CL.loc)';
+            proj_unnested := 'unnest(R.' || dst_field || ') as dst';
+            proj_dst_id := '(CL.dst).id';
+            join_location := 'inner join location as L on (L.id = (CL.dst).loc)';
             proj_location := 'L.path';
         else
             proj_unnested := 'R.' || dst_field || ' as dst';
+            proj_dst_id := 'CL.dst';
             join_location := '';
             proj_location := 'NULL::unix_path';
         end if;
@@ -516,7 +511,7 @@ as $$
                    from %s as R
                    inner join %s as S on (S.id = R.' || src_field || ')
                    ' || filter_inner_result || ') as CL
-             inner join %s as D on (D.id = CL.dst)
+             inner join %s as D on (D.id = ' || proj_dst_id || ')
              ' || join_location || '
              ' || filter_outer_result,
             rel_table, src_table, dst_table
@@ -623,7 +618,7 @@ as $$
             on_conflict := format('
                 (%s) do update
                 set %s=array(
-                  select unnest(
+                  select distinct unnest(
                     %s.' || dst_table::text || ' || excluded.' || dst_table::text || '
                   )
                 )',
@@ -664,8 +659,6 @@ as $$
         src_field text;
         dst_field text;
         proj_unnested text;
-        proj_location text;
-        join_location text;
         filter_inner_result text;
         filter_outer_result text;
     begin

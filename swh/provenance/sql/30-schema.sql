@@ -1,5 +1,6 @@
 -- psql variables to get the current database flavor
 select position('denormalized' in swh_get_dbflavor()::text) = 0 as dbflavor_norm \gset
+select position('without-path' in swh_get_dbflavor()::text) = 0 as dbflavor_with_path \gset
 
 create table dbversion
 (
@@ -23,9 +24,15 @@ create domain sha1_git as bytea check (length(value) = 20);
 -- UNIX path (absolute, relative, individual path component, etc.)
 create domain unix_path as bytea;
 
+-- a relation destination ID (used for denormalized flavors: with-path vs. without-path)
+\if :dbflavor_with_path
+create type rel_dst as (id bigint, loc bigint);
+\else
+create domain rel_dst as bigint;
+\endif
+
 -- a relation entry row, i.e. sr/dst Git object ID and optional UNIX path
 create type rel_row as (src sha1_git, dst sha1_git, path unix_path);
-
 
 -- entity tables
 create table content
@@ -87,16 +94,19 @@ create table content_in_revision
     revision bigint not null,           -- internal identifier of the revision where the blob appears for the first time
     location bigint                     -- location of the content relative to the revision root directory
 \else
-    revision bigint[],                  -- internal identifier of the revision where the blob appears for the first time
-    location bigint[]                   -- location of the content relative to the revision root directory
+    revision rel_dst[]                  -- internal reference of the revision (and location) where the blob appears for the first time
 \endif
     -- foreign key (content) references content (id),
     -- foreign key (revision) references revision (id),
     -- foreign key (location) references location (id)
 );
 comment on column content_in_revision.content is 'Content internal identifier';
+\if :dbflavor_norm
 comment on column content_in_revision.revision is 'Revision internal identifier';
 comment on column content_in_revision.location is 'Location of content in revision';
+\else
+comment on column content_in_revision.revision is 'Revision/location internal identifiers';
+\endif
 
 create table content_in_directory
 (
@@ -105,16 +115,19 @@ create table content_in_directory
     directory bigint not null,          -- internal identifier of the directory containing the blob
     location  bigint                    -- location of the content relative to its parent directory in the isochrone frontier
 \else
-    directory bigint[],                 -- internal identifier of the directory containing the blob
-    location  bigint[]                  -- location of the content relative to its parent directory in the isochrone frontier
+    directory rel_dst[]                 -- internal reference of the directory (and location) containing the blob
 \endif
     -- foreign key (content) references content (id),
     -- foreign key (directory) references directory (id),
     -- foreign key (location) references location (id)
 );
 comment on column content_in_directory.content is 'Content internal identifier';
+\if :dbflavor_norm
 comment on column content_in_directory.directory is 'Directory internal identifier';
 comment on column content_in_directory.location is 'Location of content in directory';
+\else
+comment on column content_in_directory.directory is 'Directory/location internal identifiers';
+\endif
 
 create table directory_in_revision
 (
@@ -123,16 +136,19 @@ create table directory_in_revision
     revision  bigint not null,          -- internal identifier of the revision containing the directory
     location  bigint                    -- location of the directory relative to the revision root directory
 \else
-    revision bigint[],                  -- internal identifier of the revision containing the directory
-    location bigint[]                   -- location of the directory relative to the revision root directory
+    revision rel_dst[]                  -- internal reference of the revision (and location) containing the directory
 \endif
     -- foreign key (directory) references directory (id),
     -- foreign key (revision) references revision (id),
     -- foreign key (location) references location (id)
 );
 comment on column directory_in_revision.directory is 'Directory internal identifier';
+\if :dbflavor_norm
 comment on column directory_in_revision.revision is 'Revision internal identifier';
-comment on column directory_in_revision.location is 'Location of directory in revision';
+comment on column directory_in_revision.location is 'Location of content in revision';
+\else
+comment on column directory_in_revision.revision is 'Revision/location internal identifiers';
+\endif
 
 create table revision_in_origin
 (

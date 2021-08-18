@@ -48,12 +48,22 @@ class ProvenanceStoragePostgreSql:
         assert self._flavor is not None
         return self._flavor
 
-    def with_path(self) -> bool:
-        return "with-path" in self.flavor
-
     @property
     def denormalized(self) -> bool:
         return "denormalized" in self.flavor
+
+    def content_find_first(self, id: Sha1Git) -> Optional[ProvenanceResult]:
+        sql = "SELECT * FROM swh_provenance_content_find_first(%s)"
+        self.cursor.execute(sql, (id,))
+        row = self.cursor.fetchone()
+        return ProvenanceResult(**row) if row is not None else None
+
+    def content_find_all(
+        self, id: Sha1Git, limit: Optional[int] = None
+    ) -> Generator[ProvenanceResult, None, None]:
+        sql = "SELECT * FROM swh_provenance_content_find_all(%s, %s)"
+        self.cursor.execute(sql, (id, limit))
+        yield from (ProvenanceResult(**row) for row in self.cursor.fetchall())
 
     def content_set_date(self, dates: Dict[Sha1Git, datetime]) -> bool:
         return self._entity_set_date("content", dates)
@@ -106,26 +116,11 @@ class ProvenanceStoragePostgreSql:
                   WHERE sha1 IN ({values})
                 """
             self.cursor.execute(sql, sha1s)
-            urls.update(
-                (row["sha1"], row["url"].decode()) for row in self.cursor.fetchall()
-            )
+            urls.update((row["sha1"], row["url"]) for row in self.cursor.fetchall())
         return urls
 
     def revision_set_date(self, dates: Dict[Sha1Git, datetime]) -> bool:
         return self._entity_set_date("revision", dates)
-
-    def content_find_first(self, id: Sha1Git) -> Optional[ProvenanceResult]:
-        sql = "SELECT * FROM swh_provenance_content_find_first(%s)"
-        self.cursor.execute(sql, (id,))
-        row = self.cursor.fetchone()
-        return ProvenanceResult(**row) if row is not None else None
-
-    def content_find_all(
-        self, id: Sha1Git, limit: Optional[int] = None
-    ) -> Generator[ProvenanceResult, None, None]:
-        sql = "SELECT * FROM swh_provenance_content_find_all(%s, %s)"
-        self.cursor.execute(sql, (id, limit))
-        yield from (ProvenanceResult(**row) for row in self.cursor.fetchall())
 
     def revision_set_origin(self, origins: Dict[Sha1Git, Sha1Git]) -> bool:
         try:
@@ -373,3 +368,6 @@ class ProvenanceStoragePostgreSql:
             src = relation.value.split("_")[0]
             return src in ("content", "directory")
         return False
+
+    def with_path(self) -> bool:
+        return "with-path" in self.flavor

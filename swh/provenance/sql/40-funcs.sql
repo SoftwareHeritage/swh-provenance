@@ -15,7 +15,7 @@ create or replace function swh_provenance_content_find_first(content_id sha1_git
         content sha1_git,
         revision sha1_git,
         date timestamptz,
-        origin unix_path,
+        origin text,
         path unix_path
     )
     language sql
@@ -40,7 +40,7 @@ create or replace function swh_provenance_content_find_all(content_id sha1_git, 
         content sha1_git,
         revision sha1_git,
         date timestamptz,
-        origin unix_path,
+        origin text,
         path unix_path
     )
     language sql
@@ -87,7 +87,7 @@ create or replace function swh_provenance_content_find_first(content_id sha1_git
         content sha1_git,
         revision sha1_git,
         date timestamptz,
-        origin unix_path,
+        origin text,
         path unix_path
     )
     language sql
@@ -111,7 +111,7 @@ create or replace function swh_provenance_content_find_all(content_id sha1_git, 
         content sha1_git,
         revision sha1_git,
         date timestamptz,
-        origin unix_path,
+        origin text,
         path unix_path
     )
     language sql
@@ -158,7 +158,7 @@ create or replace function swh_provenance_content_find_first(content_id sha1_git
         content sha1_git,
         revision sha1_git,
         date timestamptz,
-        origin unix_path,
+        origin text,
         path unix_path
     )
     language sql
@@ -188,7 +188,7 @@ create or replace function swh_provenance_content_find_all(content_id sha1_git, 
         content sha1_git,
         revision sha1_git,
         date timestamptz,
-        origin unix_path,
+        origin text,
         path unix_path
     )
     language sql
@@ -256,7 +256,7 @@ create or replace function swh_provenance_content_find_first(content_id sha1_git
         content sha1_git,
         revision sha1_git,
         date timestamptz,
-        origin unix_path,
+        origin text,
         path unix_path
     )
     language sql
@@ -284,7 +284,7 @@ create or replace function swh_provenance_content_find_all(content_id sha1_git, 
         content sha1_git,
         revision sha1_git,
         date timestamptz,
-        origin unix_path,
+        origin text,
         path unix_path
     )
     language sql

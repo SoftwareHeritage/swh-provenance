@@ -64,7 +64,7 @@ def swh_rpc_client_class() -> type:
     return RemoteProvenanceStorage
 
 
-@pytest.fixture(params=["mongodb"])
+@pytest.fixture(params=["mongodb", "postgresql", "remote"])
 def provenance_storage(
     request: SubRequest,
     provenance_postgresqldb: Dict[str, str],

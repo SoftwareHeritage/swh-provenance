@@ -6,7 +6,7 @@
 from datetime import datetime
 import itertools
 import logging
-from typing import Dict, Generator, Iterable, Optional, Set, Tuple
+from typing import Dict, Generator, Iterable, List, Optional, Set
 
 import psycopg2.extensions
 import psycopg2.extras
@@ -304,63 +304,20 @@ class ProvenanceStoragePostgreSql:
     ) -> Set[RelationData]:
         result: Set[RelationData] = set()
 
-        sha1s: Optional[Tuple[Tuple[Sha1Git, ...]]]
+        sha1s: List[Sha1Git]
         if ids is not None:
-            sha1s = (tuple(ids),)
-            where = f"WHERE {'S' if not reverse else 'D'}.sha1 IN %s"
+            sha1s = list(ids)
+            filter = 1 if not reverse else 2
         else:
-            sha1s = None
-            where = ""
+            sha1s = []
+            filter = 0
 
-        aggreg_dst = self.denormalized and relation in (
-            RelationType.CNT_EARLY_IN_REV,
-            RelationType.CNT_IN_DIR,
-            RelationType.DIR_IN_REV,
-        )
-        if sha1s is None or sha1s[0]:
-            table = relation.value
-            src, *_, dst = table.split("_")
+        if filter == 0 or sha1s:
+            rel_table = relation.value
+            src_table, *_, dst_table = rel_table.split("_")
 
-            # TODO: improve this!
-            if src == "revision" and dst == "revision":
-                src_field = "prev"
-                dst_field = "next"
-            else:
-                src_field = src
-                dst_field = dst
-
-            if aggreg_dst:
-                revloc = f"UNNEST(R.{dst_field}) AS dst"
-                if self._relation_uses_location_table(relation):
-                    revloc += ", UNNEST(R.location) AS path"
-            else:
-                revloc = f"R.{dst_field} AS dst"
-                if self._relation_uses_location_table(relation):
-                    revloc += ", R.location AS path"
-
-            inner_sql = f"""
-            SELECT S.sha1 AS src, {revloc}
-            FROM {table} AS R
-            INNER JOIN {src} AS S ON (S.id=R.{src_field})
-            """
-            if where != "" and not reverse:
-                inner_sql += where
-
-            if self._relation_uses_location_table(relation):
-                loc = "L.path AS path"
-            else:
-                loc = "NULL AS path"
-            sql = f"""
-            SELECT CL.src, D.sha1 AS dst, {loc}
-            FROM ({inner_sql}) AS CL
-            INNER JOIN {dst} AS D ON (D.id=CL.dst)
-            """
-            if self._relation_uses_location_table(relation):
-                sql += "INNER JOIN location AS L ON (L.id=CL.path)"
-            if where != "" and reverse:
-                sql += where
-
-            self.cursor.execute(sql, sha1s)
+            sql = "SELECT * FROM swh_provenance_relation_get(%s, %s, %s, %s, %s)"
+            self.cursor.execute(sql, (rel_table, src_table, dst_table, filter, sha1s))
             result.update(RelationData(**row) for row in self.cursor.fetchall())
         return result
 

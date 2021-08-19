@@ -31,6 +31,14 @@ create type rel_dst as (id bigint, loc bigint);
 create domain rel_dst as bigint;
 \endif
 
+-- relation filter options for querying
+create type rel_flt as enum (
+  'filter-src',
+  'filter-dst',
+  'no-filter'
+);
+comment on type rel_flt is 'Relation get filter types';
+
 -- a relation entry row, i.e. sr/dst Git object ID and optional UNIX path
 create type rel_row as (src sha1_git, dst sha1_git, path unix_path);
 

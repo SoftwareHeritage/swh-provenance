@@ -268,12 +268,12 @@ class ProvenanceStoragePostgreSql:
         sha1s: List[Sha1Git]
         if ids is not None:
             sha1s = list(ids)
-            filter = 1 if not reverse else 2
+            filter = "filter-src" if not reverse else "filter-dst"
         else:
             sha1s = []
-            filter = 0
+            filter = "no-filter"
 
-        if filter == 0 or sha1s:
+        if filter == "no-filter" or sha1s:
             rel_table = relation.value
             src_table, *_, dst_table = rel_table.split("_")
 

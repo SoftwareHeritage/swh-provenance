@@ -117,7 +117,7 @@ as $$
 $$;
 
 create or replace function swh_provenance_relation_get(
-    rel_table regclass, src_table regclass, dst_table regclass, filter integer, sha1s sha1_git[]
+    rel_table regclass, src_table regclass, dst_table regclass, filter rel_flt, sha1s sha1_git[]
 )
     returns table (
         src sha1_git,
@@ -151,9 +151,9 @@ as $$
         end if;
 
         case filter
-            when 1 then
+            when 'filter-src'::rel_flt then
                 filter_result := 'where S.sha1 = any($1)';
-            when 2 then
+            when 'filter-dst'::rel_flt  then
                 filter_result := 'where D.sha1 = any($1)';
             else
                 filter_result := '';
@@ -257,7 +257,7 @@ as $$
 $$;
 
 create or replace function swh_provenance_relation_get(
-    rel_table regclass, src_table regclass, dst_table regclass, filter integer, sha1s sha1_git[]
+    rel_table regclass, src_table regclass, dst_table regclass, filter rel_flt, sha1s sha1_git[]
 )
     returns table (
         src sha1_git,
@@ -281,9 +281,9 @@ as $$
         end if;
 
         case filter
-            when 1 then
+            when 'filter-src'::rel_flt  then
                 filter_result := 'where S.sha1 = any($1)';
-            when 2 then
+            when 'filter-dst'::rel_flt then
                 filter_result := 'where D.sha1 = any($1)';
             else
                 filter_result := '';
@@ -453,7 +453,7 @@ as $$
 $$;
 
 create or replace function swh_provenance_relation_get(
-    rel_table regclass, src_table regclass, dst_table regclass, filter integer, sha1s sha1_git[]
+    rel_table regclass, src_table regclass, dst_table regclass, filter rel_flt, sha1s sha1_git[]
 )
     returns table (
         src sha1_git,
@@ -494,10 +494,10 @@ as $$
         end if;
 
         case filter
-            when 1 then
+            when 'filter-src'::rel_flt then
                 filter_inner_result := 'where S.sha1 = any($1)';
                 filter_outer_result := '';
-            when 2 then
+            when 'filter-dst'::rel_flt then
                 filter_inner_result := '';
                 filter_outer_result := 'where D.sha1 = any($1)';
             else
@@ -645,7 +645,7 @@ as $$
 $$;
 
 create or replace function swh_provenance_relation_get(
-    rel_table regclass, src_table regclass, dst_table regclass, filter integer, sha1s sha1_git[]
+    rel_table regclass, src_table regclass, dst_table regclass, filter rel_flt, sha1s sha1_git[]
 )
     returns table (
         src sha1_git,
@@ -677,10 +677,10 @@ as $$
         end if;
 
         case filter
-            when 1 then
+            when 'filter-src'::rel_flt then
                 filter_inner_result := 'where S.sha1 = any($1)';
                 filter_outer_result := '';
-            when 2 then
+            when 'filter-dst'::rel_flt then
                 filter_inner_result := '';
                 filter_outer_result := 'where D.sha1 = any($1)';
             else

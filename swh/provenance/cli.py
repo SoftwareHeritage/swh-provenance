@@ -35,25 +35,40 @@ DEFAULT_CONFIG: Dict[str, Any] = {
             # Direct access Archive object
             "cls": "direct",
             "db": {
-                "host": "db.internal.softwareheritage.org",
+                "host": "belvedere.internal.softwareheritage.org",
+                "port": 5432,
                 "dbname": "softwareheritage",
                 "user": "guest",
             },
         },
         "storage": {
             # Local PostgreSQL Storage
-            "cls": "postgresql",
-            "db": {
-                "host": "localhost",
-                "user": "postgres",
-                "password": "postgres",
-                "dbname": "provenance",
-            },
+            # "cls": "postgresql",
+            # "db": {
+            #     "host": "localhost",
+            #     "user": "postgres",
+            #     "password": "postgres",
+            #     "dbname": "provenance",
+            # },
             # Local MongoDB Storage
             # "cls": "mongodb",
             # "db": {
             #     "dbname": "provenance",
             # },
+            # Remote RabbitMQ/PostgreSQL Storage
+            "cls": "rabbitmq",
+            "url": "amqp://localhost:5672/%2f",
+            "storage_config": {
+                "cls": "postgresql",
+                "db": {
+                    "host": "localhost",
+                    "user": "postgres",
+                    "password": "postgres",
+                    "dbname": "provenance",
+                },
+            },
+            "batch_size": 100,
+            "prefetch_count": 100,
         },
     }
 }

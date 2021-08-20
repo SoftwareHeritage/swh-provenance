@@ -3,7 +3,12 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import hashlib
 import os
+
+
+def path_id(path: bytes) -> bytes:
+    return hashlib.sha1(path).digest()
 
 
 def path_normalize(path: bytes) -> bytes:

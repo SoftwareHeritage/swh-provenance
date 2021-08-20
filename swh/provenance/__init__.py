@@ -92,4 +92,12 @@ def get_provenance_storage(cls: str, **kwargs) -> ProvenanceStorageInterface:
         engine = kwargs.get("engine", "pymongo")
         return ProvenanceStorageMongoDb(engine=engine, **kwargs["db"])
 
+    elif cls == "rabbitmq":
+        from .api.client import ProvenanceStorageRabbitMQClient
+
+        rmq_storage = ProvenanceStorageRabbitMQClient(**kwargs)
+        if TYPE_CHECKING:
+            assert isinstance(rmq_storage, ProvenanceStorageInterface)
+        return rmq_storage
+
     raise ValueError

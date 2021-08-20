@@ -5,6 +5,7 @@ click
 iso8601
 methodtools
 mongomock
+pika
 pymongo
 PyYAML
 types-click

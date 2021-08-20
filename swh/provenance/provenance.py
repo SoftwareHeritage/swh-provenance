@@ -79,41 +79,47 @@ class Provenance:
 
         # For this layer, relations need to be inserted first so that, in case of
         # failure, reprocessing the input does not generated an inconsistent database.
-        while not self.storage.relation_add(
-            RelationType.CNT_EARLY_IN_REV,
-            (
-                RelationData(src=src, dst=dst, path=path)
-                for src, dst, path in self.cache["content_in_revision"]
-            ),
-        ):
-            logging.warning(
-                f"Unable to write {RelationType.CNT_EARLY_IN_REV} rows to the storage. "
-                f"Data: {self.cache['content_in_revision']}. Retrying..."
-            )
+        if self.cache["content_in_revision"]:
+            while not self.storage.relation_add(
+                RelationType.CNT_EARLY_IN_REV,
+                (
+                    RelationData(src=src, dst=dst, path=path)
+                    for src, dst, path in self.cache["content_in_revision"]
+                ),
+            ):
+                logging.warning(
+                    "Unable to write %s rows to the storage. Data: %s. Retrying...",
+                    RelationType.CNT_EARLY_IN_REV,
+                    self.cache["content_in_revision"],
+                )
 
-        while not self.storage.relation_add(
-            RelationType.CNT_IN_DIR,
-            (
-                RelationData(src=src, dst=dst, path=path)
-                for src, dst, path in self.cache["content_in_directory"]
-            ),
-        ):
-            logging.warning(
-                f"Unable to write {RelationType.CNT_IN_DIR} rows to the storage. "
-                f"Data: {self.cache['content_in_directory']}. Retrying..."
-            )
+        if self.cache["content_in_directory"]:
+            while not self.storage.relation_add(
+                RelationType.CNT_IN_DIR,
+                (
+                    RelationData(src=src, dst=dst, path=path)
+                    for src, dst, path in self.cache["content_in_directory"]
+                ),
+            ):
+                logging.warning(
+                    "Unable to write %s rows to the storage. Data: %s. Retrying...",
+                    RelationType.CNT_IN_DIR,
+                    self.cache["content_in_directory"],
+                )
 
-        while not self.storage.relation_add(
-            RelationType.DIR_IN_REV,
-            (
-                RelationData(src=src, dst=dst, path=path)
-                for src, dst, path in self.cache["directory_in_revision"]
-            ),
-        ):
-            logging.warning(
-                f"Unable to write {RelationType.DIR_IN_REV} rows to the storage. "
-                f"Data: {self.cache['directory_in_revision']}. Retrying..."
-            )
+        if self.cache["directory_in_revision"]:
+            while not self.storage.relation_add(
+                RelationType.DIR_IN_REV,
+                (
+                    RelationData(src=src, dst=dst, path=path)
+                    for src, dst, path in self.cache["directory_in_revision"]
+                ),
+            ):
+                logging.warning(
+                    "Unable to write %s rows to the storage. Data: %s. Retrying...",
+                    RelationType.DIR_IN_REV,
+                    self.cache["directory_in_revision"],
+                )
 
         # After relations, dates for the entities can be safely set, acknowledging that
         # these entities won't need to be reprocessed in case of failure.
@@ -122,33 +128,39 @@ class Provenance:
             for sha1, date in self.cache["content"]["data"].items()
             if sha1 in self.cache["content"]["added"] and date is not None
         }
-        while not self.storage.content_set_date(dates):
-            logging.warning(
-                f"Unable to write content dates to the storage. "
-                f"Data: {dates}. Retrying..."
-            )
+        if dates:
+            while not self.storage.content_set_date(dates):
+                logging.warning(
+                    "Unable to write content dates to the storage. "
+                    "Data: %s. Retrying...",
+                    dates,
+                )
 
         dates = {
             sha1: date
             for sha1, date in self.cache["directory"]["data"].items()
             if sha1 in self.cache["directory"]["added"] and date is not None
         }
-        while not self.storage.directory_set_date(dates):
-            logging.warning(
-                f"Unable to write directory dates to the storage. "
-                f"Data: {dates}. Retrying..."
-            )
+        if dates:
+            while not self.storage.directory_set_date(dates):
+                logging.warning(
+                    "Unable to write directory dates to the storage. "
+                    "Data: %s. Retrying...",
+                    dates,
+                )
 
         dates = {
             sha1: date
             for sha1, date in self.cache["revision"]["data"].items()
             if sha1 in self.cache["revision"]["added"] and date is not None
         }
-        while not self.storage.revision_set_date(dates):
-            logging.warning(
-                f"Unable to write revision dates to the storage. "
-                f"Data: {dates}. Retrying..."
-            )
+        if dates:
+            while not self.storage.revision_set_date(dates):
+                logging.warning(
+                    "Unable to write revision dates to the storage. "
+                    "Data: %s. Retrying...",
+                    dates,
+                )
 
         # Origin-revision layer insertions #############################################
 
@@ -159,11 +171,13 @@ class Provenance:
             for sha1, url in self.cache["origin"]["data"].items()
             if sha1 in self.cache["origin"]["added"]
         }
-        while not self.storage.origin_set_url(urls):
-            logging.warning(
-                f"Unable to write origins urls to the storage. "
-                f"Data: {urls}. Retrying..."
-            )
+        if urls:
+            while not self.storage.origin_set_url(urls):
+                logging.warning(
+                    "Unable to write origins urls to the storage. "
+                    "Data: %s. Retrying...",
+                    urls,
+                )
 
         # Second, flat models for revisions' histories (ie. revision-before-revision).
         data: Iterable[RelationData] = sum(
@@ -176,11 +190,13 @@ class Provenance:
             ],
             [],
         )
-        while not self.storage.relation_add(RelationType.REV_BEFORE_REV, data):
-            logging.warning(
-                f"Unable to write {RelationType.REV_BEFORE_REV} rows to the storage. "
-                f"Data: {data}. Retrying..."
-            )
+        if data:
+            while not self.storage.relation_add(RelationType.REV_BEFORE_REV, data):
+                logging.warning(
+                    "Unable to write %s rows to the storage. Data: %s. Retrying...",
+                    RelationType.REV_BEFORE_REV,
+                    data,
+                )
 
         # Heads (ie. revision-in-origin entries) should be inserted once flat models for
         # their histories were already added. This is to guarantee consistent results if
@@ -190,11 +206,13 @@ class Provenance:
             RelationData(src=rev, dst=org, path=None)
             for rev, org in self.cache["revision_in_origin"]
         )
-        while not self.storage.relation_add(RelationType.REV_IN_ORG, data):
-            logging.warning(
-                f"Unable to write {RelationType.REV_IN_ORG} rows to the storage. "
-                f"Data: {data}. Retrying..."
-            )
+        if data:
+            while not self.storage.relation_add(RelationType.REV_IN_ORG, data):
+                logging.warning(
+                    "Unable to write %s rows to the storage. Data: %s. Retrying...",
+                    RelationType.REV_IN_ORG,
+                    data,
+                )
 
         # Finally, preferred origins for the visited revisions are set (this step can be
         # reordered if required).
@@ -202,11 +220,13 @@ class Provenance:
             sha1: self.cache["revision_origin"]["data"][sha1]
             for sha1 in self.cache["revision_origin"]["added"]
         }
-        while not self.storage.revision_set_origin(origins):
-            logging.warning(
-                f"Unable to write preferred origins to the storage. "
-                f"Data: {origins}. Retrying..."
-            )
+        if origins:
+            while not self.storage.revision_set_origin(origins):
+                logging.warning(
+                    "Unable to write preferred origins to the storage. "
+                    "Data: %s. Retrying...",
+                    origins,
+                )
 
         # clear local cache ############################################################
         self.clear_caches()

@@ -188,7 +188,7 @@ def build_isochrone_graph(
     root = IsochroneNode(directory, dbdate=root_date)
     stack = [root]
     logging.debug(
-        f"Recursively creating isochrone graph for revision {revision.id.hex()}..."
+        "Recursively creating isochrone graph for revision %s...", revision.id.hex()
     )
     fdates: Dict[Sha1Git, datetime] = {}  # map {file_id: date}
     while stack:
@@ -199,10 +199,12 @@ def build_isochrone_graph(
             # the revision is being processed out of order.
             if current.dbdate is not None and current.dbdate > revision.date:
                 logging.debug(
-                    f"Invalidating frontier on {current.entry.id.hex()}"
-                    f" (date {current.dbdate})"
-                    f" when processing revision {revision.id.hex()}"
-                    f" (date {revision.date})"
+                    "Invalidating frontier on %s (date %s) "
+                    "when processing revision %s (date %s)",
+                    current.entry.id.hex(),
+                    current.dbdate,
+                    revision.id.hex(),
+                    revision.date,
                 )
                 current.invalidate()
 
@@ -221,11 +223,11 @@ def build_isochrone_graph(
             fdates.update(provenance.content_get_early_dates(current.entry.files))
 
     logging.debug(
-        f"Isochrone graph for revision {revision.id.hex()} successfully created!"
+        "Isochrone graph for revision %s successfully created!", revision.id.hex()
     )
     # Precalculate max known date for each node in the graph (only directory nodes are
     # pushed to the stack).
-    logging.debug(f"Computing maxdates for revision {revision.id.hex()}...")
+    logging.debug("Computing maxdates for revision %s...", revision.id.hex())
     stack = [root]
 
     while stack:
@@ -276,5 +278,5 @@ def build_isochrone_graph(
                     # node should be treated as unknown
                     current.maxdate = revision.date
                     current.known = False
-    logging.debug(f"Maxdates for revision {revision.id.hex()} successfully computed!")
+    logging.debug("Maxdates for revision %s successfully computed!", revision.id.hex())
     return root

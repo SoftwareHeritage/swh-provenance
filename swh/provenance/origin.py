@@ -60,9 +60,10 @@ def origin_add(
     provenance.flush()
     stop = time.time()
     logging.debug(
-        "Origins "
-        ";".join([origin.id.hex() + ":" + origin.snapshot.hex() for origin in origins])
-        + f" were processed in {stop - start} secs (commit took {stop - done} secs)!"
+        "Origins %s were processed in %s secs (commit took %s secs)!",
+        ";".join(origin.id.hex() + ":" + origin.snapshot.hex() for origin in origins),
+        stop - start,
+        stop - done,
     )
 
 

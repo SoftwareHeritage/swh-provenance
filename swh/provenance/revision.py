@@ -67,8 +67,10 @@ def revision_add(
         date = provenance.revision_get_date(revision)
         if date is None or revision.date < date:
             logging.debug(
-                f"Processing revisions {revision.id.hex()}"
-                f" (known date {date} / revision date {revision.date})..."
+                "Processing revisions %s (known date %s / revision date %s)...",
+                revision.id.hex(),
+                date,
+                revision.date,
             )
             graph = build_isochrone_graph(
                 archive,
@@ -91,8 +93,10 @@ def revision_add(
         provenance.flush()
     stop = time.time()
     logging.debug(
-        f"Revisions {';'.join([revision.id.hex() for revision in revisions])} "
-        f" were processed in {stop - start} secs (commit took {stop - done} secs)!"
+        "Revisions %s were processed in %s secs (commit took %s secs)!",
+        ";".join(revision.id.hex() for revision in revisions),
+        stop - start,
+        stop - done,
     )
 
 

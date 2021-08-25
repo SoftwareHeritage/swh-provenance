@@ -111,51 +111,6 @@ def test_provenance_storage(
     # Assuming provenance.storage has the 'with-path' flavor.
     assert provenance.storage.with_path()
 
-    # Test content methods.
-    # Add all content present in the current repo to both storages, just assigning their
-    # creation dates. Then check that the inserted content is the same in both cases.
-    cnt_dates = {cnt["sha1_git"]: cnt["ctime"] for cnt in data["content"]}
-    assert cnt_dates
-    assert provenance.storage.content_set_date(
-        cnt_dates
-    ) == provenance_storage.content_set_date(cnt_dates)
-
-    assert provenance.storage.content_get(cnt_dates) == provenance_storage.content_get(
-        cnt_dates
-    )
-    assert provenance.storage.entity_get_all(
-        EntityType.CONTENT
-    ) == provenance_storage.entity_get_all(EntityType.CONTENT)
-
-    # Test directory methods.
-    # Of all directories present in the current repo, only assign a date to those
-    # containing blobs (picking the max date among the available ones). Then check that
-    # the inserted data is the same in both storages.
-    def getmaxdate(
-        dir: Dict[str, Any], cnt_dates: Dict[Sha1Git, datetime]
-    ) -> Optional[datetime]:
-        dates = [
-            cnt_dates[entry["target"]]
-            for entry in dir["entries"]
-            if entry["type"] == "file"
-        ]
-        return max(dates) if dates else None
-
-    dir_dates = {dir["id"]: getmaxdate(dir, cnt_dates) for dir in data["directory"]}
-    assert dir_dates
-    assert provenance.storage.directory_set_date(
-        {sha1: date for sha1, date in dir_dates.items() if date is not None}
-    ) == provenance_storage.directory_set_date(
-        {sha1: date for sha1, date in dir_dates.items() if date is not None}
-    )
-
-    assert provenance.storage.directory_get(
-        dir_dates
-    ) == provenance_storage.directory_get(dir_dates)
-    assert provenance.storage.entity_get_all(
-        EntityType.DIRECTORY
-    ) == provenance_storage.entity_get_all(EntityType.DIRECTORY)
-
     # Test origin methods.
     # Add all origins present in the current repo to both storages. Then check that the
     # inserted data is the same in both cases.
@@ -173,32 +128,6 @@ def test_provenance_storage(
     assert provenance.storage.entity_get_all(
         EntityType.ORIGIN
     ) == provenance_storage.entity_get_all(EntityType.ORIGIN)
-
-    # Test revision methods.
-    # Add all revisions present in the current repo to both storages, assigning their
-    # dataes and an arbitrary origin to each one. Then check that the inserted data is
-    # the same in both cases.
-    rev_dates = {rev["id"]: ts2dt(rev["date"]) for rev in data["revision"]}
-    assert rev_dates
-    assert provenance.storage.revision_set_date(
-        rev_dates
-    ) == provenance_storage.revision_set_date(rev_dates)
-
-    rev_origins = {
-        rev["id"]: next(iter(org_urls))  # any arbitrary origin will do
-        for rev in data["revision"]
-    }
-    assert rev_origins
-    assert provenance.storage.revision_set_origin(
-        rev_origins
-    ) == provenance_storage.revision_set_origin(rev_origins)
-
-    assert provenance.storage.revision_get(
-        rev_dates
-    ) == provenance_storage.revision_get(rev_dates)
-    assert provenance.storage.entity_get_all(
-        EntityType.REVISION
-    ) == provenance_storage.entity_get_all(EntityType.REVISION)
 
     # Test content-in-revision relation.
     # Create flat models of every root directory for the revisions in the dataset.
@@ -283,6 +212,76 @@ def test_provenance_storage(
         provenance.storage,
         provenance_storage,
     )
+
+    # Test content methods.
+    # Add all content present in the current repo to both storages, just assigning their
+    # creation dates. Then check that the inserted content is the same in both cases.
+    cnt_dates = {cnt["sha1_git"]: cnt["ctime"] for cnt in data["content"]}
+    assert cnt_dates
+    assert provenance.storage.content_set_date(
+        cnt_dates
+    ) == provenance_storage.content_set_date(cnt_dates)
+
+    assert provenance.storage.content_get(cnt_dates) == provenance_storage.content_get(
+        cnt_dates
+    )
+    assert provenance.storage.entity_get_all(
+        EntityType.CONTENT
+    ) == provenance_storage.entity_get_all(EntityType.CONTENT)
+
+    # Test directory methods.
+    # Of all directories present in the current repo, only assign a date to those
+    # containing blobs (picking the max date among the available ones). Then check that
+    # the inserted data is the same in both storages.
+    def getmaxdate(
+        dir: Dict[str, Any], cnt_dates: Dict[Sha1Git, datetime]
+    ) -> Optional[datetime]:
+        dates = [
+            cnt_dates[entry["target"]]
+            for entry in dir["entries"]
+            if entry["type"] == "file"
+        ]
+        return max(dates) if dates else None
+
+    dir_dates = {dir["id"]: getmaxdate(dir, cnt_dates) for dir in data["directory"]}
+    assert dir_dates
+    assert provenance.storage.directory_set_date(
+        {sha1: date for sha1, date in dir_dates.items() if date is not None}
+    ) == provenance_storage.directory_set_date(
+        {sha1: date for sha1, date in dir_dates.items() if date is not None}
+    )
+    assert provenance.storage.directory_get(
+        dir_dates
+    ) == provenance_storage.directory_get(dir_dates)
+    assert provenance.storage.entity_get_all(
+        EntityType.DIRECTORY
+    ) == provenance_storage.entity_get_all(EntityType.DIRECTORY)
+
+    # Test revision methods.
+    # Add all revisions present in the current repo to both storages, assigning their
+    # dataes and an arbitrary origin to each one. Then check that the inserted data is
+    # the same in both cases.
+    rev_dates = {rev["id"]: ts2dt(rev["date"]) for rev in data["revision"]}
+    assert rev_dates
+    assert provenance.storage.revision_set_date(
+        rev_dates
+    ) == provenance_storage.revision_set_date(rev_dates)
+
+    rev_origins = {
+        rev["id"]: next(iter(org_urls))  # any arbitrary origin will do
+        for rev in data["revision"]
+    }
+    assert rev_origins
+    assert provenance.storage.revision_set_origin(
+        rev_origins
+    ) == provenance_storage.revision_set_origin(rev_origins)
+
+    assert provenance.storage.revision_get(
+        rev_dates
+    ) == provenance_storage.revision_get(rev_dates)
+    assert provenance.storage.entity_get_all(
+        EntityType.REVISION
+    ) == provenance_storage.entity_get_all(EntityType.REVISION)
 
     # Test location_get.
     if provenance_storage.with_path():

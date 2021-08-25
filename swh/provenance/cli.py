@@ -26,11 +26,13 @@ DEFAULT_PATH = os.environ.get(CONFIG_ENVVAR, None)
 DEFAULT_CONFIG: Dict[str, Any] = {
     "provenance": {
         "archive": {
+            # Storage API based Archive object
             # "cls": "api",
             # "storage": {
             #     "cls": "remote",
             #     "url": "http://uffizi.internal.softwareheritage.org:5002",
             # }
+            # Direct access Archive object
             "cls": "direct",
             "db": {
                 "host": "db.internal.softwareheritage.org",
@@ -39,8 +41,22 @@ DEFAULT_CONFIG: Dict[str, Any] = {
             },
         },
         "storage": {
+            # Local PostgreSQL Storage
             "cls": "postgresql",
-            "db": {"host": "localhost", "dbname": "provenance"},
+            "db": {
+                "host": "localhost",
+                "user": "postgres",
+                "password": "postgres",
+                "dbname": "provenance",
+            },
+            # Local MongoDB Storage
+            # "cls": "mongodb",
+            # "db": {
+            #     "dbname": "provenance",
+            # },
+            # Remote REST-API/PostgreSQL
+            # "cls": "remote",
+            # "url": "http://localhost:8080/%2f",
         },
     }
 }

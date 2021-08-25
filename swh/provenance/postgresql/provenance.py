@@ -268,6 +268,7 @@ class ProvenanceStoragePostgreSql:
                 SELECT sha1, date
                   FROM {entity}
                   WHERE sha1 IN ({values})
+                    AND date IS NOT NULL
                 """
             self.cursor.execute(sql, sha1s)
             dates.update((row["sha1"], row["date"]) for row in self.cursor.fetchall())

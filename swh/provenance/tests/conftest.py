@@ -10,6 +10,7 @@ from typing import Any, Dict, Iterable, Iterator
 from _pytest.fixtures import SubRequest
 import msgpack
 import psycopg2.extensions
+import pymongo.database
 import pytest
 from pytest_postgresql.factories import postgresql
 
@@ -32,7 +33,7 @@ from swh.storage.replay import process_replay_objects
         "without-path-denormalized",
     ]
 )
-def populated_db(
+def provenance_postgresqldb(
     request: SubRequest,
     postgresql: psycopg2.extensions.connection,
 ) -> Dict[str, str]:
@@ -47,9 +48,13 @@ def populated_db(
 
 # the Flask app used as server in these tests
 @pytest.fixture
-def app(populated_db: Dict[str, str]) -> Iterator[server.ProvenanceStorageServerApp]:
+def app(
+    provenance_postgresqldb: Dict[str, str]
+) -> Iterator[server.ProvenanceStorageServerApp]:
     assert hasattr(server, "storage")
-    server.storage = get_provenance_storage(cls="postgresql", db=populated_db)
+    server.storage = get_provenance_storage(
+        cls="postgresql", db=provenance_postgresqldb
+    )
     yield server.app
 
 
@@ -59,10 +64,11 @@ def swh_rpc_client_class() -> type:
     return RemoteProvenanceStorage
 
 
-@pytest.fixture(params=["postgresql", "remote"])
+@pytest.fixture(params=["mongodb"])
 def provenance_storage(
     request: SubRequest,
-    populated_db: Dict[str, str],
+    provenance_postgresqldb: Dict[str, str],
+    mongodb: pymongo.database.Database,
     swh_rpc_client: RemoteProvenanceStorage,
 ) -> ProvenanceStorageInterface:
     """Return a working and initialized ProvenanceStorageInterface object"""
@@ -71,10 +77,15 @@ def provenance_storage(
         assert isinstance(swh_rpc_client, ProvenanceStorageInterface)
         return swh_rpc_client
 
+    elif request.param == "mongodb":
+        from swh.provenance.mongo.backend import ProvenanceStorageMongoDb
+
+        return ProvenanceStorageMongoDb(mongodb)
+
     else:
         # in test sessions, we DO want to raise any exception occurring at commit time
         return get_provenance_storage(
-            cls=request.param, db=populated_db, raise_on_commit=True
+            cls=request.param, db=provenance_postgresqldb, raise_on_commit=True
         )
 
 

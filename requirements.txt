@@ -4,6 +4,8 @@
 click
 iso8601
 methodtools
+pymongo
 PyYAML
 types-click
 types-PyYAML
+types-Werkzeug

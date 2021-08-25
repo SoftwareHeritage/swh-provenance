@@ -155,8 +155,8 @@ class Provenance:
         # Origins urls should be inserted first so that internal ids' resolution works
         # properly.
         urls = {
-            sha1: date
-            for sha1, date in self.cache["origin"]["data"].items()
+            sha1: url
+            for sha1, url in self.cache["origin"]["data"].items()
             if sha1 in self.cache["origin"]["added"]
         }
         while not self.storage.origin_set_url(urls):
@@ -280,14 +280,13 @@ class Provenance:
                 updated = {
                     id: rev.date
                     for id, rev in self.storage.revision_get(missing_ids).items()
-                    if rev.date is not None
                 }
             else:
                 updated = getattr(self.storage, f"{entity}_get")(missing_ids)
             cache["data"].update(updated)
         dates: Dict[Sha1Git, datetime] = {}
         for sha1 in ids:
-            date = cache["data"].get(sha1)
+            date = cache["data"].setdefault(sha1, None)
             if date is not None:
                 dates[sha1] = date
         return dates

@@ -87,6 +87,15 @@ def get_provenance_storage(cls: str, **kwargs) -> ProvenanceStorageInterface:
         raise_on_commit = kwargs.get("raise_on_commit", False)
         return ProvenanceStoragePostgreSql(conn, raise_on_commit)
 
+    elif cls == "mongodb":
+        from pymongo import MongoClient
+
+        from .mongo.backend import ProvenanceStorageMongoDb
+
+        dbname = kwargs["db"].pop("dbname")
+        db = MongoClient(**kwargs["db"]).get_database(dbname)
+        return ProvenanceStorageMongoDb(db)
+
     elif cls == "remote":
         from .api.client import RemoteProvenanceStorage
 

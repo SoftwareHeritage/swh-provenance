@@ -23,6 +23,10 @@ create domain sha1_git as bytea check (length(value) = 20);
 -- UNIX path (absolute, relative, individual path component, etc.)
 create domain unix_path as bytea;
 
+-- a relation entry row, i.e. sr/dst Git object ID and optional UNIX path
+create type rel_row as (src sha1_git, dst sha1_git, path unix_path);
+
+
 -- entity tables
 create table content
 (
@@ -50,7 +54,7 @@ create table revision
     sha1    sha1_git unique not null,   -- intrinsic identifier of the revision
     date    timestamptz,                -- timestamp of the revision
     origin  bigint                      -- id of the preferred origin
-    -- foreign key (org) references origin (id)
+    -- foreign key (origin) references origin (id)
 );
 comment on column revision.id is 'Revision internal identifier';
 comment on column revision.sha1 is 'Revision intrinsic identifier';
@@ -86,9 +90,9 @@ create table content_in_revision
     revision bigint[],                  -- internal identifier of the revision where the blob appears for the first time
     location bigint[]                   -- location of the content relative to the revision root directory
 \endif
-    -- foreign key (blob) references content (id),
-    -- foreign key (rev) references revision (id),
-    -- foreign key (loc) references location (id)
+    -- foreign key (content) references content (id),
+    -- foreign key (revision) references revision (id),
+    -- foreign key (location) references location (id)
 );
 comment on column content_in_revision.content is 'Content internal identifier';
 comment on column content_in_revision.revision is 'Revision internal identifier';
@@ -101,12 +105,12 @@ create table content_in_directory
     directory bigint not null,          -- internal identifier of the directory containing the blob
     location  bigint                    -- location of the content relative to its parent directory in the isochrone frontier
 \else
-    directory bigint[],
-    location  bigint[]
+    directory bigint[],                 -- internal identifier of the directory containing the blob
+    location  bigint[]                  -- location of the content relative to its parent directory in the isochrone frontier
 \endif
-    -- foreign key (blob) references content (id),
-    -- foreign key (dir) references directory (id),
-    -- foreign key (loc) references location (id)
+    -- foreign key (content) references content (id),
+    -- foreign key (directory) references directory (id),
+    -- foreign key (location) references location (id)
 );
 comment on column content_in_directory.content is 'Content internal identifier';
 comment on column content_in_directory.directory is 'Directory internal identifier';
@@ -119,12 +123,12 @@ create table directory_in_revision
     revision  bigint not null,          -- internal identifier of the revision containing the directory
     location  bigint                    -- location of the directory relative to the revision root directory
 \else
-    revision bigint[],
-    location bigint[]
+    revision bigint[],                  -- internal identifier of the revision containing the directory
+    location bigint[]                   -- location of the directory relative to the revision root directory
 \endif
-    -- foreign key (dir) references directory (id),
-    -- foreign key (rev) references revision (id),
-    -- foreign key (loc) references location (id)
+    -- foreign key (directory) references directory (id),
+    -- foreign key (revision) references revision (id),
+    -- foreign key (location) references location (id)
 );
 comment on column directory_in_revision.directory is 'Directory internal identifier';
 comment on column directory_in_revision.revision is 'Revision internal identifier';
@@ -134,8 +138,8 @@ create table revision_in_origin
 (
     revision bigint not null,           -- internal identifier of the revision poined by the origin
     origin   bigint not null            -- internal identifier of the origin that points to the revision
-    -- foreign key (rev) references revision (id),
-    -- foreign key (org) references origin (id)
+    -- foreign key (revision) references revision (id),
+    -- foreign key (origin) references origin (id)
 );
 comment on column revision_in_origin.revision is 'Revision internal identifier';
 comment on column revision_in_origin.origin is 'Origin internal identifier';

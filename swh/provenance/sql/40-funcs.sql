@@ -77,6 +77,45 @@ as $$
     order by date, revision, origin, path limit early_cut
 $$;
 
+create or replace function swh_provenance_relation_add(
+    rel_table regclass, src_table regclass, dst_table regclass, rel_data rel_row[]
+)
+    returns void
+    language plpgsql
+    volatile
+as $$
+    declare
+        select_fields text;
+        join_location text;
+    begin
+        if src_table in ('content'::regclass, 'directory'::regclass) then
+            lock table only location;
+            insert into location(path)
+              select V.path
+              from unnest(rel_data) as V
+            on conflict (path) do nothing;
+
+            select_fields := 'D.id, L.id';
+            join_location := 'inner join location as L on (L.path = V.path)';
+        else
+            select_fields := 'D.id';
+            join_location := '';
+        end if;
+
+        execute format(
+            'lock table only %s;
+             insert into %s
+               select S.id, ' || select_fields || '
+               from unnest($1) as V
+               inner join %s as S on (S.sha1 = V.src)
+               inner join %s as D on (D.sha1 = V.dst)
+               ' || join_location || '
+             on conflict do nothing',
+            rel_table, rel_table, src_table, dst_table
+        ) using rel_data;
+    end;
+$$;
+
 create or replace function swh_provenance_relation_get(
     rel_table regclass, src_table regclass, dst_table regclass, filter integer, sha1s sha1_git[]
 )
@@ -194,6 +233,27 @@ as $$
      left join origin as O on (O.id = R.origin)
      where C.sha1 = content_id)
     order by date, revision, origin, path limit early_cut
+$$;
+
+create or replace function swh_provenance_relation_add(
+    rel_table regclass, src_table regclass, dst_table regclass, rel_data rel_row[]
+)
+    returns void
+    language plpgsql
+    volatile
+as $$
+    begin
+        execute format(
+            'lock table only %s;
+             insert into %s
+               select S.id, D.id
+               from unnest($1) as V
+               inner join %s as S on (S.sha1 = V.src)
+               inner join %s as D on (D.sha1 = V.dst)
+             on conflict do nothing',
+            rel_table, rel_table, src_table, dst_table
+        ) using rel_data;
+    end;
 $$;
 
 create or replace function swh_provenance_relation_get(
@@ -342,6 +402,64 @@ as $$
     order by date, revision, origin, path limit early_cut
 $$;
 
+create or replace function swh_provenance_relation_add(
+    rel_table regclass, src_table regclass, dst_table regclass, rel_data rel_row[]
+)
+    returns void
+    language plpgsql
+    volatile
+as $$
+    declare
+        select_fields text;
+        join_location text;
+        group_entries text;
+        on_conflict text;
+    begin
+        if src_table in ('content'::regclass, 'directory'::regclass) then
+            lock table only location;
+            insert into location(path)
+              select V.path
+              from unnest(rel_data) as V
+            on conflict (path) do nothing;
+
+            select_fields := 'array_agg(D.id), array_agg(L.id)';
+            join_location := 'inner join location as L on (L.path = V.path)';
+            group_entries := 'group by S.id';
+            on_conflict := format('
+                (%s) do update
+                set %s=array(
+                  select unnest(
+                    %s.' || dst_table::text || ' || excluded.' || dst_table::text || '
+                  )
+                ), location=array(
+                  select unnest(
+                    %s.location || excluded.location
+                  )
+                )',
+                src_table, dst_table, rel_table, rel_table, rel_table
+            );
+        else
+            select_fields := 'D.id';
+            join_location := '';
+            group_entries := '';
+            on_conflict := 'do nothing';
+        end if;
+
+        execute format(
+            'lock table only %s;
+             insert into %s
+               select S.id, ' || select_fields || '
+               from unnest($1) as V
+               inner join %s as S on (S.sha1 = V.src)
+               inner join %s as D on (D.sha1 = V.dst)
+               ' || join_location || '
+               ' || group_entries || '
+             on conflict ' || on_conflict,
+            rel_table, rel_table, src_table, dst_table
+        ) using rel_data;
+    end;
+$$;
+
 create or replace function swh_provenance_relation_get(
     rel_table regclass, src_table regclass, dst_table regclass, filter integer, sha1s sha1_git[]
 )
@@ -485,6 +603,50 @@ as $$
      inner join revision as R on (R.id = CR.revision)
      left join origin as O on (O.id = R.origin))
     order by date, revision, origin, path limit early_cut
+$$;
+
+create or replace function swh_provenance_relation_add(
+    rel_table regclass, src_table regclass, dst_table regclass, rel_data rel_row[]
+)
+    returns void
+    language plpgsql
+    volatile
+as $$
+    declare
+        select_fields text;
+        group_entries text;
+        on_conflict text;
+    begin
+        if src_table in ('content'::regclass, 'directory'::regclass) then
+            select_fields := 'array_agg(D.id)';
+            group_entries := 'group by S.id';
+            on_conflict := format('
+                (%s) do update
+                set %s=array(
+                  select unnest(
+                    %s.' || dst_table::text || ' || excluded.' || dst_table::text || '
+                  )
+                )',
+                src_table, dst_table, rel_table, rel_table
+            );
+        else
+            select_fields := 'D.id';
+            group_entries := '';
+            on_conflict := 'do nothing';
+        end if;
+
+        execute format(
+            'lock table only %s;
+             insert into %s
+               select S.id, ' || select_fields || '
+               from unnest($1) as V
+               inner join %s as S on (S.sha1 = V.src)
+               inner join %s as D on (D.sha1 = V.dst)
+               ' || group_entries || '
+             on conflict ' || on_conflict,
+            rel_table, rel_table, src_table, dst_table
+        ) using rel_data;
+    end;
 $$;
 
 create or replace function swh_provenance_relation_get(

@@ -20,6 +20,8 @@ from .interface import (
 )
 from .model import DirectoryEntry, FileEntry, OriginEntry, RevisionEntry
 
+LOGGER = logging.getLogger(__name__)
+
 
 class DatetimeCache(TypedDict):
     data: Dict[Sha1Git, Optional[datetime]]
@@ -87,10 +89,9 @@ class Provenance:
                     for src, dst, path in self.cache["content_in_revision"]
                 ),
             ):
-                logging.warning(
-                    "Unable to write %s rows to the storage. Data: %s. Retrying...",
+                LOGGER.warning(
+                    "Unable to write %s rows to the storage. Retrying...",
                     RelationType.CNT_EARLY_IN_REV,
-                    self.cache["content_in_revision"],
                 )
 
         if self.cache["content_in_directory"]:
@@ -101,10 +102,9 @@ class Provenance:
                     for src, dst, path in self.cache["content_in_directory"]
                 ),
             ):
-                logging.warning(
-                    "Unable to write %s rows to the storage. Data: %s. Retrying...",
+                LOGGER.warning(
+                    "Unable to write %s rows to the storage. Retrying...",
                     RelationType.CNT_IN_DIR,
-                    self.cache["content_in_directory"],
                 )
 
         if self.cache["directory_in_revision"]:
@@ -115,10 +115,9 @@ class Provenance:
                     for src, dst, path in self.cache["directory_in_revision"]
                 ),
             ):
-                logging.warning(
-                    "Unable to write %s rows to the storage. Data: %s. Retrying...",
+                LOGGER.warning(
+                    "Unable to write %s rows to the storage. Retrying...",
                     RelationType.DIR_IN_REV,
-                    self.cache["directory_in_revision"],
                 )
 
         # After relations, dates for the entities can be safely set, acknowledging that
@@ -130,10 +129,8 @@ class Provenance:
         }
         if dates:
             while not self.storage.content_set_date(dates):
-                logging.warning(
-                    "Unable to write content dates to the storage. "
-                    "Data: %s. Retrying...",
-                    dates,
+                LOGGER.warning(
+                    "Unable to write content dates to the storage. Retrying..."
                 )
 
         dates = {
@@ -143,10 +140,8 @@ class Provenance:
         }
         if dates:
             while not self.storage.directory_set_date(dates):
-                logging.warning(
-                    "Unable to write directory dates to the storage. "
-                    "Data: %s. Retrying...",
-                    dates,
+                LOGGER.warning(
+                    "Unable to write directory dates to the storage. Retrying..."
                 )
 
         dates = {
@@ -156,10 +151,8 @@ class Provenance:
         }
         if dates:
             while not self.storage.revision_set_date(dates):
-                logging.warning(
-                    "Unable to write revision dates to the storage. "
-                    "Data: %s. Retrying...",
-                    dates,
+                LOGGER.warning(
+                    "Unable to write revision dates to the storage. Retrying..."
                 )
 
         # Origin-revision layer insertions #############################################
@@ -173,10 +166,8 @@ class Provenance:
         }
         if urls:
             while not self.storage.origin_set_url(urls):
-                logging.warning(
-                    "Unable to write origins urls to the storage. "
-                    "Data: %s. Retrying...",
-                    urls,
+                LOGGER.warning(
+                    "Unable to write origins urls to the storage. Retrying..."
                 )
 
         # Second, flat models for revisions' histories (ie. revision-before-revision).
@@ -192,10 +183,9 @@ class Provenance:
         )
         if data:
             while not self.storage.relation_add(RelationType.REV_BEFORE_REV, data):
-                logging.warning(
-                    "Unable to write %s rows to the storage. Data: %s. Retrying...",
+                LOGGER.warning(
+                    "Unable to write %s rows to the storage. Retrying...",
                     RelationType.REV_BEFORE_REV,
-                    data,
                 )
 
         # Heads (ie. revision-in-origin entries) should be inserted once flat models for
@@ -208,10 +198,9 @@ class Provenance:
         )
         if data:
             while not self.storage.relation_add(RelationType.REV_IN_ORG, data):
-                logging.warning(
-                    "Unable to write %s rows to the storage. Data: %s. Retrying...",
+                LOGGER.warning(
+                    "Unable to write %s rows to the storage. Retrying...",
                     RelationType.REV_IN_ORG,
-                    data,
                 )
 
         # Finally, preferred origins for the visited revisions are set (this step can be
@@ -222,10 +211,8 @@ class Provenance:
         }
         if origins:
             while not self.storage.revision_set_origin(origins):
-                logging.warning(
-                    "Unable to write preferred origins to the storage. "
-                    "Data: %s. Retrying...",
-                    origins,
+                LOGGER.warning(
+                    "Unable to write preferred origins to the storage. Retrying..."
                 )
 
         # clear local cache ############################################################

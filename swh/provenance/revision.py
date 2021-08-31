@@ -4,9 +4,7 @@
 # See top-level LICENSE file for more information
 
 from datetime import datetime, timezone
-import logging
 import os
-import time
 from typing import Generator, Iterable, Iterator, List, Optional, Tuple
 
 from swh.model.model import Sha1Git
@@ -59,19 +57,12 @@ def revision_add(
     mindepth: int = 1,
     commit: bool = True,
 ) -> None:
-    start = time.time()
     for revision in revisions:
         assert revision.date is not None
         assert revision.root is not None
         # Processed content starting from the revision's root directory.
         date = provenance.revision_get_date(revision)
         if date is None or revision.date < date:
-            logging.debug(
-                "Processing revisions %s (known date %s / revision date %s)...",
-                revision.id.hex(),
-                date,
-                revision.date,
-            )
             graph = build_isochrone_graph(
                 archive,
                 provenance,
@@ -88,16 +79,8 @@ def revision_add(
                 lower=lower,
                 mindepth=mindepth,
             )
-    done = time.time()
     if commit:
         provenance.flush()
-    stop = time.time()
-    logging.debug(
-        "Revisions %s were processed in %s secs (commit took %s secs)!",
-        ";".join(revision.id.hex() for revision in revisions),
-        stop - start,
-        stop - done,
-    )
 
 
 def revision_process_content(

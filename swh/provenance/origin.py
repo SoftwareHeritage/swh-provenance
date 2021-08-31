@@ -4,8 +4,6 @@
 # See top-level LICENSE file for more information
 
 from itertools import islice
-import logging
-import time
 from typing import Generator, Iterable, Iterator, List, Optional, Tuple
 
 from swh.model.model import Sha1Git
@@ -49,22 +47,13 @@ def origin_add(
     archive: ArchiveInterface,
     origins: List[OriginEntry],
 ) -> None:
-    start = time.time()
     for origin in origins:
         provenance.origin_add(origin)
         origin.retrieve_revisions(archive)
         for revision in origin.revisions:
             graph = HistoryGraph(archive, provenance, revision)
             origin_add_revision(provenance, origin, graph)
-    done = time.time()
     provenance.flush()
-    stop = time.time()
-    logging.debug(
-        "Origins %s were processed in %s secs (commit took %s secs)!",
-        ";".join(origin.id.hex() + ":" + origin.snapshot.hex() for origin in origins),
-        stop - start,
-        stop - done,
-    )
 
 
 def origin_add_revision(

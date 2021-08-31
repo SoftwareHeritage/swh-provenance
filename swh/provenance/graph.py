@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-import logging
 import os
 from typing import Any, Dict, Optional, Set
 
@@ -187,9 +186,6 @@ def build_isochrone_graph(
     root_date = provenance.directory_get_date_in_isochrone_frontier(directory)
     root = IsochroneNode(directory, dbdate=root_date)
     stack = [root]
-    logging.debug(
-        "Recursively creating isochrone graph for revision %s...", revision.id.hex()
-    )
     fdates: Dict[Sha1Git, datetime] = {}  # map {file_id: date}
     while stack:
         current = stack.pop()
@@ -198,14 +194,6 @@ def build_isochrone_graph(
             # is greater or equal to the current revision's one, it should be ignored as
             # the revision is being processed out of order.
             if current.dbdate is not None and current.dbdate > revision.date:
-                logging.debug(
-                    "Invalidating frontier on %s (date %s) "
-                    "when processing revision %s (date %s)",
-                    current.entry.id.hex(),
-                    current.dbdate,
-                    revision.id.hex(),
-                    revision.date,
-                )
                 current.invalidate()
 
             # Pre-query all known dates for directories in the current directory
@@ -222,12 +210,8 @@ def build_isochrone_graph(
 
             fdates.update(provenance.content_get_early_dates(current.entry.files))
 
-    logging.debug(
-        "Isochrone graph for revision %s successfully created!", revision.id.hex()
-    )
     # Precalculate max known date for each node in the graph (only directory nodes are
     # pushed to the stack).
-    logging.debug("Computing maxdates for revision %s...", revision.id.hex())
     stack = [root]
 
     while stack:
@@ -278,5 +262,4 @@ def build_isochrone_graph(
                     # node should be treated as unknown
                     current.maxdate = revision.date
                     current.known = False
-    logging.debug("Maxdates for revision %s successfully computed!", revision.id.hex())
     return root

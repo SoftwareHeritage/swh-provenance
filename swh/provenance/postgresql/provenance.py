@@ -23,6 +23,8 @@ from ..interface import (
     RevisionData,
 )
 
+LOGGER = logging.getLogger(__name__)
+
 
 class ProvenanceStoragePostgreSql:
     def __init__(
@@ -99,7 +101,7 @@ class ProvenanceStoragePostgreSql:
             return True
         except:  # noqa: E722
             # Unexpected error occurred, rollback all changes and log message
-            logging.exception("Unexpected error")
+            LOGGER.exception("Unexpected error")
             if self.raise_on_commit:
                 raise
         return False
@@ -138,7 +140,7 @@ class ProvenanceStoragePostgreSql:
             return True
         except:  # noqa: E722
             # Unexpected error occurred, rollback all changes and log message
-            logging.exception("Unexpected error")
+            LOGGER.exception("Unexpected error")
             if self.raise_on_commit:
                 raise
         return False
@@ -211,7 +213,7 @@ class ProvenanceStoragePostgreSql:
             return True
         except:  # noqa: E722
             # Unexpected error occurred, rollback all changes and log message
-            logging.exception("Unexpected error")
+            LOGGER.exception("Unexpected error")
             if self.raise_on_commit:
                 raise
         return False
@@ -261,7 +263,7 @@ class ProvenanceStoragePostgreSql:
             return True
         except:  # noqa: E722
             # Unexpected error occurred, rollback all changes and log message
-            logging.exception("Unexpected error")
+            LOGGER.exception("Unexpected error")
             if self.raise_on_commit:
                 raise
         return False

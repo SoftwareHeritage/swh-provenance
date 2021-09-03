@@ -283,7 +283,7 @@ class ProvenanceStorageMongoDb:
         src_relation, *_, dst_relation = relation.value.split("_")
         set_data = set(data)
 
-        dst_sha1s = {x.dst for x in data}
+        dst_sha1s = {x.dst for x in set_data}
         if dst_relation in ["content", "directory", "revision"]:
             dst_obj: Dict[str, Any] = {"ts": None}
             if dst_relation == "content":
@@ -336,17 +336,17 @@ class ProvenanceStorageMongoDb:
             )
         }
 
-        for sha1, _ in denorm.items():
+        for sha1, dsts in denorm.items():
             if sha1 in src_objs:
                 # update
                 if src_relation != "revision":
                     k = {
-                        obj_id: list(set(paths + denorm[sha1][obj_id]))
+                        obj_id: list(set(paths + dsts.get(obj_id, [])))
                         for obj_id, paths in src_objs[sha1][dst_relation].items()
                     }
                     self.db.get_collection(src_relation).update_one(
                         {"_id": src_objs[sha1]["_id"]},
-                        {"$set": {dst_relation: dict(denorm[sha1], **k)}},
+                        {"$set": {dst_relation: dict(dsts, **k)}},
                     )
                 else:
                     self.db.get_collection(src_relation).update_one(
@@ -354,7 +354,7 @@ class ProvenanceStorageMongoDb:
                         {
                             "$set": {
                                 dst_relation: list(
-                                    set(src_objs[sha1][dst_relation] + denorm[sha1])
+                                    set(src_objs[sha1][dst_relation] + dsts)
                                 )
                             }
                         },
@@ -372,7 +372,7 @@ class ProvenanceStorageMongoDb:
                     src_obj["origin"] = []
                     src_obj["revision"] = []
                 self.db.get_collection(src_relation).insert_one(
-                    dict(src_obj, **{"sha1": sha1, dst_relation: denorm[sha1]})
+                    dict(src_obj, **{"sha1": sha1, dst_relation: dsts})
                 )
         return True
 

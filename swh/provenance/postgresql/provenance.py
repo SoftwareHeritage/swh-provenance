@@ -193,12 +193,21 @@ class ProvenanceStoragePostgreSql:
                         """
                     psycopg2.extras.execute_values(self.cursor, sql, dsts)
 
-                sql = """
-                    SELECT * FROM swh_provenance_relation_add(
-                        %s, %s, %s, %s::rel_row[]
-                    )
-                """
-                self.cursor.execute(sql, (rel_table, src_table, dst_table, rows))
+                # Put the next three queries in a manual single transaction:
+                # they use the same temp table
+                with self.conn:
+                    with self.conn.cursor() as cur:
+                        cur.execute("SELECT swh_mktemp_relation_add()")
+                        psycopg2.extras.execute_values(
+                            cur,
+                            sql=(
+                                "INSERT INTO tmp_relation_add (src, dst, path) "
+                                "VALUES %s"
+                            ),
+                            argslist=rows,
+                        )
+                        sql = "SELECT swh_provenance_relation_add_from_temp(%s, %s, %s)"
+                        cur.execute(sql, (rel_table, src_table, dst_table))
             return True
         except:  # noqa: E722
             # Unexpected error occurred, rollback all changes and log message

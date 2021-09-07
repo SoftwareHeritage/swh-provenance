@@ -2,6 +2,16 @@
 select position('denormalized' in swh_get_dbflavor()::text) = 0 as dbflavor_norm \gset
 select position('with-path' in swh_get_dbflavor()::text) != 0 as dbflavor_with_path \gset
 
+create or replace function swh_mktemp_relation_add() returns void
+    language sql
+as $$
+    create temp table tmp_relation_add (
+        src sha1_git not null,
+        dst sha1_git not null,
+        path unix_path
+    ) on commit drop
+$$;
+
 \if :dbflavor_norm
 
 \if :dbflavor_with_path
@@ -77,8 +87,8 @@ as $$
     order by date, revision, origin, path limit early_cut
 $$;
 
-create or replace function swh_provenance_relation_add(
-    rel_table regclass, src_table regclass, dst_table regclass, rel_data rel_row[]
+create or replace function swh_provenance_relation_add_from_temp(
+    rel_table regclass, src_table regclass, dst_table regclass
 )
     returns void
     language plpgsql
@@ -92,7 +102,7 @@ as $$
             lock table only location;
             insert into location(path)
               select V.path
-              from unnest(rel_data) as V
+              from tmp_relation_add as V
             on conflict (path) do nothing;
 
             select_fields := 'D.id, L.id';
@@ -106,13 +116,13 @@ as $$
             'lock table only %s;
              insert into %s
                select S.id, ' || select_fields || '
-               from unnest($1) as V
+               from tmp_relation_add as V
                inner join %s as S on (S.sha1 = V.src)
                inner join %s as D on (D.sha1 = V.dst)
                ' || join_location || '
              on conflict do nothing',
             rel_table, rel_table, src_table, dst_table
-        ) using rel_data;
+        );
     end;
 $$;
 
@@ -235,8 +245,8 @@ as $$
     order by date, revision, origin, path limit early_cut
 $$;
 
-create or replace function swh_provenance_relation_add(
-    rel_table regclass, src_table regclass, dst_table regclass, rel_data rel_row[]
+create or replace function swh_provenance_relation_add_from_temp(
+    rel_table regclass, src_table regclass, dst_table regclass
 )
     returns void
     language plpgsql
@@ -247,12 +257,12 @@ as $$
             'lock table only %s;
              insert into %s
                select S.id, D.id
-               from unnest($1) as V
+               from tmp_relation_add as V
                inner join %s as S on (S.sha1 = V.src)
                inner join %s as D on (D.sha1 = V.dst)
              on conflict do nothing',
             rel_table, rel_table, src_table, dst_table
-        ) using rel_data;
+        );
     end;
 $$;
 
@@ -398,8 +408,8 @@ as $$
     order by date, revision, origin, path limit early_cut
 $$;
 
-create or replace function swh_provenance_relation_add(
-    rel_table regclass, src_table regclass, dst_table regclass, rel_data rel_row[]
+create or replace function swh_provenance_relation_add_from_temp(
+    rel_table regclass, src_table regclass, dst_table regclass
 )
     returns void
     language plpgsql
@@ -415,7 +425,7 @@ as $$
             lock table only location;
             insert into location(path)
               select V.path
-              from unnest(rel_data) as V
+              from tmp_relation_add as V
             on conflict (path) do nothing;
 
             select_fields := 'array_agg((D.id, L.id)::rel_dst)';
@@ -441,14 +451,14 @@ as $$
             'lock table only %s;
              insert into %s
                select S.id, ' || select_fields || '
-               from unnest($1) as V
+               from tmp_relation_add as V
                inner join %s as S on (S.sha1 = V.src)
                inner join %s as D on (D.sha1 = V.dst)
                ' || join_location || '
                ' || group_entries || '
              on conflict ' || on_conflict,
             rel_table, rel_table, src_table, dst_table
-        ) using rel_data;
+        );
     end;
 $$;
 
@@ -600,8 +610,8 @@ as $$
     order by date, revision, origin, path limit early_cut
 $$;
 
-create or replace function swh_provenance_relation_add(
-    rel_table regclass, src_table regclass, dst_table regclass, rel_data rel_row[]
+create or replace function swh_provenance_relation_add_from_temp(
+    rel_table regclass, src_table regclass, dst_table regclass
 )
     returns void
     language plpgsql
@@ -634,13 +644,13 @@ as $$
             'lock table only %s;
              insert into %s
                select S.id, ' || select_fields || '
-               from unnest($1) as V
+               from tmp_relation_add as V
                inner join %s as S on (S.sha1 = V.src)
                inner join %s as D on (D.sha1 = V.dst)
                ' || group_entries || '
              on conflict ' || on_conflict,
             rel_table, rel_table, src_table, dst_table
-        ) using rel_data;
+        );
     end;
 $$;
 

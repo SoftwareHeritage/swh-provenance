@@ -99,7 +99,6 @@ as $$
         join_location text;
     begin
         if src_table in ('content'::regclass, 'directory'::regclass) then
-            lock table only location;
             insert into location(path)
               select V.path
               from tmp_relation_add as V
@@ -113,15 +112,14 @@ as $$
         end if;
 
         execute format(
-            'lock table only %s;
-             insert into %s
+            'insert into %s
                select S.id, ' || select_fields || '
                from tmp_relation_add as V
                inner join %s as S on (S.sha1 = V.src)
                inner join %s as D on (D.sha1 = V.dst)
                ' || join_location || '
              on conflict do nothing',
-            rel_table, rel_table, src_table, dst_table
+            rel_table, src_table, dst_table
         );
     end;
 $$;
@@ -254,14 +252,13 @@ create or replace function swh_provenance_relation_add_from_temp(
 as $$
     begin
         execute format(
-            'lock table only %s;
-             insert into %s
+            'insert into %s
                select S.id, D.id
                from tmp_relation_add as V
                inner join %s as S on (S.sha1 = V.src)
                inner join %s as D on (D.sha1 = V.dst)
              on conflict do nothing',
-            rel_table, rel_table, src_table, dst_table
+            rel_table, src_table, dst_table
         );
     end;
 $$;
@@ -422,7 +419,6 @@ as $$
         on_conflict text;
     begin
         if src_table in ('content'::regclass, 'directory'::regclass) then
-            lock table only location;
             insert into location(path)
               select V.path
               from tmp_relation_add as V
@@ -448,8 +444,7 @@ as $$
         end if;
 
         execute format(
-            'lock table only %s;
-             insert into %s
+            'insert into %s
                select S.id, ' || select_fields || '
                from tmp_relation_add as V
                inner join %s as S on (S.sha1 = V.src)
@@ -457,7 +452,7 @@ as $$
                ' || join_location || '
                ' || group_entries || '
              on conflict ' || on_conflict,
-            rel_table, rel_table, src_table, dst_table
+            rel_table, src_table, dst_table
         );
     end;
 $$;
@@ -641,15 +636,14 @@ as $$
         end if;
 
         execute format(
-            'lock table only %s;
-             insert into %s
+            'insert into %s
                select S.id, ' || select_fields || '
                from tmp_relation_add as V
                inner join %s as S on (S.sha1 = V.src)
                inner join %s as D on (D.sha1 = V.dst)
                ' || group_entries || '
              on conflict ' || on_conflict,
-            rel_table, rel_table, src_table, dst_table
+            rel_table, src_table, dst_table
         );
     end;
 $$;

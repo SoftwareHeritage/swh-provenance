@@ -93,7 +93,6 @@ class ProvenanceStoragePostgreSql:
         try:
             if urls:
                 sql = """
-                    LOCK TABLE ONLY origin;
                     INSERT INTO origin(sha1, url) VALUES %s
                       ON CONFLICT DO NOTHING
                     """
@@ -128,7 +127,6 @@ class ProvenanceStoragePostgreSql:
         try:
             if origins:
                 sql = """
-                    LOCK TABLE ONLY revision;
                     INSERT INTO revision(sha1, origin)
                       (SELECT V.rev AS sha1, O.id AS origin
                        FROM (VALUES %s) AS V(rev, org)
@@ -178,7 +176,6 @@ class ProvenanceStoragePostgreSql:
                     # non-null information
                     srcs = tuple(set((sha1,) for (sha1, _, _) in rows))
                     sql = f"""
-                        LOCK TABLE ONLY {src_table};
                         INSERT INTO {src_table}(sha1) VALUES %s
                           ON CONFLICT DO NOTHING
                         """
@@ -189,7 +186,6 @@ class ProvenanceStoragePostgreSql:
                     # non-null information
                     dsts = tuple(set((sha1,) for (_, sha1, _) in rows))
                     sql = f"""
-                        LOCK TABLE ONLY {dst_table};
                         INSERT INTO {dst_table}(sha1) VALUES %s
                           ON CONFLICT DO NOTHING
                         """
@@ -254,7 +250,6 @@ class ProvenanceStoragePostgreSql:
         try:
             if data:
                 sql = f"""
-                    LOCK TABLE ONLY {entity};
                     INSERT INTO {entity}(sha1, date) VALUES %s
                       ON CONFLICT (sha1) DO
                       UPDATE SET date=LEAST(EXCLUDED.date,{entity}.date)

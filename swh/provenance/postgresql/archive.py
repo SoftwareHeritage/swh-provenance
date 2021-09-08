@@ -63,8 +63,7 @@ class ArchivePostgreSQL:
                 (id,),
             )
             return [
-                {"type": row[0], "target": row[1], "name": row[2]}
-                for row in cursor.fetchall()
+                {"type": row[0], "target": row[1], "name": row[2]} for row in cursor
             ]
 
     def revision_get_parents(self, id: Sha1Git) -> Iterable[Sha1Git]:
@@ -79,7 +78,7 @@ class ArchivePostgreSQL:
                 (id,),
             )
             # There should be at most one row anyway
-            yield from (row[0] for row in cursor.fetchall())
+            yield from (row[0] for row in cursor)
 
     def snapshot_get_heads(self, id: Sha1Git) -> Iterable[Sha1Git]:
         with self.conn.cursor() as cursor:
@@ -114,4 +113,4 @@ class ArchivePostgreSQL:
                 """,
                 (id,),
             )
-            yield from (row[0] for row in cursor.fetchall())
+            yield from (row[0] for row in cursor)

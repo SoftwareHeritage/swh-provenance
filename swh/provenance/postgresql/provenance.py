@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from contextlib import contextmanager
 from datetime import datetime
 import itertools
 import logging
@@ -31,22 +32,27 @@ class ProvenanceStoragePostgreSql:
         self, conn: psycopg2.extensions.connection, raise_on_commit: bool = False
     ) -> None:
         BaseDb.adapt_conn(conn)
-        conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
-        conn.set_session(autocommit=True)
         self.conn = conn
-        self.cursor = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        # XXX: not sure this is the best place to do it!
-        sql = "SET timezone TO 'UTC'"
-        self.cursor.execute(sql)
+        with self.transaction() as cursor:
+            cursor.execute("SET timezone TO 'UTC'")
         self._flavor: Optional[str] = None
         self.raise_on_commit = raise_on_commit
+
+    @contextmanager
+    def transaction(
+        self, readonly: bool = False
+    ) -> Generator[psycopg2.extensions.cursor, None, None]:
+        self.conn.set_session(readonly=readonly)
+        with self.conn:
+            with self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                yield cur
 
     @property
     def flavor(self) -> str:
         if self._flavor is None:
-            sql = "SELECT swh_get_dbflavor() AS flavor"
-            self.cursor.execute(sql)
-            self._flavor = self.cursor.fetchone()["flavor"]
+            with self.transaction(readonly=True) as cursor:
+                cursor.execute("SELECT swh_get_dbflavor() AS flavor")
+                self._flavor = cursor.fetchone()["flavor"]
         assert self._flavor is not None
         return self._flavor
 
@@ -56,16 +62,18 @@ class ProvenanceStoragePostgreSql:
 
     def content_find_first(self, id: Sha1Git) -> Optional[ProvenanceResult]:
         sql = "SELECT * FROM swh_provenance_content_find_first(%s)"
-        self.cursor.execute(sql, (id,))
-        row = self.cursor.fetchone()
+        with self.transaction(readonly=True) as cursor:
+            cursor.execute(query=sql, vars=(id,))
+            row = cursor.fetchone()
         return ProvenanceResult(**row) if row is not None else None
 
     def content_find_all(
         self, id: Sha1Git, limit: Optional[int] = None
     ) -> Generator[ProvenanceResult, None, None]:
         sql = "SELECT * FROM swh_provenance_content_find_all(%s, %s)"
-        self.cursor.execute(sql, (id, limit))
-        yield from (ProvenanceResult(**row) for row in self.cursor.fetchall())
+        with self.transaction(readonly=True) as cursor:
+            cursor.execute(query=sql, vars=(id, limit))
+            yield from (ProvenanceResult(**row) for row in cursor)
 
     def content_set_date(self, dates: Dict[Sha1Git, datetime]) -> bool:
         return self._entity_set_date("content", dates)
@@ -80,14 +88,14 @@ class ProvenanceStoragePostgreSql:
         return self._entity_get_date("directory", ids)
 
     def entity_get_all(self, entity: EntityType) -> Set[Sha1Git]:
-        sql = f"SELECT sha1 FROM {entity.value}"
-        self.cursor.execute(sql)
-        return {row["sha1"] for row in self.cursor.fetchall()}
+        with self.transaction(readonly=True) as cursor:
+            cursor.execute(f"SELECT sha1 FROM {entity.value}")
+            return {row["sha1"] for row in cursor}
 
     def location_get(self) -> Set[bytes]:
-        sql = "SELECT location.path AS path FROM location"
-        self.cursor.execute(sql)
-        return {row["path"] for row in self.cursor.fetchall()}
+        with self.transaction(readonly=True) as cursor:
+            cursor.execute("SELECT location.path AS path FROM location")
+            return {row["path"] for row in cursor}
 
     def origin_set_url(self, urls: Dict[Sha1Git, str]) -> bool:
         try:
@@ -96,7 +104,10 @@ class ProvenanceStoragePostgreSql:
                     INSERT INTO origin(sha1, url) VALUES %s
                       ON CONFLICT DO NOTHING
                     """
-                psycopg2.extras.execute_values(self.cursor, sql, urls.items())
+                with self.transaction() as cursor:
+                    psycopg2.extras.execute_values(
+                        cur=cursor, sql=sql, argslist=urls.items()
+                    )
             return True
         except:  # noqa: E722
             # Unexpected error occurred, rollback all changes and log message
@@ -116,8 +127,9 @@ class ProvenanceStoragePostgreSql:
                   FROM origin
                   WHERE sha1 IN ({values})
                 """
-            self.cursor.execute(sql, sha1s)
-            urls.update((row["sha1"], row["url"]) for row in self.cursor.fetchall())
+            with self.transaction(readonly=True) as cursor:
+                cursor.execute(query=sql, vars=sha1s)
+                urls.update((row["sha1"], row["url"]) for row in cursor)
         return urls
 
     def revision_set_date(self, dates: Dict[Sha1Git, datetime]) -> bool:
@@ -134,7 +146,10 @@ class ProvenanceStoragePostgreSql:
                       ON CONFLICT (sha1) DO
                       UPDATE SET origin=EXCLUDED.origin
                     """
-                psycopg2.extras.execute_values(self.cursor, sql, origins.items())
+                with self.transaction() as cursor:
+                    psycopg2.extras.execute_values(
+                        cur=cursor, sql=sql, argslist=origins.items()
+                    )
             return True
         except:  # noqa: E722
             # Unexpected error occurred, rollback all changes and log message
@@ -155,11 +170,12 @@ class ProvenanceStoragePostgreSql:
                   LEFT JOIN origin AS O ON (O.id=R.origin)
                   WHERE R.sha1 IN ({values})
                 """
-            self.cursor.execute(sql, sha1s)
-            result.update(
-                (row["sha1"], RevisionData(date=row["date"], origin=row["origin"]))
-                for row in self.cursor.fetchall()
-            )
+            with self.transaction(readonly=True) as cursor:
+                cursor.execute(query=sql, vars=sha1s)
+                result.update(
+                    (row["sha1"], RevisionData(date=row["date"], origin=row["origin"]))
+                    for row in cursor
+                )
         return result
 
     def relation_add(
@@ -179,7 +195,10 @@ class ProvenanceStoragePostgreSql:
                         INSERT INTO {src_table}(sha1) VALUES %s
                           ON CONFLICT DO NOTHING
                         """
-                    psycopg2.extras.execute_values(self.cursor, sql, srcs)
+                    with self.transaction() as cursor:
+                        psycopg2.extras.execute_values(
+                            cur=cursor, sql=sql, argslist=srcs
+                        )
 
                 if dst_table != "origin":
                     # Origin entries should be inserted previously as they require extra
@@ -189,23 +208,22 @@ class ProvenanceStoragePostgreSql:
                         INSERT INTO {dst_table}(sha1) VALUES %s
                           ON CONFLICT DO NOTHING
                         """
-                    psycopg2.extras.execute_values(self.cursor, sql, dsts)
+                    with self.transaction() as cursor:
+                        psycopg2.extras.execute_values(
+                            cur=cursor, sql=sql, argslist=dsts
+                        )
 
                 # Put the next three queries in a manual single transaction:
                 # they use the same temp table
-                with self.conn:
-                    with self.conn.cursor() as cur:
-                        cur.execute("SELECT swh_mktemp_relation_add()")
-                        psycopg2.extras.execute_values(
-                            cur,
-                            sql=(
-                                "INSERT INTO tmp_relation_add (src, dst, path) "
-                                "VALUES %s"
-                            ),
-                            argslist=rows,
-                        )
-                        sql = "SELECT swh_provenance_relation_add_from_temp(%s, %s, %s)"
-                        cur.execute(sql, (rel_table, src_table, dst_table))
+                with self.transaction() as cursor:
+                    cursor.execute("SELECT swh_mktemp_relation_add()")
+                    psycopg2.extras.execute_values(
+                        cur=cursor,
+                        sql="INSERT INTO tmp_relation_add(src, dst, path) VALUES %s",
+                        argslist=rows,
+                    )
+                    sql = "SELECT swh_provenance_relation_add_from_temp(%s, %s, %s)"
+                    cursor.execute(query=sql, vars=(rel_table, src_table, dst_table))
             return True
         except:  # noqa: E722
             # Unexpected error occurred, rollback all changes and log message
@@ -238,8 +256,9 @@ class ProvenanceStoragePostgreSql:
                   WHERE sha1 IN ({values})
                     AND date IS NOT NULL
                 """
-            self.cursor.execute(sql, sha1s)
-            dates.update((row["sha1"], row["date"]) for row in self.cursor.fetchall())
+            with self.transaction(readonly=True) as cursor:
+                cursor.execute(query=sql, vars=sha1s)
+                dates.update((row["sha1"], row["date"]) for row in cursor)
         return dates
 
     def _entity_set_date(
@@ -254,7 +273,8 @@ class ProvenanceStoragePostgreSql:
                       ON CONFLICT (sha1) DO
                       UPDATE SET date=LEAST(EXCLUDED.date,{entity}.date)
                     """
-                psycopg2.extras.execute_values(self.cursor, sql, data.items())
+                with self.transaction() as cursor:
+                    psycopg2.extras.execute_values(cursor, sql, argslist=data.items())
             return True
         except:  # noqa: E722
             # Unexpected error occurred, rollback all changes and log message
@@ -284,8 +304,11 @@ class ProvenanceStoragePostgreSql:
             src_table, *_, dst_table = rel_table.split("_")
 
             sql = "SELECT * FROM swh_provenance_relation_get(%s, %s, %s, %s, %s)"
-            self.cursor.execute(sql, (rel_table, src_table, dst_table, filter, sha1s))
-            result.update(RelationData(**row) for row in self.cursor.fetchall())
+            with self.transaction(readonly=True) as cursor:
+                cursor.execute(
+                    query=sql, vars=(rel_table, src_table, dst_table, filter, sha1s)
+                )
+                result.update(RelationData(**row) for row in cursor)
         return result
 
     def with_path(self) -> bool:

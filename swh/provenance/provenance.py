@@ -17,6 +17,7 @@ from .interface import (
     ProvenanceStorageInterface,
     RelationData,
     RelationType,
+    RevisionData,
 )
 from .model import DirectoryEntry, FileEntry, OriginEntry, RevisionEntry
 
@@ -79,6 +80,49 @@ class Provenance:
     def flush(self) -> None:
         # Revision-content layer insertions ############################################
 
+        # After relations, dates for the entities can be safely set, acknowledging that
+        # these entities won't need to be reprocessed in case of failure.
+        cnts = {
+            src
+            for src, _, _ in self.cache["content_in_revision"]
+            | self.cache["content_in_directory"]
+        }
+        if cnts:
+            while not self.storage.content_add(cnts):
+                LOGGER.warning(
+                    "Unable to write content entities to the storage. Retrying..."
+                )
+
+        dirs = {dst for _, dst, _ in self.cache["content_in_directory"]}
+        if dirs:
+            while not self.storage.directory_add(dirs):
+                LOGGER.warning(
+                    "Unable to write directory entities to the storage. Retrying..."
+                )
+
+        revs = {
+            dst
+            for _, dst, _ in self.cache["content_in_revision"]
+            | self.cache["directory_in_revision"]
+        }
+        if revs:
+            while not self.storage.revision_add(revs):
+                LOGGER.warning(
+                    "Unable to write revision entities to the storage. Retrying..."
+                )
+
+        paths = {
+            path
+            for _, _, path in self.cache["content_in_revision"]
+            | self.cache["content_in_directory"]
+            | self.cache["directory_in_revision"]
+        }
+        if paths:
+            while not self.storage.location_add(paths):
+                LOGGER.warning(
+                    "Unable to write locations entities to the storage. Retrying..."
+                )
+
         # For this layer, relations need to be inserted first so that, in case of
         # failure, reprocessing the input does not generated an inconsistent database.
         if self.cache["content_in_revision"]:
@@ -122,52 +166,70 @@ class Provenance:
 
         # After relations, dates for the entities can be safely set, acknowledging that
         # these entities won't need to be reprocessed in case of failure.
-        dates = {
+        cnt_dates = {
             sha1: date
             for sha1, date in self.cache["content"]["data"].items()
             if sha1 in self.cache["content"]["added"] and date is not None
         }
-        if dates:
-            while not self.storage.content_set_date(dates):
+        if cnt_dates:
+            while not self.storage.content_add(cnt_dates):
                 LOGGER.warning(
                     "Unable to write content dates to the storage. Retrying..."
                 )
 
-        dates = {
+        dir_dates = {
             sha1: date
             for sha1, date in self.cache["directory"]["data"].items()
             if sha1 in self.cache["directory"]["added"] and date is not None
         }
-        if dates:
-            while not self.storage.directory_set_date(dates):
+        if dir_dates:
+            while not self.storage.directory_add(dir_dates):
                 LOGGER.warning(
                     "Unable to write directory dates to the storage. Retrying..."
                 )
 
-        dates = {
-            sha1: date
+        rev_dates = {
+            sha1: RevisionData(date=date, origin=None)
             for sha1, date in self.cache["revision"]["data"].items()
             if sha1 in self.cache["revision"]["added"] and date is not None
         }
-        if dates:
-            while not self.storage.revision_set_date(dates):
+        if rev_dates:
+            while not self.storage.revision_add(rev_dates):
                 LOGGER.warning(
                     "Unable to write revision dates to the storage. Retrying..."
                 )
 
         # Origin-revision layer insertions #############################################
 
-        # Origins urls should be inserted first so that internal ids' resolution works
-        # properly.
+        # Origins and revisions should be inserted first so that internal ids'
+        # resolution works properly.
         urls = {
             sha1: url
             for sha1, url in self.cache["origin"]["data"].items()
             if sha1 in self.cache["origin"]["added"]
         }
         if urls:
-            while not self.storage.origin_set_url(urls):
+            while not self.storage.origin_add(urls):
                 LOGGER.warning(
                     "Unable to write origins urls to the storage. Retrying..."
+                )
+
+        rev_orgs = {
+            # Destinations in this relation should match origins in the next one
+            **{
+                src: RevisionData(date=None, origin=None)
+                for src in self.cache["revision_before_revision"]
+            },
+            **{
+                # This relation comes second so that non-None origins take precedence
+                src: RevisionData(date=None, origin=org)
+                for src, org in self.cache["revision_in_origin"]
+            },
+        }
+        if rev_orgs:
+            while not self.storage.revision_add(rev_orgs):
+                LOGGER.warning(
+                    "Unable to write revision entities to the storage. Retrying..."
                 )
 
         # Second, flat models for revisions' histories (ie. revision-before-revision).
@@ -201,18 +263,6 @@ class Provenance:
                 LOGGER.warning(
                     "Unable to write %s rows to the storage. Retrying...",
                     RelationType.REV_IN_ORG,
-                )
-
-        # Finally, preferred origins for the visited revisions are set (this step can be
-        # reordered if required).
-        origins = {
-            sha1: self.cache["revision_origin"]["data"][sha1]
-            for sha1 in self.cache["revision_origin"]["added"]
-        }
-        if origins:
-            while not self.storage.revision_set_origin(origins):
-                LOGGER.warning(
-                    "Unable to write preferred origins to the storage. Retrying..."
                 )
 
         # clear local cache ############################################################

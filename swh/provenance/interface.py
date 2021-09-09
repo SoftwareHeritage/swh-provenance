@@ -6,7 +6,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 import enum
-from typing import Dict, Generator, Iterable, Optional, Set
+from typing import Dict, Generator, Iterable, Optional, Set, Union
 
 from typing_extensions import Protocol, runtime_checkable
 
@@ -66,6 +66,16 @@ class RelationData:
 
 @runtime_checkable
 class ProvenanceStorageInterface(Protocol):
+    @remote_api_endpoint("content_add")
+    def content_add(
+        self, cnts: Union[Iterable[Sha1Git], Dict[Sha1Git, datetime]]
+    ) -> bool:
+        """Add blobs identified by sha1 ids, with an optional associated date (as paired
+        in `cnts`) to the provenance storage. Return a boolean stating whether the
+        information was successfully stored.
+        """
+        ...
+
     @remote_api_endpoint("content_find_first")
     def content_find_first(self, id: Sha1Git) -> Optional[ProvenanceResult]:
         """Retrieve the first occurrence of the blob identified by `id`."""
@@ -78,13 +88,6 @@ class ProvenanceStorageInterface(Protocol):
         """Retrieve all the occurrences of the blob identified by `id`."""
         ...
 
-    @remote_api_endpoint("content_set_date")
-    def content_set_date(self, dates: Dict[Sha1Git, datetime]) -> bool:
-        """Associate dates to blobs identified by sha1 ids, as paired in `dates`. Return
-        a boolean stating whether the information was successfully stored.
-        """
-        ...
-
     @remote_api_endpoint("content_get")
     def content_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, datetime]:
         """Retrieve the associated date for each blob sha1 in `ids`. If some blob has
@@ -92,11 +95,13 @@ class ProvenanceStorageInterface(Protocol):
         """
         ...
 
-    @remote_api_endpoint("directory_set_date")
-    def directory_set_date(self, dates: Dict[Sha1Git, datetime]) -> bool:
-        """Associate dates to directories identified by sha1 ids, as paired in
-        `dates`. Return a boolean stating whether the information was successfully
-        stored.
+    @remote_api_endpoint("directory_add")
+    def directory_add(
+        self, dirs: Union[Iterable[Sha1Git], Dict[Sha1Git, datetime]]
+    ) -> bool:
+        """Add directories identified by sha1 ids, with an optional associated date (as
+        paired in `dirs`) to the provenance storage. Return a boolean stating if the
+        information was successfully stored.
         """
         ...
 
@@ -114,37 +119,36 @@ class ProvenanceStorageInterface(Protocol):
         """
         ...
 
-    @remote_api_endpoint("location_get")
-    def location_get(self) -> Set[bytes]:
+    @remote_api_endpoint("location_add")
+    def location_add(self, paths: Iterable[bytes]) -> bool:
+        """Register the given `paths` in the storage."""
+        ...
+
+    @remote_api_endpoint("location_get_all")
+    def location_get_all(self) -> Set[bytes]:
         """Retrieve all paths present in the provenance model."""
         ...
 
-    @remote_api_endpoint("origin_set_url")
-    def origin_set_url(self, urls: Dict[Sha1Git, str]) -> bool:
-        """Associate urls to origins identified by sha1 ids, as paired in `urls`. Return
-        a boolean stating whether the information was successfully stored.
+    @remote_api_endpoint("origin_add")
+    def origin_add(self, orgs: Dict[Sha1Git, str]) -> bool:
+        """Add origins identified by sha1 ids, with their corresponding url (as paired
+        in `orgs`) to the provenance storage. Return a boolean stating if the
+        information was successfully stored.
         """
         ...
 
     @remote_api_endpoint("origin_get")
     def origin_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, str]:
-        """Retrieve the associated url for each origin sha1 in `ids`. If some origin has
-        no associated date, it is not present in the resulting dictionary.
-        """
+        """Retrieve the associated url for each origin sha1 in `ids`."""
         ...
 
-    @remote_api_endpoint("revision_set_date")
-    def revision_set_date(self, dates: Dict[Sha1Git, datetime]) -> bool:
-        """Associate dates to revisions identified by sha1 ids, as paired in `dates`.
-        Return a boolean stating whether the information was successfully stored.
-        """
-        ...
-
-    @remote_api_endpoint("revision_set_origin")
-    def revision_set_origin(self, origins: Dict[Sha1Git, Sha1Git]) -> bool:
-        """Associate origins to revisions identified by sha1 ids, as paired in
-        `origins` (revision ids are keys and origin ids, values). Return a boolean
-        stating whether the information was successfully stored.
+    @remote_api_endpoint("revision_add")
+    def revision_add(
+        self, revs: Union[Iterable[Sha1Git], Dict[Sha1Git, RevisionData]]
+    ) -> bool:
+        """Add revisions identified by sha1 ids, with optional associated date or origin
+        (as paired in `revs`) to the provenance storage. Return a boolean stating if the
+        information was successfully stored.
         """
         ...
 
@@ -160,7 +164,10 @@ class ProvenanceStorageInterface(Protocol):
     def relation_add(
         self, relation: RelationType, data: Iterable[RelationData]
     ) -> bool:
-        """Add entries in the selected `relation`."""
+        """Add entries in the selected `relation`. This method assumes all entities
+        being related are already registered in the storage. See `content_add`,
+        `directory_add`, `origin_add`, and `revision_add`.
+        """
         ...
 
     @remote_api_endpoint("relation_get")

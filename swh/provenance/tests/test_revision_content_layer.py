@@ -282,7 +282,7 @@ def test_revision_content_result(
             rows["location"] |= set(x["path"].encode() for x in synth_rev["R_C"])
             rows["location"] |= set(x["path"].encode() for x in synth_rev["D_C"])
             rows["location"] |= set(x["path"].encode() for x in synth_rev["R_D"])
-            assert rows["location"] == provenance.storage.location_get(), synth_rev[
+            assert rows["location"] == provenance.storage.location_get_all(), synth_rev[
                 "msg"
             ]
 

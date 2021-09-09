@@ -99,11 +99,6 @@ as $$
         join_location text;
     begin
         if src_table in ('content'::regclass, 'directory'::regclass) then
-            insert into location(path)
-              select V.path
-              from tmp_relation_add as V
-            on conflict (path) do nothing;
-
             select_fields := 'D.id, L.id';
             join_location := 'inner join location as L on (L.path = V.path)';
         else
@@ -419,11 +414,6 @@ as $$
         on_conflict text;
     begin
         if src_table in ('content'::regclass, 'directory'::regclass) then
-            insert into location(path)
-              select V.path
-              from tmp_relation_add as V
-            on conflict (path) do nothing;
-
             select_fields := 'array_agg((D.id, L.id)::rel_dst)';
             join_location := 'inner join location as L on (L.path = V.path)';
             group_entries := 'group by S.id';

@@ -5,7 +5,7 @@
 
 from datetime import datetime, timezone
 import os
-from typing import Any, Dict, Generator, Iterable, List, Optional, Set
+from typing import Any, Dict, Generator, Iterable, List, Optional, Set, Union
 
 from bson import ObjectId
 import pymongo.database
@@ -25,6 +25,35 @@ class ProvenanceStorageMongoDb:
     def __init__(self, db: pymongo.database.Database):
         self.db = db
 
+    def content_add(
+        self, cnts: Union[Iterable[Sha1Git], Dict[Sha1Git, datetime]]
+    ) -> bool:
+        data = cnts if isinstance(cnts, dict) else dict.fromkeys(cnts)
+        existing = {
+            x["sha1"]: x
+            for x in self.db.content.find(
+                {"sha1": {"$in": list(data)}}, {"sha1": 1, "ts": 1, "_id": 1}
+            )
+        }
+        for sha1, date in data.items():
+            ts = datetime.timestamp(date) if date is not None else None
+            if sha1 in existing:
+                cnt = existing[sha1]
+                if ts is not None and (cnt["ts"] is None or ts < cnt["ts"]):
+                    self.db.content.update_one(
+                        {"_id": cnt["_id"]}, {"$set": {"ts": ts}}
+                    )
+            else:
+                self.db.content.insert_one(
+                    {
+                        "sha1": sha1,
+                        "ts": ts,
+                        "revision": {},
+                        "directory": {},
+                    }
+                )
+        return True
+
     def content_find_first(self, id: Sha1Git) -> Optional[ProvenanceResult]:
         # get all the revisions
         # iterate and find the earliest
@@ -36,8 +65,10 @@ class ProvenanceStorageMongoDb:
         for revision in self.db.revision.find(
             {"_id": {"$in": [ObjectId(obj_id) for obj_id in content["revision"]]}}
         ):
-            origin = self.db.origin.find_one({"sha1": revision["preferred"]})
-            assert origin is not None
+            if revision["preferred"] is not None:
+                origin = self.db.origin.find_one({"sha1": revision["preferred"]})
+            else:
+                origin = {"url": None}
 
             for path in content["revision"][str(revision["_id"])]:
                 occurs.append(
@@ -62,8 +93,10 @@ class ProvenanceStorageMongoDb:
         for revision in self.db.revision.find(
             {"_id": {"$in": [ObjectId(obj_id) for obj_id in content["revision"]]}}
         ):
-            origin = self.db.origin.find_one({"sha1": revision["preferred"]})
-            assert origin is not None
+            if revision["preferred"] is not None:
+                origin = self.db.origin.find_one({"sha1": revision["preferred"]})
+            else:
+                origin = {"url": None}
 
             for path in content["revision"][str(revision["_id"])]:
                 occurs.append(
@@ -81,8 +114,10 @@ class ProvenanceStorageMongoDb:
             for revision in self.db.revision.find(
                 {"_id": {"$in": [ObjectId(obj_id) for obj_id in directory["revision"]]}}
             ):
-                origin = self.db.origin.find_one({"sha1": revision["preferred"]})
-                assert origin is not None
+                if revision["preferred"] is not None:
+                    origin = self.db.origin.find_one({"sha1": revision["preferred"]})
+                else:
+                    origin = {"url": None}
 
                 for suffix in content["directory"][str(directory["_id"])]:
                     for prefix in directory["revision"][str(revision["_id"])]:
@@ -113,52 +148,25 @@ class ProvenanceStorageMongoDb:
             )
         }
 
-    def content_set_date(self, dates: Dict[Sha1Git, datetime]) -> bool:
-        # get all the docuemtns with the id, add date, add missing records
-        cnts = {
-            x["sha1"]: x
-            for x in self.db.content.find(
-                {"sha1": {"$in": list(dates)}}, {"sha1": 1, "ts": 1, "_id": 1}
-            )
-        }
-
-        for sha1, date in dates.items():
-            ts = datetime.timestamp(date)
-            if sha1 in cnts:
-                # update
-                if cnts[sha1]["ts"] is None or ts < cnts[sha1]["ts"]:
-                    self.db.content.update_one(
-                        {"_id": cnts[sha1]["_id"]}, {"$set": {"ts": ts}}
-                    )
-            else:
-                # add new content
-                self.db.content.insert_one(
-                    {
-                        "sha1": sha1,
-                        "ts": ts,
-                        "revision": {},
-                        "directory": {},
-                    }
-                )
-        return True
-
-    def directory_set_date(self, dates: Dict[Sha1Git, datetime]) -> bool:
-        dirs = {
+    def directory_add(
+        self, dirs: Union[Iterable[Sha1Git], Dict[Sha1Git, datetime]]
+    ) -> bool:
+        data = dirs if isinstance(dirs, dict) else dict.fromkeys(dirs)
+        existing = {
             x["sha1"]: x
             for x in self.db.directory.find(
-                {"sha1": {"$in": list(dates)}}, {"sha1": 1, "ts": 1, "_id": 1}
+                {"sha1": {"$in": list(data)}}, {"sha1": 1, "ts": 1, "_id": 1}
             )
         }
-        for sha1, date in dates.items():
-            ts = datetime.timestamp(date)
-            if sha1 in dirs:
-                # update
-                if dirs[sha1]["ts"] is None or ts < dirs[sha1]["ts"]:
+        for sha1, date in data.items():
+            ts = datetime.timestamp(date) if date is not None else None
+            if sha1 in existing:
+                dir = existing[sha1]
+                if ts is not None and (dir["ts"] is None or ts < dir["ts"]):
                     self.db.directory.update_one(
-                        {"_id": dirs[sha1]["_id"]}, {"$set": {"ts": ts}}
+                        {"_id": dir["_id"]}, {"$set": {"ts": ts}}
                     )
             else:
-                # add new dir
                 self.db.directory.insert_one({"sha1": sha1, "ts": ts, "revision": {}})
         return True
 
@@ -179,7 +187,11 @@ class ProvenanceStorageMongoDb:
             )
         }
 
-    def location_get(self) -> Set[bytes]:
+    def location_add(self, paths: Iterable[bytes]) -> bool:
+        # TODO: implement this methods if path are to be stored in a separate collection
+        return True
+
+    def location_get_all(self) -> Set[bytes]:
         contents = self.db.content.find({}, {"revision": 1, "_id": 0, "directory": 1})
         paths: List[Iterable[bytes]] = []
         for content in contents:
@@ -191,15 +203,15 @@ class ProvenanceStorageMongoDb:
             paths.extend(value for _, value in each_dir["revision"].items())
         return set(sum(paths, []))
 
-    def origin_set_url(self, urls: Dict[Sha1Git, str]) -> bool:
-        origins = {
+    def origin_add(self, orgs: Dict[Sha1Git, str]) -> bool:
+        existing = {
             x["sha1"]: x
             for x in self.db.origin.find(
-                {"sha1": {"$in": list(urls)}}, {"sha1": 1, "url": 1, "_id": 1}
+                {"sha1": {"$in": list(orgs)}}, {"sha1": 1, "url": 1, "_id": 1}
             )
         }
-        for sha1, url in urls.items():
-            if sha1 not in origins:
+        for sha1, url in orgs.items():
+            if sha1 not in existing:
                 # add new origin
                 self.db.origin.insert_one({"sha1": sha1, "url": url})
         return True
@@ -212,55 +224,43 @@ class ProvenanceStorageMongoDb:
             )
         }
 
-    def revision_set_date(self, dates: Dict[Sha1Git, datetime]) -> bool:
-        revs = {
+    def revision_add(
+        self, revs: Union[Iterable[Sha1Git], Dict[Sha1Git, RevisionData]]
+    ) -> bool:
+        data = (
+            revs
+            if isinstance(revs, dict)
+            else dict.fromkeys(revs, RevisionData(date=None, origin=None))
+        )
+        existing = {
             x["sha1"]: x
             for x in self.db.revision.find(
-                {"sha1": {"$in": list(dates)}}, {"sha1": 1, "ts": 1, "_id": 1}
+                {"sha1": {"$in": list(data)}},
+                {"sha1": 1, "ts": 1, "preferred": 1, "_id": 1},
             )
         }
-        for sha1, date in dates.items():
-            ts = datetime.timestamp(date)
-            if sha1 in revs:
-                # update
-                if revs[sha1]["ts"] is None or ts < revs[sha1]["ts"]:
+        for sha1, info in data.items():
+            ts = datetime.timestamp(info.date) if info.date is not None else None
+            preferred = info.origin
+            if sha1 in existing:
+                rev = existing[sha1]
+                if ts is None or (rev["ts"] is not None and ts >= rev["ts"]):
+                    ts = rev["ts"]
+                if preferred is None:
+                    preferred = rev["preferred"]
+                if ts != rev["ts"] or preferred != rev["preferred"]:
                     self.db.revision.update_one(
-                        {"_id": revs[sha1]["_id"]}, {"$set": {"ts": ts}}
+                        {"_id": rev["_id"]},
+                        {"$set": {"ts": ts, "preferred": preferred}},
                     )
             else:
-                # add new rev
                 self.db.revision.insert_one(
                     {
                         "sha1": sha1,
-                        "preferred": None,
+                        "preferred": preferred,
                         "origin": [],
                         "revision": [],
                         "ts": ts,
-                    }
-                )
-        return True
-
-    def revision_set_origin(self, origins: Dict[Sha1Git, Sha1Git]) -> bool:
-        revs = {
-            x["sha1"]: x
-            for x in self.db.revision.find(
-                {"sha1": {"$in": list(origins)}}, {"sha1": 1, "preferred": 1, "_id": 1}
-            )
-        }
-        for sha1, origin in origins.items():
-            if sha1 in revs:
-                self.db.revision.update_one(
-                    {"_id": revs[sha1]["_id"]}, {"$set": {"preferred": origin}}
-                )
-            else:
-                # add new rev
-                self.db.revision.insert_one(
-                    {
-                        "sha1": sha1,
-                        "preferred": origin,
-                        "origin": [],
-                        "revision": [],
-                        "ts": None,
                     }
                 )
         return True
@@ -272,7 +272,10 @@ class ProvenanceStorageMongoDb:
                 origin=x["preferred"],
             )
             for x in self.db.revision.find(
-                {"sha1": {"$in": list(ids)}},
+                {
+                    "sha1": {"$in": list(ids)},
+                    "$or": [{"preferred": {"$ne": None}}, {"ts": {"$ne": None}}],
+                },
                 {"sha1": 1, "preferred": 1, "ts": 1, "_id": 0},
             )
         }
@@ -283,40 +286,10 @@ class ProvenanceStorageMongoDb:
         src_relation, *_, dst_relation = relation.value.split("_")
         set_data = set(data)
 
-        dst_sha1s = {x.dst for x in set_data}
-        if dst_relation in ["content", "directory", "revision"]:
-            dst_obj: Dict[str, Any] = {"ts": None}
-            if dst_relation == "content":
-                dst_obj["revision"] = {}
-                dst_obj["directory"] = {}
-            if dst_relation == "directory":
-                dst_obj["revision"] = {}
-            if dst_relation == "revision":
-                dst_obj["preferred"] = None
-                dst_obj["origin"] = []
-                dst_obj["revision"] = []
-
-            existing = {
-                x["sha1"]
-                for x in self.db.get_collection(dst_relation).find(
-                    {"sha1": {"$in": list(dst_sha1s)}}, {"_id": 0, "sha1": 1}
-                )
-            }
-
-            for sha1 in dst_sha1s:
-                if sha1 not in existing:
-                    self.db.get_collection(dst_relation).insert_one(
-                        dict(dst_obj, **{"sha1": sha1})
-                    )
-        elif dst_relation == "origin":
-            # TODO, check origins are already in the DB
-            # if not, algo has something wrong (algo inserts it initially)
-            pass
-
         dst_objs = {
             x["sha1"]: x["_id"]
             for x in self.db.get_collection(dst_relation).find(
-                {"sha1": {"$in": list(dst_sha1s)}}, {"_id": 1, "sha1": 1}
+                {"sha1": {"$in": [x.dst for x in set_data]}}, {"_id": 1, "sha1": 1}
             )
         }
 
@@ -337,42 +310,24 @@ class ProvenanceStorageMongoDb:
         }
 
         for sha1, dsts in denorm.items():
-            if sha1 in src_objs:
-                # update
-                if src_relation != "revision":
-                    k = {
-                        obj_id: list(set(paths + dsts.get(obj_id, [])))
-                        for obj_id, paths in src_objs[sha1][dst_relation].items()
-                    }
-                    self.db.get_collection(src_relation).update_one(
-                        {"_id": src_objs[sha1]["_id"]},
-                        {"$set": {dst_relation: dict(dsts, **k)}},
-                    )
-                else:
-                    self.db.get_collection(src_relation).update_one(
-                        {"_id": src_objs[sha1]["_id"]},
-                        {
-                            "$set": {
-                                dst_relation: list(
-                                    set(src_objs[sha1][dst_relation] + dsts)
-                                )
-                            }
-                        },
-                    )
+            # update
+            if src_relation != "revision":
+                k = {
+                    obj_id: list(set(paths + dsts.get(obj_id, [])))
+                    for obj_id, paths in src_objs[sha1][dst_relation].items()
+                }
+                self.db.get_collection(src_relation).update_one(
+                    {"_id": src_objs[sha1]["_id"]},
+                    {"$set": {dst_relation: dict(dsts, **k)}},
+                )
             else:
-                # add new rev
-                src_obj: Dict[str, Any] = {"ts": None}
-                if src_relation == "content":
-                    src_obj["revision"] = {}
-                    src_obj["directory"] = {}
-                if src_relation == "directory":
-                    src_obj["revision"] = {}
-                if src_relation == "revision":
-                    src_obj["preferred"] = None
-                    src_obj["origin"] = []
-                    src_obj["revision"] = []
-                self.db.get_collection(src_relation).insert_one(
-                    dict(src_obj, **{"sha1": sha1, dst_relation: dsts})
+                self.db.get_collection(src_relation).update_one(
+                    {"_id": src_objs[sha1]["_id"]},
+                    {
+                        "$set": {
+                            dst_relation: list(set(src_objs[sha1][dst_relation] + dsts))
+                        }
+                    },
                 )
         return True
 

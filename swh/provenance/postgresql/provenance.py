@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from datetime import datetime
 import itertools
 import logging
-from typing import Dict, Generator, Iterable, List, Optional, Set
+from typing import Dict, Generator, Iterable, List, Optional, Set, Union
 
 import psycopg2.extensions
 import psycopg2.extras
@@ -60,6 +60,11 @@ class ProvenanceStoragePostgreSql:
     def denormalized(self) -> bool:
         return "denormalized" in self.flavor
 
+    def content_add(
+        self, cnts: Union[Iterable[Sha1Git], Dict[Sha1Git, datetime]]
+    ) -> bool:
+        return self._entity_set_date("content", cnts)
+
     def content_find_first(self, id: Sha1Git) -> Optional[ProvenanceResult]:
         sql = "SELECT * FROM swh_provenance_content_find_first(%s)"
         with self.transaction(readonly=True) as cursor:
@@ -75,14 +80,13 @@ class ProvenanceStoragePostgreSql:
             cursor.execute(query=sql, vars=(id, limit))
             yield from (ProvenanceResult(**row) for row in cursor)
 
-    def content_set_date(self, dates: Dict[Sha1Git, datetime]) -> bool:
-        return self._entity_set_date("content", dates)
-
     def content_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, datetime]:
         return self._entity_get_date("content", ids)
 
-    def directory_set_date(self, dates: Dict[Sha1Git, datetime]) -> bool:
-        return self._entity_set_date("directory", dates)
+    def directory_add(
+        self, dirs: Union[Iterable[Sha1Git], Dict[Sha1Git, datetime]]
+    ) -> bool:
+        return self._entity_set_date("directory", dirs)
 
     def directory_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, datetime]:
         return self._entity_get_date("directory", ids)
@@ -92,21 +96,41 @@ class ProvenanceStoragePostgreSql:
             cursor.execute(f"SELECT sha1 FROM {entity.value}")
             return {row["sha1"] for row in cursor}
 
-    def location_get(self) -> Set[bytes]:
+    def location_add(self, paths: Iterable[bytes]) -> bool:
+        if not self.with_path():
+            return True
+        try:
+            values = [(path,) for path in paths]
+            if values:
+                sql = """
+                    INSERT INTO location(path) VALUES %s
+                      ON CONFLICT DO NOTHING
+                    """
+                with self.transaction() as cursor:
+                    psycopg2.extras.execute_values(cursor, sql, argslist=values)
+            return True
+        except:  # noqa: E722
+            # Unexpected error occurred, rollback all changes and log message
+            LOGGER.exception("Unexpected error")
+            if self.raise_on_commit:
+                raise
+        return False
+
+    def location_get_all(self) -> Set[bytes]:
         with self.transaction(readonly=True) as cursor:
             cursor.execute("SELECT location.path AS path FROM location")
             return {row["path"] for row in cursor}
 
-    def origin_set_url(self, urls: Dict[Sha1Git, str]) -> bool:
+    def origin_add(self, orgs: Dict[Sha1Git, str]) -> bool:
         try:
-            if urls:
+            if orgs:
                 sql = """
                     INSERT INTO origin(sha1, url) VALUES %s
                       ON CONFLICT DO NOTHING
                     """
                 with self.transaction() as cursor:
                     psycopg2.extras.execute_values(
-                        cur=cursor, sql=sql, argslist=urls.items()
+                        cur=cursor, sql=sql, argslist=orgs.items()
                     )
             return True
         except:  # noqa: E722
@@ -132,24 +156,27 @@ class ProvenanceStoragePostgreSql:
                 urls.update((row["sha1"], row["url"]) for row in cursor)
         return urls
 
-    def revision_set_date(self, dates: Dict[Sha1Git, datetime]) -> bool:
-        return self._entity_set_date("revision", dates)
-
-    def revision_set_origin(self, origins: Dict[Sha1Git, Sha1Git]) -> bool:
+    def revision_add(
+        self, revs: Union[Iterable[Sha1Git], Dict[Sha1Git, RevisionData]]
+    ) -> bool:
+        if isinstance(revs, dict):
+            data = [(sha1, rev.date, rev.origin) for sha1, rev in revs.items()]
+        else:
+            data = [(sha1, None, None) for sha1 in revs]
         try:
-            if origins:
+            if data:
                 sql = """
-                    INSERT INTO revision(sha1, origin)
-                      (SELECT V.rev AS sha1, O.id AS origin
-                       FROM (VALUES %s) AS V(rev, org)
-                       JOIN origin AS O ON (O.sha1=V.org))
+                    INSERT INTO revision(sha1, date, origin)
+                      (SELECT V.rev AS sha1, V.date::timestamptz AS date, O.id AS origin
+                       FROM (VALUES %s) AS V(rev, date, org)
+                       LEFT JOIN origin AS O ON (O.sha1=V.org::sha1_git))
                       ON CONFLICT (sha1) DO
-                      UPDATE SET origin=EXCLUDED.origin
+                      UPDATE SET
+                        date=LEAST(EXCLUDED.date, revision.date),
+                        origin=COALESCE(EXCLUDED.origin, revision.origin)
                     """
                 with self.transaction() as cursor:
-                    psycopg2.extras.execute_values(
-                        cur=cursor, sql=sql, argslist=origins.items()
-                    )
+                    psycopg2.extras.execute_values(cur=cursor, sql=sql, argslist=data)
             return True
         except:  # noqa: E722
             # Unexpected error occurred, rollback all changes and log message
@@ -169,6 +196,7 @@ class ProvenanceStoragePostgreSql:
                   FROM revision AS R
                   LEFT JOIN origin AS O ON (O.id=R.origin)
                   WHERE R.sha1 IN ({values})
+                    AND (R.date is not NULL OR O.sha1 is not NULL)
                 """
             with self.transaction(readonly=True) as cursor:
                 cursor.execute(query=sql, vars=sha1s)
@@ -181,37 +209,11 @@ class ProvenanceStoragePostgreSql:
     def relation_add(
         self, relation: RelationType, data: Iterable[RelationData]
     ) -> bool:
+        rows = [(rel.src, rel.dst, rel.path) for rel in data]
         try:
-            rows = [(rel.src, rel.dst, rel.path) for rel in data]
             if rows:
                 rel_table = relation.value
                 src_table, *_, dst_table = rel_table.split("_")
-
-                if src_table != "origin":
-                    # Origin entries should be inserted previously as they require extra
-                    # non-null information
-                    srcs = tuple(set((sha1,) for (sha1, _, _) in rows))
-                    sql = f"""
-                        INSERT INTO {src_table}(sha1) VALUES %s
-                          ON CONFLICT DO NOTHING
-                        """
-                    with self.transaction() as cursor:
-                        psycopg2.extras.execute_values(
-                            cur=cursor, sql=sql, argslist=srcs
-                        )
-
-                if dst_table != "origin":
-                    # Origin entries should be inserted previously as they require extra
-                    # non-null information
-                    dsts = tuple(set((sha1,) for (_, sha1, _) in rows))
-                    sql = f"""
-                        INSERT INTO {dst_table}(sha1) VALUES %s
-                          ON CONFLICT DO NOTHING
-                        """
-                    with self.transaction() as cursor:
-                        psycopg2.extras.execute_values(
-                            cur=cursor, sql=sql, argslist=dsts
-                        )
 
                 # Put the next three queries in a manual single transaction:
                 # they use the same temp table
@@ -263,9 +265,10 @@ class ProvenanceStoragePostgreSql:
 
     def _entity_set_date(
         self,
-        entity: Literal["content", "directory", "revision"],
-        data: Dict[Sha1Git, datetime],
+        entity: Literal["content", "directory"],
+        dates: Union[Iterable[Sha1Git], Dict[Sha1Git, datetime]],
     ) -> bool:
+        data = dates if isinstance(dates, dict) else dict.fromkeys(dates)
         try:
             if data:
                 sql = f"""

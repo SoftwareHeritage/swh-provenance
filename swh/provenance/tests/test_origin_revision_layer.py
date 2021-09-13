@@ -173,8 +173,11 @@ def test_origin_revision_layer(
                 (x["dst"], x["src"], None) for x in synth_org["O_R"]
             )
             assert rows["revision_in_origin"] == {
-                (rel.src, rel.dst, rel.path)
-                for rel in provenance.storage.relation_get_all(RelationType.REV_IN_ORG)
+                (src, rel.dst, rel.path)
+                for src, rels in provenance.storage.relation_get_all(
+                    RelationType.REV_IN_ORG
+                ).items()
+                for rel in rels
             }, synth_org["snap"]
 
             # check for R-R entries
@@ -183,8 +186,9 @@ def test_origin_revision_layer(
                 (x["dst"], x["src"], None) for x in synth_org["R_R"]
             )
             assert rows["revision_before_revision"] == {
-                (rel.src, rel.dst, rel.path)
-                for rel in provenance.storage.relation_get_all(
+                (src, rel.dst, rel.path)
+                for src, rels in provenance.storage.relation_get_all(
                     RelationType.REV_BEFORE_REV
-                )
+                ).items()
+                for rel in rels
             }, synth_org["snap"]

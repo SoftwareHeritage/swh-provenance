@@ -207,9 +207,11 @@ class ProvenanceStoragePostgreSql:
         return result
 
     def relation_add(
-        self, relation: RelationType, data: Iterable[RelationData]
+        self, relation: RelationType, data: Dict[Sha1Git, Set[RelationData]]
     ) -> bool:
-        rows = [(rel.src, rel.dst, rel.path) for rel in data]
+        rows = [
+            (src, rel.dst, rel.path) for src, dsts in data.items() for rel in dsts
+        ]
         try:
             if rows:
                 rel_table = relation.value
@@ -236,10 +238,12 @@ class ProvenanceStoragePostgreSql:
 
     def relation_get(
         self, relation: RelationType, ids: Iterable[Sha1Git], reverse: bool = False
-    ) -> Set[RelationData]:
+    ) -> Dict[Sha1Git, Set[RelationData]]:
         return self._relation_get(relation, ids, reverse)
 
-    def relation_get_all(self, relation: RelationType) -> Set[RelationData]:
+    def relation_get_all(
+        self, relation: RelationType
+    ) -> Dict[Sha1Git, Set[RelationData]]:
         return self._relation_get(relation, None)
 
     def _entity_get_date(
@@ -291,8 +295,8 @@ class ProvenanceStoragePostgreSql:
         relation: RelationType,
         ids: Optional[Iterable[Sha1Git]],
         reverse: bool = False,
-    ) -> Set[RelationData]:
-        result: Set[RelationData] = set()
+    ) -> Dict[Sha1Git, Set[RelationData]]:
+        result: Dict[Sha1Git, Set[RelationData]] = {}
 
         sha1s: List[Sha1Git]
         if ids is not None:
@@ -311,7 +315,9 @@ class ProvenanceStoragePostgreSql:
                 cursor.execute(
                     query=sql, vars=(rel_table, src_table, dst_table, filter, sha1s)
                 )
-                result.update(RelationData(**row) for row in cursor)
+                for row in cursor:
+                    src = row.pop("src")
+                    result.setdefault(src, set()).add(RelationData(**row))
         return result
 
     def with_path(self) -> bool:

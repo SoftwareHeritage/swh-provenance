@@ -59,7 +59,6 @@ class RelationData:
     depending on the relation being represented.
     """
 
-    src: Sha1Git
     dst: Sha1Git
     path: Optional[bytes]
 
@@ -162,7 +161,7 @@ class ProvenanceStorageInterface(Protocol):
 
     @remote_api_endpoint("relation_add")
     def relation_add(
-        self, relation: RelationType, data: Iterable[RelationData]
+        self, relation: RelationType, data: Dict[Sha1Git, Set[RelationData]]
     ) -> bool:
         """Add entries in the selected `relation`. This method assumes all entities
         being related are already registered in the storage. See `content_add`,
@@ -173,7 +172,7 @@ class ProvenanceStorageInterface(Protocol):
     @remote_api_endpoint("relation_get")
     def relation_get(
         self, relation: RelationType, ids: Iterable[Sha1Git], reverse: bool = False
-    ) -> Set[RelationData]:
+    ) -> Dict[Sha1Git, Set[RelationData]]:
         """Retrieve all entries in the selected `relation` whose source entities are
         identified by some sha1 id in `ids`. If `reverse` is set, destination entities
         are matched instead.
@@ -181,7 +180,9 @@ class ProvenanceStorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("relation_get_all")
-    def relation_get_all(self, relation: RelationType) -> Set[RelationData]:
+    def relation_get_all(
+        self, relation: RelationType
+    ) -> Dict[Sha1Git, Set[RelationData]]:
         """Retrieve all entries in the selected `relation` that are present in the
         provenance model.
         """

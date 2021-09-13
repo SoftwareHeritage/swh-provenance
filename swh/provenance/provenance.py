@@ -126,12 +126,11 @@ class Provenance:
         # For this layer, relations need to be inserted first so that, in case of
         # failure, reprocessing the input does not generated an inconsistent database.
         if self.cache["content_in_revision"]:
+            cnt_in_rev: Dict[Sha1Git, Set[RelationData]] = {}
+            for src, dst, path in self.cache["content_in_revision"]:
+                cnt_in_rev.setdefault(src, set()).add(RelationData(dst=dst, path=path))
             while not self.storage.relation_add(
-                RelationType.CNT_EARLY_IN_REV,
-                (
-                    RelationData(src=src, dst=dst, path=path)
-                    for src, dst, path in self.cache["content_in_revision"]
-                ),
+                RelationType.CNT_EARLY_IN_REV, cnt_in_rev
             ):
                 LOGGER.warning(
                     "Unable to write %s rows to the storage. Retrying...",
@@ -139,26 +138,20 @@ class Provenance:
                 )
 
         if self.cache["content_in_directory"]:
-            while not self.storage.relation_add(
-                RelationType.CNT_IN_DIR,
-                (
-                    RelationData(src=src, dst=dst, path=path)
-                    for src, dst, path in self.cache["content_in_directory"]
-                ),
-            ):
+            cnt_in_dir: Dict[Sha1Git, Set[RelationData]] = {}
+            for src, dst, path in self.cache["content_in_directory"]:
+                cnt_in_dir.setdefault(src, set()).add(RelationData(dst=dst, path=path))
+            while not self.storage.relation_add(RelationType.CNT_IN_DIR, cnt_in_dir):
                 LOGGER.warning(
                     "Unable to write %s rows to the storage. Retrying...",
                     RelationType.CNT_IN_DIR,
                 )
 
         if self.cache["directory_in_revision"]:
-            while not self.storage.relation_add(
-                RelationType.DIR_IN_REV,
-                (
-                    RelationData(src=src, dst=dst, path=path)
-                    for src, dst, path in self.cache["directory_in_revision"]
-                ),
-            ):
+            dir_in_rev: Dict[Sha1Git, Set[RelationData]] = {}
+            for src, dst, path in self.cache["directory_in_revision"]:
+                dir_in_rev.setdefault(src, set()).add(RelationData(dst=dst, path=path))
+            while not self.storage.relation_add(RelationType.DIR_IN_REV, dir_in_rev):
                 LOGGER.warning(
                     "Unable to write %s rows to the storage. Retrying...",
                     RelationType.DIR_IN_REV,
@@ -233,18 +226,14 @@ class Provenance:
                 )
 
         # Second, flat models for revisions' histories (ie. revision-before-revision).
-        data: Iterable[RelationData] = sum(
-            [
-                [
-                    RelationData(src=prev, dst=next, path=None)
-                    for next in self.cache["revision_before_revision"][prev]
-                ]
-                for prev in self.cache["revision_before_revision"]
-            ],
-            [],
-        )
-        if data:
-            while not self.storage.relation_add(RelationType.REV_BEFORE_REV, data):
+        if self.cache["revision_before_revision"]:
+            rev_before_rev = {
+                src: {RelationData(dst=dst, path=None) for dst in dsts}
+                for src, dsts in self.cache["revision_before_revision"].items()
+            }
+            while not self.storage.relation_add(
+                RelationType.REV_BEFORE_REV, rev_before_rev
+            ):
                 LOGGER.warning(
                     "Unable to write %s rows to the storage. Retrying...",
                     RelationType.REV_BEFORE_REV,
@@ -254,12 +243,11 @@ class Provenance:
         # their histories were already added. This is to guarantee consistent results if
         # something needs to be reprocessed due to a failure: already inserted heads
         # won't get reprocessed in such a case.
-        data = (
-            RelationData(src=rev, dst=org, path=None)
-            for rev, org in self.cache["revision_in_origin"]
-        )
-        if data:
-            while not self.storage.relation_add(RelationType.REV_IN_ORG, data):
+        if self.cache["revision_in_origin"]:
+            rev_in_org: Dict[Sha1Git, Set[RelationData]] = {}
+            for src, dst in self.cache["revision_in_origin"]:
+                rev_in_org.setdefault(src, set()).add(RelationData(dst=dst, path=None))
+            while not self.storage.relation_add(RelationType.REV_IN_ORG, rev_in_org):
                 LOGGER.warning(
                     "Unable to write %s rows to the storage. Retrying...",
                     RelationType.REV_IN_ORG,

@@ -224,10 +224,11 @@ def test_revision_content_result(
             (x["dst"], x["src"], maybe_path(x["path"])) for x in synth_rev["R_C"]
         )
         assert rows["content_in_revision"] == {
-            (rel.src, rel.dst, rel.path)
-            for rel in provenance.storage.relation_get_all(
+            (src, rel.dst, rel.path)
+            for src, rels in provenance.storage.relation_get_all(
                 RelationType.CNT_EARLY_IN_REV
-            )
+            ).items()
+            for rel in rels
         }, synth_rev["msg"]
         # check timestamps
         for rc in synth_rev["R_C"]:
@@ -250,8 +251,11 @@ def test_revision_content_result(
             (x["dst"], x["src"], maybe_path(x["path"])) for x in synth_rev["R_D"]
         )
         assert rows["directory_in_revision"] == {
-            (rel.src, rel.dst, rel.path)
-            for rel in provenance.storage.relation_get_all(RelationType.DIR_IN_REV)
+            (src, rel.dst, rel.path)
+            for src, rels in provenance.storage.relation_get_all(
+                RelationType.DIR_IN_REV
+            ).items()
+            for rel in rels
         }, synth_rev["msg"]
         # check timestamps
         for rd in synth_rev["R_D"]:
@@ -267,8 +271,11 @@ def test_revision_content_result(
             (x["dst"], x["src"], maybe_path(x["path"])) for x in synth_rev["D_C"]
         )
         assert rows["content_in_directory"] == {
-            (rel.src, rel.dst, rel.path)
-            for rel in provenance.storage.relation_get_all(RelationType.CNT_IN_DIR)
+            (src, rel.dst, rel.path)
+            for src, rels in provenance.storage.relation_get_all(
+                RelationType.CNT_IN_DIR
+            ).items()
+            for rel in rels
         }, synth_rev["msg"]
         # check timestamps
         for dc in synth_rev["D_C"]:

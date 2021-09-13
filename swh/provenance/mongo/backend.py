@@ -281,31 +281,36 @@ class ProvenanceStorageMongoDb:
         }
 
     def relation_add(
-        self, relation: RelationType, data: Iterable[RelationData]
+        self, relation: RelationType, data: Dict[Sha1Git, Set[RelationData]]
     ) -> bool:
         src_relation, *_, dst_relation = relation.value.split("_")
-        set_data = set(data)
 
         dst_objs = {
             x["sha1"]: x["_id"]
             for x in self.db.get_collection(dst_relation).find(
-                {"sha1": {"$in": [x.dst for x in set_data]}}, {"_id": 1, "sha1": 1}
+                {
+                    "sha1": {
+                        "$in": list({rel.dst for rels in data.values() for rel in rels})
+                    }
+                },
+                {"_id": 1, "sha1": 1},
             )
         }
 
         denorm: Dict[Sha1Git, Any] = {}
-        for each in set_data:
-            if src_relation != "revision":
-                denorm.setdefault(each.src, {}).setdefault(
-                    str(dst_objs[each.dst]), []
-                ).append(each.path)
-            else:
-                denorm.setdefault(each.src, []).append(dst_objs[each.dst])
+        for src, rels in data.items():
+            for rel in rels:
+                if src_relation != "revision":
+                    denorm.setdefault(src, {}).setdefault(
+                        str(dst_objs[rel.dst]), []
+                    ).append(rel.path)
+                else:
+                    denorm.setdefault(src, []).append(dst_objs[rel.dst])
 
         src_objs = {
             x["sha1"]: x
             for x in self.db.get_collection(src_relation).find(
-                {"sha1": {"$in": list(denorm)}}
+                {"sha1": {"$in": list(denorm.keys())}}
             )
         }
 
@@ -333,14 +338,16 @@ class ProvenanceStorageMongoDb:
 
     def relation_get(
         self, relation: RelationType, ids: Iterable[Sha1Git], reverse: bool = False
-    ) -> Set[RelationData]:
+    ) -> Dict[Sha1Git, Set[RelationData]]:
         src, *_, dst = relation.value.split("_")
         sha1s = set(ids)
         if not reverse:
+            empty: Union[Dict[str, bytes], List[str]] = {} if src != "revision" else []
             src_objs = {
                 x["sha1"]: x[dst]
                 for x in self.db.get_collection(src).find(
-                    {"sha1": {"$in": list(sha1s)}}, {"_id": 0, "sha1": 1, dst: 1}
+                    {"sha1": {"$in": list(sha1s)}, dst: {"$ne": empty}},
+                    {"_id": 0, "sha1": 1, dst: 1},
                 )
             }
             dst_ids = list(
@@ -354,20 +361,24 @@ class ProvenanceStorageMongoDb:
             }
             if src != "revision":
                 return {
-                    RelationData(src=src_sha1, dst=dst_sha1, path=path)
+                    src_sha1: {
+                        RelationData(dst=dst_sha1, path=path)
+                        for dst_sha1, dst_obj_id in dst_objs.items()
+                        for dst_obj_str, paths in denorm.items()
+                        for path in paths
+                        if dst_obj_id == ObjectId(dst_obj_str)
+                    }
                     for src_sha1, denorm in src_objs.items()
-                    for dst_sha1, dst_obj_id in dst_objs.items()
-                    for dst_obj_str, paths in denorm.items()
-                    for path in paths
-                    if dst_obj_id == ObjectId(dst_obj_str)
                 }
             else:
                 return {
-                    RelationData(src=src_sha1, dst=dst_sha1, path=None)
+                    src_sha1: {
+                        RelationData(dst=dst_sha1, path=None)
+                        for dst_sha1, dst_obj_id in dst_objs.items()
+                        for dst_obj_ref in denorm
+                        if dst_obj_id == dst_obj_ref
+                    }
                     for src_sha1, denorm in src_objs.items()
-                    for dst_sha1, dst_obj_id in dst_objs.items()
-                    for dst_obj_ref in denorm
-                    if dst_obj_id == dst_obj_ref
                 }
         else:
             dst_objs = {
@@ -382,61 +393,67 @@ class ProvenanceStorageMongoDb:
                     {}, {"_id": 0, "sha1": 1, dst: 1}
                 )
             }
+            result: Dict[Sha1Git, Set[RelationData]] = {}
             if src != "revision":
-                return {
-                    RelationData(src=src_sha1, dst=dst_sha1, path=path)
-                    for src_sha1, denorm in src_objs.items()
-                    for dst_sha1, dst_obj_id in dst_objs.items()
-                    for dst_obj_str, paths in denorm.items()
-                    for path in paths
-                    if dst_obj_id == ObjectId(dst_obj_str)
-                }
+                for dst_sha1, dst_obj_id in dst_objs.items():
+                    for src_sha1, denorm in src_objs.items():
+                        for dst_obj_str, paths in denorm.items():
+                            if dst_obj_id == ObjectId(dst_obj_str):
+                                result.setdefault(src_sha1, set()).update(
+                                    RelationData(dst=dst_sha1, path=path)
+                                    for path in paths
+                                )
             else:
-                return {
-                    RelationData(src=src_sha1, dst=dst_sha1, path=None)
-                    for src_sha1, denorm in src_objs.items()
-                    for dst_sha1, dst_obj_id in dst_objs.items()
-                    for dst_obj_ref in denorm
-                    if dst_obj_id == dst_obj_ref
-                }
+                for dst_sha1, dst_obj_id in dst_objs.items():
+                    for src_sha1, denorm in src_objs.items():
+                        if dst_obj_id in {
+                            ObjectId(dst_obj_str) for dst_obj_str in denorm
+                        }:
+                            result.setdefault(src_sha1, set()).add(
+                                RelationData(dst=dst_sha1, path=None)
+                            )
+            return result
 
-    def relation_get_all(self, relation: RelationType) -> Set[RelationData]:
+    def relation_get_all(
+        self, relation: RelationType
+    ) -> Dict[Sha1Git, Set[RelationData]]:
         src, *_, dst = relation.value.split("_")
+        empty: Union[Dict[str, bytes], List[str]] = {} if src != "revision" else []
         src_objs = {
             x["sha1"]: x[dst]
-            for x in self.db.get_collection(src).find({}, {"_id": 0, "sha1": 1, dst: 1})
+            for x in self.db.get_collection(src).find(
+                {dst: {"$ne": empty}}, {"_id": 0, "sha1": 1, dst: 1}
+            )
         }
         dst_ids = list(
             {ObjectId(obj_id) for _, value in src_objs.items() for obj_id in value}
         )
+        dst_objs = {
+            x["_id"]: x["sha1"]
+            for x in self.db.get_collection(dst).find(
+                {"_id": {"$in": dst_ids}}, {"_id": 1, "sha1": 1}
+            )
+        }
         if src != "revision":
-            dst_objs = {
-                x["_id"]: x["sha1"]
-                for x in self.db.get_collection(dst).find(
-                    {"_id": {"$in": dst_ids}}, {"_id": 1, "sha1": 1}
-                )
-            }
             return {
-                RelationData(src=src_sha1, dst=dst_sha1, path=path)
+                src_sha1: {
+                    RelationData(dst=dst_sha1, path=path)
+                    for dst_obj_id, dst_sha1 in dst_objs.items()
+                    for dst_obj_str, paths in denorm.items()
+                    for path in paths
+                    if dst_obj_id == ObjectId(dst_obj_str)
+                }
                 for src_sha1, denorm in src_objs.items()
-                for dst_obj_id, dst_sha1 in dst_objs.items()
-                for dst_obj_str, paths in denorm.items()
-                for path in paths
-                if dst_obj_id == ObjectId(dst_obj_str)
             }
         else:
-            dst_objs = {
-                x["_id"]: x["sha1"]
-                for x in self.db.get_collection(dst).find(
-                    {"_id": {"$in": dst_ids}}, {"_id": 1, "sha1": 1}
-                )
-            }
             return {
-                RelationData(src=src_sha1, dst=dst_sha1, path=None)
+                src_sha1: {
+                    RelationData(dst=dst_sha1, path=None)
+                    for dst_obj_id, dst_sha1 in dst_objs.items()
+                    for dst_obj_ref in denorm
+                    if dst_obj_id == dst_obj_ref
+                }
                 for src_sha1, denorm in src_objs.items()
-                for dst_obj_id, dst_sha1 in dst_objs.items()
-                for dst_obj_ref in denorm
-                if dst_obj_id == dst_obj_ref
             }
 
     def with_path(self) -> bool:

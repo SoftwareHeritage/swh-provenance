@@ -6,7 +6,7 @@
 from datetime import datetime, timezone
 import inspect
 import os
-from typing import Any, Dict, Iterable, Optional, Set
+from typing import Any, Dict, Iterable, Optional, Set, Tuple
 
 from swh.model.hashutil import hash_to_bytes
 from swh.model.identifiers import origin_identifier
@@ -176,9 +176,12 @@ def dircontent(
     ref: Sha1Git,
     dir: Dict[str, Any],
     prefix: bytes = b"",
-) -> Iterable[RelationData]:
+) -> Iterable[Tuple[Sha1Git, RelationData]]:
     content = {
-        RelationData(entry["target"], ref, os.path.join(prefix, entry["name"]))
+        (
+            entry["target"],
+            RelationData(dst=ref, path=os.path.join(prefix, entry["name"])),
+        )
         for entry in dir["entries"]
         if entry["type"] == "file"
     }
@@ -209,49 +212,62 @@ def entity_add(
 
 
 def relation_add_and_compare_result(
-    storage: ProvenanceStorageInterface, relation: RelationType, data: Set[RelationData]
+    storage: ProvenanceStorageInterface,
+    relation: RelationType,
+    data: Dict[Sha1Git, Set[RelationData]],
 ) -> None:
     # Source, destinations and locations must be added in advance.
     src, *_, dst = relation.value.split("_")
+    srcs = {sha1 for sha1 in data}
     if src != "origin":
-        assert entity_add(storage, EntityType(src), {entry.src for entry in data})
+        assert entity_add(storage, EntityType(src), srcs)
+    dsts = {rel.dst for rels in data.values() for rel in rels}
     if dst != "origin":
-        assert entity_add(storage, EntityType(dst), {entry.dst for entry in data})
+        assert entity_add(storage, EntityType(dst), dsts)
     if storage.with_path():
         assert storage.location_add(
-            {entry.path for entry in data if entry.path is not None}
+            {rel.path for rels in data.values() for rel in rels if rel.path is not None}
         )
 
     assert data
     assert storage.relation_add(relation, data)
 
-    for row in data:
-        assert relation_compare_result(
-            storage.relation_get(relation, [row.src]),
-            {entry for entry in data if entry.src == row.src},
+    for src_sha1 in srcs:
+        relation_compare_result(
+            storage.relation_get(relation, [src_sha1]),
+            {src_sha1: data[src_sha1]},
             storage.with_path(),
         )
-        assert relation_compare_result(
-            storage.relation_get(
-                relation,
-                [row.dst],
-                reverse=True,
-            ),
-            {entry for entry in data if entry.dst == row.dst},
+    for dst_sha1 in dsts:
+        relation_compare_result(
+            storage.relation_get(relation, [dst_sha1], reverse=True),
+            {
+                src_sha1: {
+                    RelationData(dst=dst_sha1, path=rel.path)
+                    for rel in rels
+                    if dst_sha1 == rel.dst
+                }
+                for src_sha1, rels in data.items()
+                if dst_sha1 in {rel.dst for rel in rels}
+            },
             storage.with_path(),
         )
-
-    assert relation_compare_result(
+    relation_compare_result(
         storage.relation_get_all(relation), data, storage.with_path()
     )
 
 
 def relation_compare_result(
-    computed: Set[RelationData], expected: Set[RelationData], with_path: bool
-) -> bool:
-    return {
-        RelationData(row.src, row.dst, row.path if with_path else None)
-        for row in expected
+    computed: Dict[Sha1Git, Set[RelationData]],
+    expected: Dict[Sha1Git, Set[RelationData]],
+    with_path: bool,
+) -> None:
+    assert {
+        src_sha1: {
+            RelationData(dst=rel.dst, path=rel.path if with_path else None)
+            for rel in rels
+        }
+        for src_sha1, rels in expected.items()
     } == computed
 
 
@@ -265,50 +281,39 @@ def test_provenance_storage_relation(
 
     # Test content-in-revision relation.
     # Create flat models of every root directory for the revisions in the dataset.
-    cnt_in_rev: Set[RelationData] = set()
+    cnt_in_rev: Dict[Sha1Git, Set[RelationData]] = {}
     for rev in data["revision"]:
         root = next(
             subdir for subdir in data["directory"] if subdir["id"] == rev["directory"]
         )
-        cnt_in_rev.update(dircontent(data, rev["id"], root))
+        for cnt, rel in dircontent(data, rev["id"], root):
+            cnt_in_rev.setdefault(cnt, set()).add(rel)
     relation_add_and_compare_result(
         provenance_storage, RelationType.CNT_EARLY_IN_REV, cnt_in_rev
     )
 
     # Test content-in-directory relation.
     # Create flat models for every directory in the dataset.
-    cnt_in_dir: Set[RelationData] = set()
+    cnt_in_dir: Dict[Sha1Git, Set[RelationData]] = {}
     for dir in data["directory"]:
-        cnt_in_dir.update(dircontent(data, dir["id"], dir))
+        for cnt, rel in dircontent(data, dir["id"], dir):
+            cnt_in_dir.setdefault(cnt, set()).add(rel)
     relation_add_and_compare_result(
         provenance_storage, RelationType.CNT_IN_DIR, cnt_in_dir
     )
 
     # Test content-in-directory relation.
     # Add root directories to their correspondent revision in the dataset.
-    dir_in_rev = {
-        RelationData(rev["directory"], rev["id"], b".") for rev in data["revision"]
-    }
+    dir_in_rev: Dict[Sha1Git, Set[RelationData]] = {}
+    for rev in data["revision"]:
+        dir_in_rev.setdefault(rev["directory"], set()).add(
+            RelationData(dst=rev["id"], path=b".")
+        )
     relation_add_and_compare_result(
         provenance_storage, RelationType.DIR_IN_REV, dir_in_rev
     )
 
     # Test revision-in-origin relation.
-    # Add all revisions that are head of some snapshot branch to the corresponding
-    # origin.
-    rev_in_org = {
-        RelationData(
-            branch["target"],
-            hash_to_bytes(origin_identifier({"url": status["origin"]})),
-            None,
-        )
-        for status in data["origin_visit_status"]
-        if status["snapshot"] is not None
-        for snapshot in data["snapshot"]
-        if snapshot["id"] == status["snapshot"]
-        for _, branch in snapshot["branches"].items()
-        if branch["target_type"] == "revision"
-    }
     # Origins must be inserted in advance (cannot be done by `entity_add` inside
     # `relation_add_and_compare_result`).
     orgs = {
@@ -316,18 +321,35 @@ def test_provenance_storage_relation(
         for origin in data["origin"]
     }
     assert provenance_storage.origin_add(orgs)
-
+    # Add all revisions that are head of some snapshot branch to the corresponding
+    # origin.
+    rev_in_org: Dict[Sha1Git, Set[RelationData]] = {}
+    for status in data["origin_visit_status"]:
+        if status["snapshot"] is not None:
+            for snapshot in data["snapshot"]:
+                if snapshot["id"] == status["snapshot"]:
+                    for branch in snapshot["branches"].values():
+                        if branch["target_type"] == "revision":
+                            rev_in_org.setdefault(branch["target"], set()).add(
+                                RelationData(
+                                    dst=hash_to_bytes(
+                                        origin_identifier({"url": status["origin"]})
+                                    ),
+                                    path=None,
+                                )
+                            )
     relation_add_and_compare_result(
         provenance_storage, RelationType.REV_IN_ORG, rev_in_org
     )
 
     # Test revision-before-revision relation.
     # For each revision in the data set add an entry for each parent to the relation.
-    rev_before_rev = {
-        RelationData(parent, rev["id"], None)
-        for rev in data["revision"]
-        for parent in rev["parents"]
-    }
+    rev_before_rev: Dict[Sha1Git, Set[RelationData]] = {}
+    for rev in data["revision"]:
+        for parent in rev["parents"]:
+            rev_before_rev.setdefault(parent, set()).add(
+                RelationData(dst=rev["id"], path=None)
+            )
     relation_add_and_compare_result(
         provenance_storage, RelationType.REV_BEFORE_REV, rev_before_rev
     )

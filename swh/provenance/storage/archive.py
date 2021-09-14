@@ -6,6 +6,7 @@
 from datetime import datetime
 from typing import Any, Dict, Iterable, Set, Tuple
 
+from swh.core.statsd import statsd
 from swh.model.model import ObjectType, Sha1Git, TargetType
 from swh.storage.interface import StorageInterface
 
@@ -14,6 +15,10 @@ class ArchiveStorage:
     def __init__(self, storage: StorageInterface) -> None:
         self.storage = storage
 
+    @statsd.timed(
+        metric="swh_provenance_archive_api_accesstime_seconds",
+        tags={"method": "directory_ls"},
+    )
     def directory_ls(self, id: Sha1Git) -> Iterable[Dict[str, Any]]:
         # TODO: add file size filtering
         for entry in self.storage.directory_ls(id):
@@ -23,11 +28,19 @@ class ArchiveStorage:
                 "type": entry["type"],
             }
 
+    @statsd.timed(
+        metric="swh_provenance_archive_api_accesstime_seconds",
+        tags={"method": "revision_get_parents"},
+    )
     def revision_get_parents(self, id: Sha1Git) -> Iterable[Sha1Git]:
         rev = self.storage.revision_get([id])[0]
         if rev is not None:
             yield from rev.parents
 
+    @statsd.timed(
+        metric="swh_provenance_archive_api_accesstime_seconds",
+        tags={"method": "snapshot_get_heads"},
+    )
     def snapshot_get_heads(self, id: Sha1Git) -> Iterable[Sha1Git]:
         from swh.core.utils import grouper
         from swh.storage.algos.snapshot import snapshot_get_all_branches

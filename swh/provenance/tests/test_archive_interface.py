@@ -5,10 +5,12 @@
 
 from collections import Counter
 from operator import itemgetter
+from typing import Counter as TCounter
 
 import pytest
 
 from swh.core.db import BaseDb
+from swh.model.model import Sha1Git
 from swh.provenance.postgresql.archive import ArchivePostgreSQL
 from swh.provenance.storage.archive import ArchiveStorage
 from swh.provenance.tests.conftest import fill_storage, load_repo_data
@@ -41,13 +43,19 @@ def test_archive_interface(repo: str, swh_storage: StorageInterface) -> None:
             assert entries_api == entries_direct
 
         for revision in data["revision"]:
-            parents_api = Counter(archive_api.revision_get_parents(revision["id"]))
-            parents_direct = Counter(
+            parents_api: TCounter[Sha1Git] = Counter(
+                archive_api.revision_get_parents(revision["id"])
+            )
+            parents_direct: TCounter[Sha1Git] = Counter(
                 archive_direct.revision_get_parents(revision["id"])
             )
             assert parents_api == parents_direct
 
         for snapshot in data["snapshot"]:
-            heads_api = Counter(archive_api.snapshot_get_heads(snapshot["id"]))
-            heads_direct = Counter(archive_direct.snapshot_get_heads(snapshot["id"]))
+            heads_api: TCounter[Sha1Git] = Counter(
+                archive_api.snapshot_get_heads(snapshot["id"])
+            )
+            heads_direct: TCounter[Sha1Git] = Counter(
+                archive_direct.snapshot_get_heads(snapshot["id"])
+            )
             assert heads_api == heads_direct

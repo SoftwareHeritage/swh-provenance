@@ -61,7 +61,7 @@ class ProvenanceStoragePostgreSql:
         return "denormalized" in self.flavor
 
     def content_add(
-        self, cnts: Union[Iterable[Sha1Git], Dict[Sha1Git, datetime]]
+        self, cnts: Union[Iterable[Sha1Git], Dict[Sha1Git, Optional[datetime]]]
     ) -> bool:
         return self._entity_set_date("content", cnts)
 
@@ -84,7 +84,7 @@ class ProvenanceStoragePostgreSql:
         return self._entity_get_date("content", ids)
 
     def directory_add(
-        self, dirs: Union[Iterable[Sha1Git], Dict[Sha1Git, datetime]]
+        self, dirs: Union[Iterable[Sha1Git], Dict[Sha1Git, Optional[datetime]]]
     ) -> bool:
         return self._entity_set_date("directory", dirs)
 
@@ -209,9 +209,7 @@ class ProvenanceStoragePostgreSql:
     def relation_add(
         self, relation: RelationType, data: Dict[Sha1Git, Set[RelationData]]
     ) -> bool:
-        rows = [
-            (src, rel.dst, rel.path) for src, dsts in data.items() for rel in dsts
-        ]
+        rows = [(src, rel.dst, rel.path) for src, dsts in data.items() for rel in dsts]
         try:
             if rows:
                 rel_table = relation.value
@@ -270,7 +268,7 @@ class ProvenanceStoragePostgreSql:
     def _entity_set_date(
         self,
         entity: Literal["content", "directory"],
-        dates: Union[Iterable[Sha1Git], Dict[Sha1Git, datetime]],
+        dates: Union[Iterable[Sha1Git], Dict[Sha1Git, Optional[datetime]]],
     ) -> bool:
         data = dates if isinstance(dates, dict) else dict.fromkeys(dates)
         try:

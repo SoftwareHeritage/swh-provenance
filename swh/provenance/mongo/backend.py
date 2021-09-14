@@ -26,7 +26,7 @@ class ProvenanceStorageMongoDb:
         self.db = db
 
     def content_add(
-        self, cnts: Union[Iterable[Sha1Git], Dict[Sha1Git, datetime]]
+        self, cnts: Union[Iterable[Sha1Git], Dict[Sha1Git, Optional[datetime]]]
     ) -> bool:
         data = cnts if isinstance(cnts, dict) else dict.fromkeys(cnts)
         existing = {
@@ -149,7 +149,7 @@ class ProvenanceStorageMongoDb:
         }
 
     def directory_add(
-        self, dirs: Union[Iterable[Sha1Git], Dict[Sha1Git, datetime]]
+        self, dirs: Union[Iterable[Sha1Git], Dict[Sha1Git, Optional[datetime]]]
     ) -> bool:
         data = dirs if isinstance(dirs, dict) else dict.fromkeys(dirs)
         existing = {

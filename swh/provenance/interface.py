@@ -67,7 +67,7 @@ class RelationData:
 class ProvenanceStorageInterface(Protocol):
     @remote_api_endpoint("content_add")
     def content_add(
-        self, cnts: Union[Iterable[Sha1Git], Dict[Sha1Git, datetime]]
+        self, cnts: Union[Iterable[Sha1Git], Dict[Sha1Git, Optional[datetime]]]
     ) -> bool:
         """Add blobs identified by sha1 ids, with an optional associated date (as paired
         in `cnts`) to the provenance storage. Return a boolean stating whether the
@@ -96,7 +96,7 @@ class ProvenanceStorageInterface(Protocol):
 
     @remote_api_endpoint("directory_add")
     def directory_add(
-        self, dirs: Union[Iterable[Sha1Git], Dict[Sha1Git, datetime]]
+        self, dirs: Union[Iterable[Sha1Git], Dict[Sha1Git, Optional[datetime]]]
     ) -> bool:
         """Add directories identified by sha1 ids, with an optional associated date (as
         paired in `dirs`) to the provenance storage. Return a boolean stating if the

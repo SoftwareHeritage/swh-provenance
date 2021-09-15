@@ -3,79 +3,10 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import logging
 import os
-from typing import Any, Dict, List, Optional
-
-from werkzeug.routing import Rule
+from typing import Any, Dict, Optional
 
 from swh.core import config
-from swh.core.api import JSONFormatter, MsgpackFormatter, RPCServerApp, negotiate
-from swh.provenance import get_provenance_storage
-from swh.provenance.interface import ProvenanceStorageInterface
-
-from .serializers import DECODERS, ENCODERS
-
-storage: Optional[ProvenanceStorageInterface] = None
-
-
-def get_global_provenance_storage() -> ProvenanceStorageInterface:
-    global storage
-    if storage is None:
-        storage = get_provenance_storage(**app.config["provenance"]["storage"])
-    return storage
-
-
-class ProvenanceStorageServerApp(RPCServerApp):
-    extra_type_decoders = DECODERS
-    extra_type_encoders = ENCODERS
-
-
-app = ProvenanceStorageServerApp(
-    __name__,
-    backend_class=ProvenanceStorageInterface,
-    backend_factory=get_global_provenance_storage,
-)
-
-
-def has_no_empty_params(rule: Rule) -> bool:
-    return len(rule.defaults or ()) >= len(rule.arguments or ())
-
-
-@app.route("/")
-def index() -> str:
-    return """<html>
-<head><title>Software Heritage provenance storage RPC server</title></head>
-<body>
-<p>You have reached the
-<a href="https://www.softwareheritage.org/">Software Heritage</a>
-provenance storage RPC server.<br />
-See its
-<a href="https://docs.softwareheritage.org/devel/swh-provenance/">documentation
-and API</a> for more information</p>
-</body>
-</html>"""
-
-
-@app.route("/site-map")
-@negotiate(MsgpackFormatter)
-@negotiate(JSONFormatter)
-def site_map() -> List[Dict[str, Any]]:
-    links = []
-    for rule in app.url_map.iter_rules():
-        if has_no_empty_params(rule) and hasattr(
-            ProvenanceStorageInterface, rule.endpoint
-        ):
-            links.append(
-                dict(
-                    rule=rule.rule,
-                    description=getattr(
-                        ProvenanceStorageInterface, rule.endpoint
-                    ).__doc__,
-                )
-            )
-    # links is now a list of url, endpoint tuples
-    return links
 
 
 def load_and_check_config(
@@ -125,24 +56,3 @@ def load_and_check_config(
             raise KeyError("Invalid configuration; missing 'db' config entry")
 
     return cfg
-
-
-api_cfg: Optional[Dict[str, Any]] = None
-
-
-def make_app_from_configfile() -> ProvenanceStorageServerApp:
-    """Run the WSGI app from the webserver, loading the configuration from
-    a configuration file.
-
-    SWH_CONFIG_FILENAME environment variable defines the
-    configuration path to load.
-
-    """
-    global api_cfg
-    if api_cfg is None:
-        config_path = os.environ.get("SWH_CONFIG_FILENAME")
-        api_cfg = load_and_check_config(config_path)
-        app.config.update(api_cfg)
-    handler = logging.StreamHandler()
-    app.logger.addHandler(handler)
-    return app

@@ -5,7 +5,7 @@
 
 from datetime import datetime, timedelta, timezone
 from os import path
-from typing import Any, Dict, Iterable, Iterator
+from typing import Any, Dict, Iterable
 
 from _pytest.fixtures import SubRequest
 import msgpack
@@ -16,8 +16,6 @@ from pytest_postgresql.factories import postgresql
 
 from swh.journal.serializers import msgpack_ext_hook
 from swh.provenance import get_provenance, get_provenance_storage
-from swh.provenance.api.client import RemoteProvenanceStorage
-import swh.provenance.api.server as server
 from swh.provenance.archive import ArchiveInterface
 from swh.provenance.interface import ProvenanceInterface, ProvenanceStorageInterface
 from swh.provenance.storage.archive import ArchiveStorage
@@ -46,38 +44,15 @@ def provenance_postgresqldb(
     return postgresql.get_dsn_parameters()
 
 
-# the Flask app used as server in these tests
-@pytest.fixture
-def app(
-    provenance_postgresqldb: Dict[str, str]
-) -> Iterator[server.ProvenanceStorageServerApp]:
-    assert hasattr(server, "storage")
-    server.storage = get_provenance_storage(
-        cls="postgresql", db=provenance_postgresqldb
-    )
-    yield server.app
-
-
-# the RPCClient class used as client used in these tests
-@pytest.fixture
-def swh_rpc_client_class() -> type:
-    return RemoteProvenanceStorage
-
-
-@pytest.fixture(params=["mongodb", "postgresql", "remote"])
+@pytest.fixture(params=["mongodb", "postgresql"])
 def provenance_storage(
     request: SubRequest,
     provenance_postgresqldb: Dict[str, str],
     mongodb: pymongo.database.Database,
-    swh_rpc_client: RemoteProvenanceStorage,
 ) -> ProvenanceStorageInterface:
     """Return a working and initialized ProvenanceStorageInterface object"""
 
-    if request.param == "remote":
-        assert isinstance(swh_rpc_client, ProvenanceStorageInterface)
-        return swh_rpc_client
-
-    elif request.param == "mongodb":
+    if request.param == "mongodb":
         from swh.provenance.mongo.backend import ProvenanceStorageMongoDb
 
         return ProvenanceStorageMongoDb(mongodb)

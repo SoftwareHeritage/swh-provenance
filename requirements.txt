@@ -8,4 +8,3 @@ pymongo
 PyYAML
 types-click
 types-PyYAML
-types-Werkzeug

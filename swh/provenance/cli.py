@@ -54,9 +54,6 @@ DEFAULT_CONFIG: Dict[str, Any] = {
             # "db": {
             #     "dbname": "provenance",
             # },
-            # Remote REST-API/PostgreSQL
-            # "cls": "remote",
-            # "url": "http://localhost:8080/%2f",
         },
     }
 }

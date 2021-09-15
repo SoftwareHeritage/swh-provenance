@@ -2,4 +2,3 @@ pytest
 pytest-mongodb
 swh.loader.git >= 0.8
 swh.journal >= 0.8
-types-Werkzeug

@@ -96,12 +96,4 @@ def get_provenance_storage(cls: str, **kwargs) -> ProvenanceStorageInterface:
         db = MongoClient(**kwargs["db"]).get_database(dbname)
         return ProvenanceStorageMongoDb(db)
 
-    elif cls == "remote":
-        from .api.client import RemoteProvenanceStorage
-
-        storage = RemoteProvenanceStorage(**kwargs)
-        assert isinstance(storage, ProvenanceStorageInterface)
-        return storage
-
-    else:
-        raise ValueError
+    raise ValueError

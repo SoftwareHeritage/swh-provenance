@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import os
 from typing import Generator, Iterable, Iterator, List, Optional, Tuple
 
+from swh.core.statsd import statsd
 from swh.model.model import Sha1Git
 
 from .archive import ArchiveInterface
@@ -48,6 +49,10 @@ class CSVRevisionIterator:
             yield RevisionEntry(id, date=date, root=root)
 
 
+@statsd.timed(
+    metric="swh_provenance_revision_content_layer_accesstime_seconds",
+    tags={"method": "main"},
+)
 def revision_add(
     provenance: ProvenanceInterface,
     archive: ArchiveInterface,
@@ -83,6 +88,10 @@ def revision_add(
         provenance.flush()
 
 
+@statsd.timed(
+    metric="swh_provenance_revision_content_layer_accesstime_seconds",
+    tags={"method": "process_content"},
+)
 def revision_process_content(
     archive: ArchiveInterface,
     provenance: ProvenanceInterface,
@@ -148,6 +157,10 @@ def revision_process_content(
                     stack.append(child)
 
 
+@statsd.timed(
+    metric="swh_provenance_revision_content_layer_accesstime_seconds",
+    tags={"method": "flatten_directory"},
+)
 def flatten_directory(
     archive: ArchiveInterface,
     provenance: ProvenanceInterface,

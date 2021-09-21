@@ -1,5 +1,6 @@
 pytest
 pytest-mongodb
+pytest-rabbitmq
 swh.loader.git >= 0.8
 swh.journal >= 0.8
 swh.storage >= 0.40

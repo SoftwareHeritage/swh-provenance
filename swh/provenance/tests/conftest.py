@@ -45,7 +45,7 @@ def provenance_postgresqldb(
     return postgresql.get_dsn_parameters()
 
 
-@pytest.fixture(params=["mongodb", "postgresql"])
+@pytest.fixture(params=["mongodb", "postgresql", "rabbitmq"])
 def provenance_storage(
     request: SubRequest,
     provenance_postgresqldb: Dict[str, str],
@@ -63,6 +63,28 @@ def provenance_storage(
             cls=request.param, db=mongodb_params, engine="mongomock"
         ) as storage:
             yield storage
+
+    elif request.param == "rabbitmq":
+        from swh.provenance.api.server import ProvenanceStorageRabbitMQServer
+
+        rabbitmq = request.getfixturevalue("rabbitmq")
+        host = rabbitmq.args["host"]
+        port = rabbitmq.args["port"]
+        rabbitmq_params: Dict[str, Any] = {
+            "url": f"amqp://guest:guest@{host}:{port}/%2f",
+            "storage_config": {
+                "cls": "postgresql",  # TODO: also test with underlying mongodb storage
+                "db": provenance_postgresqldb,
+                "raise_on_commit": True,
+            },
+        }
+        server = ProvenanceStorageRabbitMQServer(
+            url=rabbitmq_params["url"], storage_config=rabbitmq_params["storage_config"]
+        )
+        server.start()
+        with get_provenance_storage(cls=request.param, **rabbitmq_params) as storage:
+            yield storage
+        server.stop()
 
     else:
         # in test sessions, we DO want to raise any exception occurring at commit time

@@ -1,11 +1,13 @@
 *.csv
+*.dump
 *.egg*
 *.log
+*.mypy*
 *.prof
 *.zip
 *.orig
 *.bak
-.coverage
+.coverage*
 .tox
 .vscode
 __pycache__

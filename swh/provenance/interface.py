@@ -114,7 +114,7 @@ class ProvenanceStorageInterface(Protocol):
     @remote_api_endpoint("entity_get_all")
     def entity_get_all(self, entity: EntityType) -> Set[Sha1Git]:
         """Retrieve all sha1 ids for entities of type `entity` present in the provenance
-        model.
+        model. This method is used only in tests.
         """
         ...
 
@@ -125,7 +125,8 @@ class ProvenanceStorageInterface(Protocol):
 
     @remote_api_endpoint("location_get_all")
     def location_get_all(self) -> Set[bytes]:
-        """Retrieve all paths present in the provenance model."""
+        """Retrieve all paths present in the provenance model.
+        This method is used only in tests."""
         ...
 
     @remote_api_endpoint("origin_add")
@@ -184,7 +185,7 @@ class ProvenanceStorageInterface(Protocol):
         self, relation: RelationType
     ) -> Dict[Sha1Git, Set[RelationData]]:
         """Retrieve all entries in the selected `relation` that are present in the
-        provenance model.
+        provenance model. This method is used only in tests.
         """
         ...
 

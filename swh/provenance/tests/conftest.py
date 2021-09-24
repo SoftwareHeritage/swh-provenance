@@ -5,12 +5,12 @@
 
 from datetime import datetime, timedelta, timezone
 from os import path
-from typing import Any, Dict, Iterable
+from typing import Any, Dict, Generator, Iterable
 
 from _pytest.fixtures import SubRequest
+import mongomock.database
 import msgpack
 import psycopg2.extensions
-import pymongo.database
 import pytest
 from pytest_postgresql.factories import postgresql
 
@@ -48,20 +48,27 @@ def provenance_postgresqldb(
 def provenance_storage(
     request: SubRequest,
     provenance_postgresqldb: Dict[str, str],
-    mongodb: pymongo.database.Database,
-) -> ProvenanceStorageInterface:
+    mongodb: mongomock.database.Database,
+) -> Generator[ProvenanceStorageInterface, None, None]:
     """Return a working and initialized ProvenanceStorageInterface object"""
 
     if request.param == "mongodb":
-        from swh.provenance.mongo.backend import ProvenanceStorageMongoDb
-
-        return ProvenanceStorageMongoDb(mongodb)
+        mongodb_params = {
+            "host": mongodb.client.address[0],
+            "port": mongodb.client.address[1],
+            "dbname": mongodb.name,
+        }
+        with get_provenance_storage(
+            cls=request.param, db=mongodb_params, engine="mongomock"
+        ) as storage:
+            yield storage
 
     else:
         # in test sessions, we DO want to raise any exception occurring at commit time
-        return get_provenance_storage(
+        with get_provenance_storage(
             cls=request.param, db=provenance_postgresqldb, raise_on_commit=True
-        )
+        ) as storage:
+            yield storage
 
 
 provenance_postgresql = postgresql("postgresql_proc", dbname="provenance_tests")
@@ -70,7 +77,7 @@ provenance_postgresql = postgresql("postgresql_proc", dbname="provenance_tests")
 @pytest.fixture
 def provenance(
     provenance_postgresql: psycopg2.extensions.connection,
-) -> ProvenanceInterface:
+) -> Generator[ProvenanceInterface, None, None]:
     """Return a working and initialized ProvenanceInterface object"""
 
     from swh.core.cli.db import populate_database_for_package
@@ -79,11 +86,12 @@ def provenance(
         "swh.provenance", provenance_postgresql.dsn, flavor="with-path"
     )
     # in test sessions, we DO want to raise any exception occurring at commit time
-    return get_provenance(
+    with get_provenance(
         cls="postgresql",
         db=provenance_postgresql.get_dsn_parameters(),
         raise_on_commit=True,
-    )
+    ) as provenance:
+        yield provenance
 
 
 @pytest.fixture

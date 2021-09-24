@@ -72,8 +72,6 @@ def get_provenance_storage(cls: str, **kwargs) -> ProvenanceStorageInterface:
         :cls:`ValueError` if passed an unknown archive class.
     """
     if cls in ["local", "postgresql"]:
-        from swh.core.db import BaseDb
-
         from .postgresql.provenance import ProvenanceStoragePostgreSql
 
         if cls == "local":
@@ -83,17 +81,15 @@ def get_provenance_storage(cls: str, **kwargs) -> ProvenanceStorageInterface:
                 DeprecationWarning,
             )
 
-        conn = BaseDb.connect(**kwargs["db"]).conn
         raise_on_commit = kwargs.get("raise_on_commit", False)
-        return ProvenanceStoragePostgreSql(conn, raise_on_commit)
+        return ProvenanceStoragePostgreSql(
+            raise_on_commit=raise_on_commit, **kwargs["db"]
+        )
 
     elif cls == "mongodb":
-        from pymongo import MongoClient
-
         from .mongo.backend import ProvenanceStorageMongoDb
 
-        dbname = kwargs["db"].pop("dbname")
-        db = MongoClient(**kwargs["db"]).get_database(dbname)
-        return ProvenanceStorageMongoDb(db)
+        engine = kwargs.get("engine", "pymongo")
+        return ProvenanceStorageMongoDb(engine=engine, **kwargs["db"])
 
     raise ValueError

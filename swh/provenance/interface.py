@@ -3,10 +3,13 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from datetime import datetime
 import enum
-from typing import Dict, Generator, Iterable, Optional, Set, Union
+from types import TracebackType
+from typing import Dict, Generator, Iterable, Optional, Set, Type, Union
 
 from typing_extensions import Protocol, runtime_checkable
 
@@ -65,6 +68,22 @@ class RelationData:
 
 @runtime_checkable
 class ProvenanceStorageInterface(Protocol):
+    def __enter__(self) -> ProvenanceStorageInterface:
+        ...
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        ...
+
+    @remote_api_endpoint("close")
+    def close(self) -> None:
+        """Close connection to the storage and release resources."""
+        ...
+
     @remote_api_endpoint("content_add")
     def content_add(
         self, cnts: Union[Iterable[Sha1Git], Dict[Sha1Git, Optional[datetime]]]
@@ -127,6 +146,11 @@ class ProvenanceStorageInterface(Protocol):
     def location_get_all(self) -> Set[bytes]:
         """Retrieve all paths present in the provenance model.
         This method is used only in tests."""
+        ...
+
+    @remote_api_endpoint("open")
+    def open(self) -> None:
+        """Open connection to the storage and allocate necessary resources."""
         ...
 
     @remote_api_endpoint("origin_add")
@@ -197,6 +221,21 @@ class ProvenanceStorageInterface(Protocol):
 @runtime_checkable
 class ProvenanceInterface(Protocol):
     storage: ProvenanceStorageInterface
+
+    def __enter__(self) -> ProvenanceInterface:
+        ...
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        ...
+
+    def close(self) -> None:
+        """Close connection to the underlying `storage` and release resources."""
+        ...
 
     def flush(self) -> None:
         """Flush internal cache to the underlying `storage`."""
@@ -276,6 +315,12 @@ class ProvenanceInterface(Protocol):
     ) -> None:
         """Associate `date` to `directory` as it's earliest known date as an isochrone
         frontier in the provenance model.
+        """
+        ...
+
+    def open(self) -> None:
+        """Open connection to the underlying `storage` and allocate necessary
+        resources.
         """
         ...
 

@@ -6,13 +6,15 @@
 from datetime import datetime
 import logging
 import os
-from typing import Dict, Generator, Iterable, Optional, Set, Tuple
+from types import TracebackType
+from typing import Dict, Generator, Iterable, Optional, Set, Tuple, Type
 
 from typing_extensions import Literal, TypedDict
 
 from swh.model.model import Sha1Git
 
 from .interface import (
+    ProvenanceInterface,
     ProvenanceResult,
     ProvenanceStorageInterface,
     RelationData,
@@ -74,8 +76,23 @@ class Provenance:
         self.storage = storage
         self.cache = new_cache()
 
+    def __enter__(self) -> ProvenanceInterface:
+        self.open()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        self.close()
+
     def clear_caches(self) -> None:
         self.cache = new_cache()
+
+    def close(self) -> None:
+        self.storage.close()
 
     def flush(self) -> None:
         # Revision-content layer insertions ############################################
@@ -335,6 +352,9 @@ class Provenance:
             if date is not None:
                 dates[sha1] = date
         return dates
+
+    def open(self) -> None:
+        self.storage.open()
 
     def origin_add(self, origin: OriginEntry) -> None:
         self.cache["origin"]["data"][origin.id] = origin.url

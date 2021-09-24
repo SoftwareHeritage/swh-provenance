@@ -145,19 +145,19 @@ def iter_revisions(
     from .revision import CSVRevisionIterator, revision_add
 
     archive = get_archive(**ctx.obj["config"]["provenance"]["archive"])
-    provenance = get_provenance(**ctx.obj["config"]["provenance"]["storage"])
     revisions_provider = generate_revision_tuples(filename)
     revisions = CSVRevisionIterator(revisions_provider, limit=limit)
 
-    for revision in revisions:
-        revision_add(
-            provenance,
-            archive,
-            [revision],
-            trackall=track_all,
-            lower=reuse,
-            mindepth=min_depth,
-        )
+    with get_provenance(**ctx.obj["config"]["provenance"]["storage"]) as provenance:
+        for revision in revisions:
+            revision_add(
+                provenance,
+                archive,
+                [revision],
+                trackall=track_all,
+                lower=reuse,
+                mindepth=min_depth,
+            )
 
 
 def generate_revision_tuples(
@@ -183,12 +183,12 @@ def iter_origins(ctx: click.core.Context, filename: str, limit: Optional[int]) -
     from .origin import CSVOriginIterator, origin_add
 
     archive = get_archive(**ctx.obj["config"]["provenance"]["archive"])
-    provenance = get_provenance(**ctx.obj["config"]["provenance"]["storage"])
     origins_provider = generate_origin_tuples(filename)
     origins = CSVOriginIterator(origins_provider, limit=limit)
 
-    for origin in origins:
-        origin_add(provenance, archive, [origin])
+    with get_provenance(**ctx.obj["config"]["provenance"]["storage"]) as provenance:
+        for origin in origins:
+            origin_add(provenance, archive, [origin])
 
 
 def generate_origin_tuples(filename: str) -> Generator[Tuple[str, bytes], None, None]:
@@ -205,18 +205,18 @@ def find_first(ctx: click.core.Context, swhid: str) -> None:
     """Find first occurrence of the requested blob."""
     from . import get_provenance
 
-    provenance = get_provenance(**ctx.obj["config"]["provenance"]["storage"])
-    occur = provenance.content_find_first(hash_to_bytes(swhid))
-    if occur is not None:
-        print(
-            f"swh:1:cnt:{hash_to_hex(occur.content)}, "
-            f"swh:1:rev:{hash_to_hex(occur.revision)}, "
-            f"{occur.date}, "
-            f"{occur.origin}, "
-            f"{os.fsdecode(occur.path)}"
-        )
-    else:
-        print(f"Cannot find a content with the id {swhid}")
+    with get_provenance(**ctx.obj["config"]["provenance"]["storage"]) as provenance:
+        occur = provenance.content_find_first(hash_to_bytes(swhid))
+        if occur is not None:
+            print(
+                f"swh:1:cnt:{hash_to_hex(occur.content)}, "
+                f"swh:1:rev:{hash_to_hex(occur.revision)}, "
+                f"{occur.date}, "
+                f"{occur.origin}, "
+                f"{os.fsdecode(occur.path)}"
+            )
+        else:
+            print(f"Cannot find a content with the id {swhid}")
 
 
 @cli.command(name="find-all")
@@ -227,12 +227,12 @@ def find_all(ctx: click.core.Context, swhid: str, limit: Optional[int]) -> None:
     """Find all occurrences of the requested blob."""
     from . import get_provenance
 
-    provenance = get_provenance(**ctx.obj["config"]["provenance"]["storage"])
-    for occur in provenance.content_find_all(hash_to_bytes(swhid), limit=limit):
-        print(
-            f"swh:1:cnt:{hash_to_hex(occur.content)}, "
-            f"swh:1:rev:{hash_to_hex(occur.revision)}, "
-            f"{occur.date}, "
-            f"{occur.origin}, "
-            f"{os.fsdecode(occur.path)}"
-        )
+    with get_provenance(**ctx.obj["config"]["provenance"]["storage"]) as provenance:
+        for occur in provenance.content_find_all(hash_to_bytes(swhid), limit=limit):
+            print(
+                f"swh:1:cnt:{hash_to_hex(occur.content)}, "
+                f"swh:1:rev:{hash_to_hex(occur.revision)}, "
+                f"{occur.date}, "
+                f"{occur.origin}, "
+                f"{os.fsdecode(occur.path)}"
+            )

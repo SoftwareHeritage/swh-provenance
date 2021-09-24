@@ -3,18 +3,23 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from __future__ import annotations
+
 from datetime import datetime, timezone
 import os
-from typing import Any, Dict, Generator, Iterable, List, Optional, Set, Union
+from types import TracebackType
+from typing import Any, Dict, Generator, Iterable, List, Optional, Set, Type, Union
 
 from bson import ObjectId
-import pymongo.database
+import mongomock
+import pymongo
 
 from swh.model.model import Sha1Git
 
 from ..interface import (
     EntityType,
     ProvenanceResult,
+    ProvenanceStorageInterface,
     RelationData,
     RelationType,
     RevisionData,
@@ -22,8 +27,25 @@ from ..interface import (
 
 
 class ProvenanceStorageMongoDb:
-    def __init__(self, db: pymongo.database.Database):
-        self.db = db
+    def __init__(self, engine: str, **kwargs):
+        self.engine = engine
+        self.dbname = kwargs.pop("dbname")
+        self.conn_args = kwargs
+
+    def __enter__(self) -> ProvenanceStorageInterface:
+        self.open()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        self.close()
+
+    def close(self) -> None:
+        self.db.client.close()
 
     def content_add(
         self, cnts: Union[Iterable[Sha1Git], Dict[Sha1Git, Optional[datetime]]]
@@ -202,6 +224,13 @@ class ProvenanceStorageMongoDb:
         for each_dir in dirs:
             paths.extend(value for _, value in each_dir["revision"].items())
         return set(sum(paths, []))
+
+    def open(self) -> None:
+        if self.engine == "mongomock":
+            self.db = mongomock.MongoClient(**self.conn_args).get_database(self.dbname)
+        else:
+            # assume real MongoDB server by default
+            self.db = pymongo.MongoClient(**self.conn_args).get_database(self.dbname)
 
     def origin_add(self, orgs: Dict[Sha1Git, str]) -> bool:
         existing = {

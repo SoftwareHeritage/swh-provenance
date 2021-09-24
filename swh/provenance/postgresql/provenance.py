@@ -3,11 +3,14 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from __future__ import annotations
+
 from contextlib import contextmanager
 from datetime import datetime
 import itertools
 import logging
-from typing import Dict, Generator, Iterable, List, Optional, Set, Union
+from types import TracebackType
+from typing import Dict, Generator, Iterable, List, Optional, Set, Type, Union
 
 import psycopg2.extensions
 import psycopg2.extras
@@ -19,6 +22,7 @@ from swh.model.model import Sha1Git
 from ..interface import (
     EntityType,
     ProvenanceResult,
+    ProvenanceStorageInterface,
     RelationData,
     RelationType,
     RevisionData,
@@ -28,15 +32,22 @@ LOGGER = logging.getLogger(__name__)
 
 
 class ProvenanceStoragePostgreSql:
-    def __init__(
-        self, conn: psycopg2.extensions.connection, raise_on_commit: bool = False
-    ) -> None:
-        BaseDb.adapt_conn(conn)
-        self.conn = conn
-        with self.transaction() as cursor:
-            cursor.execute("SET timezone TO 'UTC'")
+    def __init__(self, raise_on_commit: bool = False, **kwargs) -> None:
+        self.conn_args = kwargs
         self._flavor: Optional[str] = None
         self.raise_on_commit = raise_on_commit
+
+    def __enter__(self) -> ProvenanceStorageInterface:
+        self.open()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        self.close()
 
     @contextmanager
     def transaction(
@@ -59,6 +70,9 @@ class ProvenanceStoragePostgreSql:
     @property
     def denormalized(self) -> bool:
         return "denormalized" in self.flavor
+
+    def close(self) -> None:
+        self.conn.close()
 
     def content_add(
         self, cnts: Union[Iterable[Sha1Git], Dict[Sha1Git, Optional[datetime]]]
@@ -139,6 +153,12 @@ class ProvenanceStoragePostgreSql:
             if self.raise_on_commit:
                 raise
         return False
+
+    def open(self) -> None:
+        self.conn = BaseDb.connect(**self.conn_args).conn
+        BaseDb.adapt_conn(self.conn)
+        with self.transaction() as cursor:
+            cursor.execute("SET timezone TO 'UTC'")
 
     def origin_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, str]:
         urls: Dict[Sha1Git, str] = {}

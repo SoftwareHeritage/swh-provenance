@@ -9,12 +9,16 @@ from datetime import datetime, timezone
 import os
 from typing import Any, Dict, Optional, Set
 
+from swh.core.statsd import statsd
 from swh.model.hashutil import hash_to_hex
 from swh.model.model import Sha1Git
 
 from .archive import ArchiveInterface
 from .interface import ProvenanceInterface
 from .model import DirectoryEntry, RevisionEntry
+
+GRAPH_OPERATIONS_METRIC = "swh_provenance_graph_operations_total"
+GRAPH_DURATION_METRIC = "swh_provenance_graph_duration_seconds"
 
 UTCMIN = datetime.min.replace(tzinfo=timezone.utc)
 
@@ -47,6 +51,7 @@ class HistoryNode:
 
 
 class HistoryGraph:
+    @statsd.timed(metric=GRAPH_DURATION_METRIC, tags={"method": "build_history_graph"})
     def __init__(
         self,
         archive: ArchiveInterface,
@@ -131,6 +136,9 @@ class IsochroneNode:
         return self._dbdate
 
     def invalidate(self) -> None:
+        statsd.increment(
+            metric=GRAPH_OPERATIONS_METRIC, tags={"method": "invalidate_frontier"}
+        )
         self._dbdate = None
         self.maxdate = None
         self.known = False
@@ -162,6 +170,7 @@ class IsochroneNode:
         return hash((self.entry, self.depth, self.path))
 
 
+@statsd.timed(metric=GRAPH_DURATION_METRIC, tags={"method": "build_isochrone_graph"})
 def build_isochrone_graph(
     archive: ArchiveInterface,
     provenance: ProvenanceInterface,

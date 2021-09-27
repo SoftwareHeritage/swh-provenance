@@ -12,6 +12,8 @@ from swh.core.statsd import statsd
 from swh.model.model import Sha1Git
 from swh.storage import get_storage
 
+ARCHIVE_DURATION_METRIC = "swh_provenance_archive_direct_duration_seconds"
+
 
 class ArchivePostgreSQL:
     def __init__(self, conn: psycopg2.extensions.connection) -> None:
@@ -25,10 +27,7 @@ class ArchivePostgreSQL:
         yield from entries
 
     @lru_cache(maxsize=100000)
-    @statsd.timed(
-        metric="swh_provenance_archive_direct_accesstime_seconds",
-        tags={"method": "directory_ls"},
-    )
+    @statsd.timed(metric=ARCHIVE_DURATION_METRIC, tags={"method": "directory_ls"})
     def _directory_ls(self, id: Sha1Git) -> List[Dict[str, Any]]:
         # TODO: add file size filtering
         with self.conn.cursor() as cursor:
@@ -72,8 +71,7 @@ class ArchivePostgreSQL:
             ]
 
     @statsd.timed(
-        metric="swh_provenance_archive_direct_accesstime_seconds",
-        tags={"method": "revision_get_parents"},
+        metric=ARCHIVE_DURATION_METRIC, tags={"method": "revision_get_parents"}
     )
     def revision_get_parents(self, id: Sha1Git) -> Iterable[Sha1Git]:
         with self.conn.cursor() as cursor:
@@ -89,10 +87,7 @@ class ArchivePostgreSQL:
             # There should be at most one row anyway
             yield from (row[0] for row in cursor)
 
-    @statsd.timed(
-        metric="swh_provenance_archive_direct_accesstime_seconds",
-        tags={"method": "snapshot_get_heads"},
-    )
+    @statsd.timed(metric=ARCHIVE_DURATION_METRIC, tags={"method": "snapshot_get_heads"})
     def snapshot_get_heads(self, id: Sha1Git) -> Iterable[Sha1Git]:
         with self.conn.cursor() as cursor:
             cursor.execute(

@@ -15,6 +15,8 @@ from .graph import IsochroneNode, build_isochrone_graph
 from .interface import ProvenanceInterface
 from .model import DirectoryEntry, RevisionEntry
 
+REVISION_DURATION_METRIC = "swh_provenance_revision_content_layer_duration_seconds"
+
 
 class CSVRevisionIterator:
     """Iterator over revisions typically present in the given CSV file.
@@ -49,10 +51,7 @@ class CSVRevisionIterator:
             yield RevisionEntry(id, date=date, root=root)
 
 
-@statsd.timed(
-    metric="swh_provenance_revision_content_layer_accesstime_seconds",
-    tags={"method": "main"},
-)
+@statsd.timed(metric=REVISION_DURATION_METRIC, tags={"method": "main"})
 def revision_add(
     provenance: ProvenanceInterface,
     archive: ArchiveInterface,
@@ -88,10 +87,7 @@ def revision_add(
         provenance.flush()
 
 
-@statsd.timed(
-    metric="swh_provenance_revision_content_layer_accesstime_seconds",
-    tags={"method": "process_content"},
-)
+@statsd.timed(metric=REVISION_DURATION_METRIC, tags={"method": "process_content"})
 def revision_process_content(
     archive: ArchiveInterface,
     provenance: ProvenanceInterface,
@@ -157,10 +153,7 @@ def revision_process_content(
                     stack.append(child)
 
 
-@statsd.timed(
-    metric="swh_provenance_revision_content_layer_accesstime_seconds",
-    tags={"method": "flatten_directory"},
-)
+@statsd.timed(metric=REVISION_DURATION_METRIC, tags={"method": "flatten_directory"})
 def flatten_directory(
     archive: ArchiveInterface,
     provenance: ProvenanceInterface,
@@ -191,12 +184,12 @@ def is_new_frontier(
     assert node.maxdate is not None  # for mypy
     assert revision.date is not None  # idem
     if trackall:
-        # The only real condition for a directory to be a frontier is that its
-        # content is already known and its maxdate is less (or equal) than
-        # current revision's date. Checking mindepth is meant to skip root
-        # directories (or any arbitrary depth) to improve the result. The
-        # option lower tries to maximize the reusage rate of previously defined
-        # frontiers by keeping them low in the directory tree.
+        # The only real condition for a directory to be a frontier is that its content
+        # is already known and its maxdate is less (or equal) than current revision's
+        # date. Checking mindepth is meant to skip root directories (or any arbitrary
+        # depth) to improve the result. The option lower tries to maximize the reuse
+        # rate of previously defined  frontiers by keeping them low in the directory
+        # tree.
         return (
             node.known
             and node.maxdate <= revision.date  # all content is earlier than revision
@@ -207,7 +200,7 @@ def is_new_frontier(
     else:
         # If we are only tracking first occurrences, we want to ensure that all first
         # occurrences end up in the content_early_in_rev relation. Thus, we force for
-        # every blob outside a frontier to have an extrictly earlier date.
+        # every blob outside a frontier to have an strictly earlier date.
         return (
             node.maxdate < revision.date  # all content is earlier than revision
             and node.depth >= mindepth  # deeper than the min allowed depth

@@ -14,6 +14,8 @@ from .graph import HistoryGraph
 from .interface import ProvenanceInterface
 from .model import OriginEntry, RevisionEntry
 
+ORIGIN_DURATION_METRIC = "swh_provenance_origin_revision_layer_duration_seconds"
+
 
 class CSVOriginIterator:
     """Iterator over origin visit statuses typically present in the given CSV
@@ -43,10 +45,7 @@ class CSVOriginIterator:
         return (OriginEntry(url, snapshot) for url, snapshot in self.statuses)
 
 
-@statsd.timed(
-    metric="swh_provenance_origin_revision_layer_accesstime_seconds",
-    tags={"method": "main"},
-)
+@statsd.timed(metric=ORIGIN_DURATION_METRIC, tags={"method": "main"})
 def origin_add(
     provenance: ProvenanceInterface,
     archive: ArchiveInterface,
@@ -61,10 +60,7 @@ def origin_add(
     provenance.flush()
 
 
-@statsd.timed(
-    metric="swh_provenance_origin_revision_layer_accesstime_seconds",
-    tags={"method": "process_revision"},
-)
+@statsd.timed(metric=ORIGIN_DURATION_METRIC, tags={"method": "process_revision"})
 def origin_add_revision(
     provenance: ProvenanceInterface,
     origin: OriginEntry,
@@ -94,10 +90,7 @@ def origin_add_revision(
                 stack.append(parent)
 
 
-@statsd.timed(
-    metric="swh_provenance_origin_revision_layer_accesstime_seconds",
-    tags={"method": "check_preferred_origin"},
-)
+@statsd.timed(metric=ORIGIN_DURATION_METRIC, tags={"method": "check_preferred_origin"})
 def check_preferred_origin(
     provenance: ProvenanceInterface,
     origin: OriginEntry,

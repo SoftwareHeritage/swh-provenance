@@ -14,6 +14,7 @@ from bson import ObjectId
 import mongomock
 import pymongo
 
+from swh.core.statsd import statsd
 from swh.model.model import Sha1Git
 
 from ..interface import (
@@ -24,6 +25,8 @@ from ..interface import (
     RelationType,
     RevisionData,
 )
+
+STORAGE_DURATION_METRIC = "swh_provenance_storage_mongodb_duration_seconds"
 
 
 class ProvenanceStorageMongoDb:
@@ -44,9 +47,11 @@ class ProvenanceStorageMongoDb:
     ) -> None:
         self.close()
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "close"})
     def close(self) -> None:
         self.db.client.close()
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "content_add"})
     def content_add(
         self, cnts: Union[Iterable[Sha1Git], Dict[Sha1Git, Optional[datetime]]]
     ) -> bool:
@@ -76,6 +81,7 @@ class ProvenanceStorageMongoDb:
                 )
         return True
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "content_find_first"})
     def content_find_first(self, id: Sha1Git) -> Optional[ProvenanceResult]:
         # get all the revisions
         # iterate and find the earliest
@@ -104,6 +110,7 @@ class ProvenanceStorageMongoDb:
                 )
         return sorted(occurs, key=lambda x: (x.date, x.revision, x.origin, x.path))[0]
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "content_find_all"})
     def content_find_all(
         self, id: Sha1Git, limit: Optional[int] = None
     ) -> Generator[ProvenanceResult, None, None]:
@@ -161,6 +168,7 @@ class ProvenanceStorageMongoDb:
                         )
         yield from sorted(occurs, key=lambda x: (x.date, x.revision, x.origin, x.path))
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "content_get"})
     def content_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, datetime]:
         return {
             x["sha1"]: datetime.fromtimestamp(x["ts"], timezone.utc)
@@ -170,6 +178,7 @@ class ProvenanceStorageMongoDb:
             )
         }
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "directory_add"})
     def directory_add(
         self, dirs: Union[Iterable[Sha1Git], Dict[Sha1Git, Optional[datetime]]]
     ) -> bool:
@@ -192,6 +201,7 @@ class ProvenanceStorageMongoDb:
                 self.db.directory.insert_one({"sha1": sha1, "ts": ts, "revision": {}})
         return True
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "directory_get"})
     def directory_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, datetime]:
         return {
             x["sha1"]: datetime.fromtimestamp(x["ts"], timezone.utc)
@@ -201,6 +211,7 @@ class ProvenanceStorageMongoDb:
             )
         }
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "entity_get_all"})
     def entity_get_all(self, entity: EntityType) -> Set[Sha1Git]:
         return {
             x["sha1"]
@@ -209,10 +220,12 @@ class ProvenanceStorageMongoDb:
             )
         }
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "location_add"})
     def location_add(self, paths: Iterable[bytes]) -> bool:
         # TODO: implement this methods if path are to be stored in a separate collection
         return True
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "location_get_all"})
     def location_get_all(self) -> Set[bytes]:
         contents = self.db.content.find({}, {"revision": 1, "_id": 0, "directory": 1})
         paths: List[Iterable[bytes]] = []
@@ -225,6 +238,7 @@ class ProvenanceStorageMongoDb:
             paths.extend(value for _, value in each_dir["revision"].items())
         return set(sum(paths, []))
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "open"})
     def open(self) -> None:
         if self.engine == "mongomock":
             self.db = mongomock.MongoClient(**self.conn_args).get_database(self.dbname)
@@ -232,6 +246,7 @@ class ProvenanceStorageMongoDb:
             # assume real MongoDB server by default
             self.db = pymongo.MongoClient(**self.conn_args).get_database(self.dbname)
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "origin_add"})
     def origin_add(self, orgs: Dict[Sha1Git, str]) -> bool:
         existing = {
             x["sha1"]: x
@@ -245,6 +260,7 @@ class ProvenanceStorageMongoDb:
                 self.db.origin.insert_one({"sha1": sha1, "url": url})
         return True
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "origin_get"})
     def origin_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, str]:
         return {
             x["sha1"]: x["url"]
@@ -253,6 +269,7 @@ class ProvenanceStorageMongoDb:
             )
         }
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "revision_add"})
     def revision_add(
         self, revs: Union[Iterable[Sha1Git], Dict[Sha1Git, RevisionData]]
     ) -> bool:
@@ -294,6 +311,7 @@ class ProvenanceStorageMongoDb:
                 )
         return True
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "revision_get"})
     def revision_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, RevisionData]:
         return {
             x["sha1"]: RevisionData(
@@ -309,6 +327,7 @@ class ProvenanceStorageMongoDb:
             )
         }
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "relation_add"})
     def relation_add(
         self, relation: RelationType, data: Dict[Sha1Git, Set[RelationData]]
     ) -> bool:
@@ -365,6 +384,7 @@ class ProvenanceStorageMongoDb:
                 )
         return True
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "relation_get"})
     def relation_get(
         self, relation: RelationType, ids: Iterable[Sha1Git], reverse: bool = False
     ) -> Dict[Sha1Git, Set[RelationData]]:
@@ -443,6 +463,7 @@ class ProvenanceStorageMongoDb:
                             )
             return result
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "relation_get_all"})
     def relation_get_all(
         self, relation: RelationType
     ) -> Dict[Sha1Git, Set[RelationData]]:
@@ -485,5 +506,6 @@ class ProvenanceStorageMongoDb:
                 for src_sha1, denorm in src_objs.items()
             }
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "with_path"})
     def with_path(self) -> bool:
         return True

@@ -17,6 +17,7 @@ import psycopg2.extras
 from typing_extensions import Literal
 
 from swh.core.db import BaseDb
+from swh.core.statsd import statsd
 from swh.model.model import Sha1Git
 
 from ..interface import (
@@ -29,6 +30,8 @@ from ..interface import (
 )
 
 LOGGER = logging.getLogger(__name__)
+
+STORAGE_DURATION_METRIC = "swh_provenance_storage_postgresql_duration_seconds"
 
 
 class ProvenanceStoragePostgreSql:
@@ -71,14 +74,17 @@ class ProvenanceStoragePostgreSql:
     def denormalized(self) -> bool:
         return "denormalized" in self.flavor
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "close"})
     def close(self) -> None:
         self.conn.close()
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "content_add"})
     def content_add(
         self, cnts: Union[Iterable[Sha1Git], Dict[Sha1Git, Optional[datetime]]]
     ) -> bool:
         return self._entity_set_date("content", cnts)
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "content_find_first"})
     def content_find_first(self, id: Sha1Git) -> Optional[ProvenanceResult]:
         sql = "SELECT * FROM swh_provenance_content_find_first(%s)"
         with self.transaction(readonly=True) as cursor:
@@ -86,6 +92,7 @@ class ProvenanceStoragePostgreSql:
             row = cursor.fetchone()
         return ProvenanceResult(**row) if row is not None else None
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "content_find_all"})
     def content_find_all(
         self, id: Sha1Git, limit: Optional[int] = None
     ) -> Generator[ProvenanceResult, None, None]:
@@ -94,22 +101,27 @@ class ProvenanceStoragePostgreSql:
             cursor.execute(query=sql, vars=(id, limit))
             yield from (ProvenanceResult(**row) for row in cursor)
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "content_get"})
     def content_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, datetime]:
         return self._entity_get_date("content", ids)
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "directory_add"})
     def directory_add(
         self, dirs: Union[Iterable[Sha1Git], Dict[Sha1Git, Optional[datetime]]]
     ) -> bool:
         return self._entity_set_date("directory", dirs)
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "directory_get"})
     def directory_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, datetime]:
         return self._entity_get_date("directory", ids)
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "entity_get_all"})
     def entity_get_all(self, entity: EntityType) -> Set[Sha1Git]:
         with self.transaction(readonly=True) as cursor:
             cursor.execute(f"SELECT sha1 FROM {entity.value}")
             return {row["sha1"] for row in cursor}
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "location_add"})
     def location_add(self, paths: Iterable[bytes]) -> bool:
         if not self.with_path():
             return True
@@ -130,11 +142,13 @@ class ProvenanceStoragePostgreSql:
                 raise
         return False
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "location_get_all"})
     def location_get_all(self) -> Set[bytes]:
         with self.transaction(readonly=True) as cursor:
             cursor.execute("SELECT location.path AS path FROM location")
             return {row["path"] for row in cursor}
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "origin_add"})
     def origin_add(self, orgs: Dict[Sha1Git, str]) -> bool:
         try:
             if orgs:
@@ -154,12 +168,14 @@ class ProvenanceStoragePostgreSql:
                 raise
         return False
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "open"})
     def open(self) -> None:
         self.conn = BaseDb.connect(**self.conn_args).conn
         BaseDb.adapt_conn(self.conn)
         with self.transaction() as cursor:
             cursor.execute("SET timezone TO 'UTC'")
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "origin_get"})
     def origin_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, str]:
         urls: Dict[Sha1Git, str] = {}
         sha1s = tuple(ids)
@@ -176,6 +192,7 @@ class ProvenanceStoragePostgreSql:
                 urls.update((row["sha1"], row["url"]) for row in cursor)
         return urls
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "revision_add"})
     def revision_add(
         self, revs: Union[Iterable[Sha1Git], Dict[Sha1Git, RevisionData]]
     ) -> bool:
@@ -205,6 +222,7 @@ class ProvenanceStoragePostgreSql:
                 raise
         return False
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "revision_get"})
     def revision_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, RevisionData]:
         result: Dict[Sha1Git, RevisionData] = {}
         sha1s = tuple(ids)
@@ -226,6 +244,7 @@ class ProvenanceStoragePostgreSql:
                 )
         return result
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "relation_add"})
     def relation_add(
         self, relation: RelationType, data: Dict[Sha1Git, Set[RelationData]]
     ) -> bool:
@@ -254,11 +273,13 @@ class ProvenanceStoragePostgreSql:
                 raise
         return False
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "relation_get"})
     def relation_get(
         self, relation: RelationType, ids: Iterable[Sha1Git], reverse: bool = False
     ) -> Dict[Sha1Git, Set[RelationData]]:
         return self._relation_get(relation, ids, reverse)
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "relation_get_all"})
     def relation_get_all(
         self, relation: RelationType
     ) -> Dict[Sha1Git, Set[RelationData]]:
@@ -338,5 +359,6 @@ class ProvenanceStoragePostgreSql:
                     result.setdefault(src, set()).add(RelationData(**row))
         return result
 
+    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "with_path"})
     def with_path(self) -> bool:
         return "with-path" in self.flavor

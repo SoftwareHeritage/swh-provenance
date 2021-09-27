@@ -11,6 +11,7 @@ from typing import Dict, Generator, Iterable, Optional, Set, Tuple, Type
 
 from typing_extensions import Literal, TypedDict
 
+from swh.core.statsd import statsd
 from swh.model.model import Sha1Git
 
 from .interface import (
@@ -24,6 +25,8 @@ from .interface import (
 from .model import DirectoryEntry, FileEntry, OriginEntry, RevisionEntry
 
 LOGGER = logging.getLogger(__name__)
+
+BACKEND_DURATION_METRIC = "swh_provenance_backend_duration_seconds"
 
 
 class DatetimeCache(TypedDict):
@@ -94,11 +97,15 @@ class Provenance:
     def close(self) -> None:
         self.storage.close()
 
+    @statsd.timed(metric=BACKEND_DURATION_METRIC, tags={"method": "flush"})
     def flush(self) -> None:
         self.flush_revision_content_layer()
         self.flush_origin_revision_layer()
         self.clear_caches()
 
+    @statsd.timed(
+        metric=BACKEND_DURATION_METRIC, tags={"method": "flush_origin_revision"}
+    )
     def flush_origin_revision_layer(self) -> None:
         # Origins and revisions should be inserted first so that internal ids'
         # resolution works properly.
@@ -159,6 +166,9 @@ class Provenance:
                     RelationType.REV_IN_ORG,
                 )
 
+    @statsd.timed(
+        metric=BACKEND_DURATION_METRIC, tags={"method": "flush_revision_content"}
+    )
     def flush_revision_content_layer(self) -> None:
         # Register in the storage all content, directories and revisions that are
         # involved in this layer's associated relations.

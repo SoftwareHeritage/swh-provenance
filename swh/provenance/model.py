@@ -8,9 +8,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Iterable, Iterator, List, Optional
 
-from swh.model.hashutil import hash_to_bytes
-from swh.model.identifiers import origin_identifier
-from swh.model.model import Sha1Git
+from swh.model.model import Origin, Sha1Git
 
 from .archive import ArchiveInterface
 
@@ -18,7 +16,7 @@ from .archive import ArchiveInterface
 class OriginEntry:
     def __init__(self, url: str, snapshot: Sha1Git) -> None:
         self.url = url
-        self.id: Sha1Git = hash_to_bytes(origin_identifier({"url": self.url}))
+        self.id = Origin(url=self.url).id
         self.snapshot = snapshot
         self._revisions: Optional[List[RevisionEntry]] = None
 

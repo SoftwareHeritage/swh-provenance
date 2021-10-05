@@ -9,8 +9,7 @@ import os
 from typing import Any, Dict, Iterable, Optional, Set, Tuple
 
 from swh.model.hashutil import hash_to_bytes
-from swh.model.identifiers import origin_identifier
-from swh.model.model import Sha1Git
+from swh.model.model import Origin, Sha1Git
 from swh.provenance.archive import ArchiveInterface
 from swh.provenance.interface import (
     EntityType,
@@ -129,7 +128,7 @@ def test_provenance_storage_origin(
     # Test origin methods.
     # Add all origins present in the current repo to the storage. Then check that the
     # returned results when querying are the same.
-    orgs = {hash_to_bytes(origin_identifier(org)): org["url"] for org in data["origin"]}
+    orgs = {Origin(url=org["url"]).id: org["url"] for org in data["origin"]}
     assert orgs
     assert provenance_storage.origin_add(orgs)
     assert provenance_storage.origin_get(set(orgs.keys())) == orgs
@@ -148,16 +147,15 @@ def test_provenance_storage_revision(
     # Add all revisions present in the current repo to the storage, assigning their
     # dates and an arbitrary origin to each one. Then check that the returned results
     # when querying are the same.
-    origin = next(iter(data["origin"]))
-    origin_sha1 = hash_to_bytes(origin_identifier(origin))
+    origin = Origin(url=next(iter(data["origin"]))["url"])
     # Origin must be inserted in advance.
-    assert provenance_storage.origin_add({origin_sha1: origin["url"]})
+    assert provenance_storage.origin_add({origin.id: origin.url})
 
     revs = {rev["id"] for idx, rev in enumerate(data["revision"]) if idx % 6 == 0}
     rev_data = {
         rev["id"]: RevisionData(
             date=ts2dt(rev["date"]) if idx % 2 != 0 else None,
-            origin=origin_sha1 if idx % 3 != 0 else None,
+            origin=origin.id if idx % 3 != 0 else None,
         )
         for idx, rev in enumerate(data["revision"])
         if idx % 6 != 0
@@ -316,10 +314,7 @@ def test_provenance_storage_relation(
     # Test revision-in-origin relation.
     # Origins must be inserted in advance (cannot be done by `entity_add` inside
     # `relation_add_and_compare_result`).
-    orgs = {
-        hash_to_bytes(origin_identifier(origin)): origin["url"]
-        for origin in data["origin"]
-    }
+    orgs = {Origin(url=org["url"]).id: org["url"] for org in data["origin"]}
     assert provenance_storage.origin_add(orgs)
     # Add all revisions that are head of some snapshot branch to the corresponding
     # origin.
@@ -332,9 +327,7 @@ def test_provenance_storage_relation(
                         if branch["target_type"] == "revision":
                             rev_in_org.setdefault(branch["target"], set()).add(
                                 RelationData(
-                                    dst=hash_to_bytes(
-                                        origin_identifier({"url": status["origin"]})
-                                    ),
+                                    dst=Origin(url=status["origin"]).id,
                                     path=None,
                                 )
                             )

@@ -23,6 +23,7 @@ from .interface import (
     RevisionData,
 )
 from .model import DirectoryEntry, FileEntry, OriginEntry, RevisionEntry
+from .util import path_normalize
 
 LOGGER = logging.getLogger(__name__)
 
@@ -286,14 +287,14 @@ class Provenance:
         self, directory: DirectoryEntry, blob: FileEntry, prefix: bytes
     ) -> None:
         self.cache["content_in_directory"].add(
-            (blob.id, directory.id, normalize(os.path.join(prefix, blob.name)))
+            (blob.id, directory.id, path_normalize(os.path.join(prefix, blob.name)))
         )
 
     def content_add_to_revision(
         self, revision: RevisionEntry, blob: FileEntry, prefix: bytes
     ) -> None:
         self.cache["content_in_revision"].add(
-            (blob.id, revision.id, normalize(os.path.join(prefix, blob.name)))
+            (blob.id, revision.id, path_normalize(os.path.join(prefix, blob.name)))
         )
 
     def content_find_first(self, id: Sha1Git) -> Optional[ProvenanceResult]:
@@ -320,7 +321,7 @@ class Provenance:
         self, revision: RevisionEntry, directory: DirectoryEntry, path: bytes
     ) -> None:
         self.cache["directory_in_revision"].add(
-            (directory.id, revision.id, normalize(path))
+            (directory.id, revision.id, path_normalize(path))
         )
 
     def directory_get_date_in_isochrone_frontier(
@@ -415,7 +416,3 @@ class Provenance:
         return revision.id in dict(self.cache["revision_in_origin"]) or bool(
             self.storage.relation_get(RelationType.REV_IN_ORG, [revision.id])
         )
-
-
-def normalize(path: bytes) -> bytes:
-    return path[2:] if path.startswith(bytes("." + os.path.sep, "utf-8")) else path

@@ -24,13 +24,6 @@ create domain sha1_git as bytea check (length(value) = 20);
 -- UNIX path (absolute, relative, individual path component, etc.)
 create domain unix_path as bytea;
 
--- a relation destination ID (used for denormalized flavors: with-path vs. without-path)
-\if :dbflavor_with_path
-create type rel_dst as (id bigint, loc bigint);
-\else
-create domain rel_dst as bigint;
-\endif
-
 -- relation filter options for querying
 create type rel_flt as enum (
   'filter-src',
@@ -97,9 +90,10 @@ create table content_in_revision
     content  bigint not null,           -- internal identifier of the content blob
 \if :dbflavor_norm
     revision bigint not null,           -- internal identifier of the revision where the blob appears for the first time
-    location bigint                     -- location of the content relative to the revision root directory
+    location bigint                     -- location of the content relative to the revision's root directory
 \else
-    revision rel_dst[]                  -- internal reference of the revision (and location) where the blob appears for the first time
+    revision bigint[],                  -- internal identifiers of the revisions where the blob appears for the first time
+    location bigint[]                   -- locations of the content relative to the revisions' root directory
 \endif
     -- foreign key (content) references content (id),
     -- foreign key (revision) references revision (id),
@@ -120,7 +114,8 @@ create table content_in_directory
     directory bigint not null,          -- internal identifier of the directory containing the blob
     location  bigint                    -- location of the content relative to its parent directory in the isochrone frontier
 \else
-    directory rel_dst[]                 -- internal reference of the directory (and location) containing the blob
+    directory bigint[],                 -- internal reference of the directories containing the blob
+    location bigint[]                   -- locations of the content relative to its parent directories in the isochrone frontier
 \endif
     -- foreign key (content) references content (id),
     -- foreign key (directory) references directory (id),
@@ -139,9 +134,10 @@ create table directory_in_revision
     directory bigint not null,          -- internal identifier of the directory appearing in the revision
 \if :dbflavor_norm
     revision  bigint not null,          -- internal identifier of the revision containing the directory
-    location  bigint                    -- location of the directory relative to the revision root directory
+    location  bigint                    -- location of the directory relative to the revision's root directory
 \else
-    revision rel_dst[]                  -- internal reference of the revision (and location) containing the directory
+    revision bigint[],                  -- internal identifiers of the revisions containing the directory
+    location bigint[]                   -- locations of the directory relative to the revisions' root directory
 \endif
     -- foreign key (directory) references directory (id),
     -- foreign key (revision) references revision (id),

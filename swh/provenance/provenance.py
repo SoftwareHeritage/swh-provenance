@@ -28,6 +28,7 @@ from .util import path_normalize
 LOGGER = logging.getLogger(__name__)
 
 BACKEND_DURATION_METRIC = "swh_provenance_backend_duration_seconds"
+BACKEND_OPERATIONS_METRIC = "swh_provenance_backend_operations_total"
 
 
 class DatetimeCache(TypedDict):
@@ -117,6 +118,10 @@ class Provenance:
         }
         if urls:
             while not self.storage.origin_add(urls):
+                statsd.increment(
+                    metric=BACKEND_OPERATIONS_METRIC,
+                    tags={"method": "flush_origin_revision_retry_origin"},
+                )
                 LOGGER.warning(
                     "Unable to write origins urls to the storage. Retrying..."
                 )
@@ -135,6 +140,10 @@ class Provenance:
         }
         if rev_orgs:
             while not self.storage.revision_add(rev_orgs):
+                statsd.increment(
+                    metric=BACKEND_OPERATIONS_METRIC,
+                    tags={"method": "flush_origin_revision_retry_revision"},
+                )
                 LOGGER.warning(
                     "Unable to write revision entities to the storage. Retrying..."
                 )
@@ -148,6 +157,12 @@ class Provenance:
             while not self.storage.relation_add(
                 RelationType.REV_BEFORE_REV, rev_before_rev
             ):
+                statsd.increment(
+                    metric=BACKEND_OPERATIONS_METRIC,
+                    tags={
+                        "method": "flush_origin_revision_retry_revision_before_revision"
+                    },
+                )
                 LOGGER.warning(
                     "Unable to write %s rows to the storage. Retrying...",
                     RelationType.REV_BEFORE_REV,
@@ -162,6 +177,10 @@ class Provenance:
             for src, dst in self.cache["revision_in_origin"]:
                 rev_in_org.setdefault(src, set()).add(RelationData(dst=dst, path=None))
             while not self.storage.relation_add(RelationType.REV_IN_ORG, rev_in_org):
+                statsd.increment(
+                    metric=BACKEND_OPERATIONS_METRIC,
+                    tags={"method": "flush_origin_revision_retry_revision_in_origin"},
+                )
                 LOGGER.warning(
                     "Unable to write %s rows to the storage. Retrying...",
                     RelationType.REV_IN_ORG,
@@ -180,6 +199,10 @@ class Provenance:
         }
         if cnts:
             while not self.storage.content_add(cnts):
+                statsd.increment(
+                    metric=BACKEND_OPERATIONS_METRIC,
+                    tags={"method": "flush_revision_content_retry_content_none"},
+                )
                 LOGGER.warning(
                     "Unable to write content entities to the storage. Retrying..."
                 )
@@ -187,6 +210,10 @@ class Provenance:
         dirs = {dst for _, dst, _ in self.cache["content_in_directory"]}
         if dirs:
             while not self.storage.directory_add(dirs):
+                statsd.increment(
+                    metric=BACKEND_OPERATIONS_METRIC,
+                    tags={"method": "flush_revision_content_retry_directory_none"},
+                )
                 LOGGER.warning(
                     "Unable to write directory entities to the storage. Retrying..."
                 )
@@ -198,6 +225,10 @@ class Provenance:
         }
         if revs:
             while not self.storage.revision_add(revs):
+                statsd.increment(
+                    metric=BACKEND_OPERATIONS_METRIC,
+                    tags={"method": "flush_revision_content_retry_revision_none"},
+                )
                 LOGGER.warning(
                     "Unable to write revision entities to the storage. Retrying..."
                 )
@@ -210,6 +241,10 @@ class Provenance:
         }
         if paths:
             while not self.storage.location_add(paths):
+                statsd.increment(
+                    metric=BACKEND_OPERATIONS_METRIC,
+                    tags={"method": "flush_revision_content_retry_location"},
+                )
                 LOGGER.warning(
                     "Unable to write locations entities to the storage. Retrying..."
                 )
@@ -223,6 +258,10 @@ class Provenance:
             while not self.storage.relation_add(
                 RelationType.CNT_EARLY_IN_REV, cnt_in_rev
             ):
+                statsd.increment(
+                    metric=BACKEND_OPERATIONS_METRIC,
+                    tags={"method": "flush_revision_content_retry_content_in_revision"},
+                )
                 LOGGER.warning(
                     "Unable to write %s rows to the storage. Retrying...",
                     RelationType.CNT_EARLY_IN_REV,
@@ -233,6 +272,12 @@ class Provenance:
             for src, dst, path in self.cache["content_in_directory"]:
                 cnt_in_dir.setdefault(src, set()).add(RelationData(dst=dst, path=path))
             while not self.storage.relation_add(RelationType.CNT_IN_DIR, cnt_in_dir):
+                statsd.increment(
+                    metric=BACKEND_OPERATIONS_METRIC,
+                    tags={
+                        "method": "flush_revision_content_retry_content_in_directory"
+                    },
+                )
                 LOGGER.warning(
                     "Unable to write %s rows to the storage. Retrying...",
                     RelationType.CNT_IN_DIR,
@@ -243,6 +288,12 @@ class Provenance:
             for src, dst, path in self.cache["directory_in_revision"]:
                 dir_in_rev.setdefault(src, set()).add(RelationData(dst=dst, path=path))
             while not self.storage.relation_add(RelationType.DIR_IN_REV, dir_in_rev):
+                statsd.increment(
+                    metric=BACKEND_OPERATIONS_METRIC,
+                    tags={
+                        "method": "flush_revision_content_retry_directory_in_revision"
+                    },
+                )
                 LOGGER.warning(
                     "Unable to write %s rows to the storage. Retrying...",
                     RelationType.DIR_IN_REV,
@@ -257,6 +308,10 @@ class Provenance:
         }
         if cnt_dates:
             while not self.storage.content_add(cnt_dates):
+                statsd.increment(
+                    metric=BACKEND_OPERATIONS_METRIC,
+                    tags={"method": "flush_revision_content_retry_content_date"},
+                )
                 LOGGER.warning(
                     "Unable to write content dates to the storage. Retrying..."
                 )
@@ -268,6 +323,10 @@ class Provenance:
         }
         if dir_dates:
             while not self.storage.directory_add(dir_dates):
+                statsd.increment(
+                    metric=BACKEND_OPERATIONS_METRIC,
+                    tags={"method": "flush_revision_content_retry_directory_date"},
+                )
                 LOGGER.warning(
                     "Unable to write directory dates to the storage. Retrying..."
                 )
@@ -279,6 +338,10 @@ class Provenance:
         }
         if rev_dates:
             while not self.storage.revision_add(rev_dates):
+                statsd.increment(
+                    metric=BACKEND_OPERATIONS_METRIC,
+                    tags={"method": "flush_revision_content_retry_revision_date"},
+                )
                 LOGGER.warning(
                     "Unable to write revision dates to the storage. Retrying..."
                 )

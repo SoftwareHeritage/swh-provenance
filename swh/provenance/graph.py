@@ -17,8 +17,8 @@ from .archive import ArchiveInterface
 from .interface import ProvenanceInterface
 from .model import DirectoryEntry, RevisionEntry
 
-GRAPH_OPERATIONS_METRIC = "swh_provenance_graph_operations_total"
 GRAPH_DURATION_METRIC = "swh_provenance_graph_duration_seconds"
+GRAPH_OPERATIONS_METRIC = "swh_provenance_graph_operations_total"
 
 UTCMIN = datetime.min.replace(tzinfo=timezone.utc)
 

@@ -8,16 +8,17 @@ import sys
 from datetime import datetime, timezone
 
 import iso8601
+import yaml
 import zmq
+from swh.core import config
 from swh.provenance import get_provenance
 from swh.provenance.provenance import ProvenanceInterface
 
-UTCEPOCH = datetime.fromtimestamp(0, timezone.utc)
+# All generic config code should reside in swh.core.config
+CONFIG_ENVVAR = "SWH_CONFIG_FILENAME"
+DEFAULT_PATH = os.environ.get(CONFIG_ENVVAR, None)
 
-# TODO: take this from a configuration file
-conninfo = {
-    "provenance": {"cls": "postgresql", "db": {"service": "provenance"}},
-}
+UTCEPOCH = datetime.fromtimestamp(0, timezone.utc)
 
 
 def get_tables_stats(provenance: ProvenanceInterface):
@@ -90,8 +91,8 @@ def write_stats(filename, count, tables):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print("usage: server <filename> <port> [stats] [limit]")
+    if len(sys.argv) < 2:
+        print("usage: server <filename>")
         print("where")
         print(
             "    filename     : csv file containing the list of revisions to be iterated (one per"
@@ -99,25 +100,37 @@ if __name__ == "__main__":
         print(
             "                   line): revision sha1, date in ISO format, root directory sha1."
         )
-        print("    port         : server listening port.")
-        print(
-            "    stats        : number of iteration after which stats should be taken."
-        )
-        print(
-            "    limit        : max number of revisions to be retrieved from the file."
-        )
         exit(-1)
 
     filename = sys.argv[1]
-    port = int(sys.argv[2])
-    stats = int(sys.argv[3]) if len(sys.argv) > 3 else None
-    limit = int(sys.argv[4]) if len(sys.argv) > 4 else None
+
+    config_file = None  # TODO: Add as a cli option
+    if (
+        config_file is None
+        and DEFAULT_PATH is not None
+        and config.config_exists(DEFAULT_PATH)
+    ):
+        config_file = DEFAULT_PATH
+
+    if config_file is None or not os.path.exists(config_file):
+        print("No configuration provided")
+        exit(-1)
+
+    conf = yaml.safe_load(open(config_file, "rb"))["provenance"]
 
     context = zmq.Context()
     socket = context.socket(zmq.REP)
-    socket.bind(f"tcp://*:{port}")
+    socket.bind(f"tcp://*:{conf['rev_server']['port']}")
 
-    statsfile = f"stats_{conninfo['provenance']['db']['service']}_{datetime.now()}.csv"
+    storage_conf = (
+        conf["storage"]
+        if conf["storage"]["cls"] == "postgresql"
+        else conf["storage"]["storage_config"]
+    )
+    dbname = storage_conf["db"].get("dbname", storage_conf["db"].get("service"))
+
+    stats = conf["rev_server"].get("stats")
+    statsfile = f"stats_{dbname}_{datetime.now()}.csv"
     if stats is not None:
         init_stats(statsfile)
 
@@ -131,8 +144,9 @@ if __name__ == "__main__":
         )
     )
 
-    start = None
-    with get_provenance(**conninfo["provenance"]) as provenance:
+    limit = conf["rev_server"].get("limit")
+    skip = conf["rev_server"].get("skip", 0)
+    with get_provenance(**storage_conf) as provenance:
         for idx, (rev, date, root) in enumerate(revisions_provider):
             if iso8601.parse_date(date) <= UTCEPOCH:
                 continue
@@ -140,7 +154,7 @@ if __name__ == "__main__":
             if limit is not None and limit <= idx:
                 break
 
-            if stats is not None and idx > 0 and idx % stats == 0:
+            if stats is not None and idx > skip and idx % stats == 0:
                 write_stats(statsfile, idx, get_tables_stats(provenance))
 
             # Wait for next request from client

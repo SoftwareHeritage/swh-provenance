@@ -35,9 +35,12 @@ STORAGE_DURATION_METRIC = "swh_provenance_storage_postgresql_duration_seconds"
 
 
 class ProvenanceStoragePostgreSql:
-    def __init__(self, raise_on_commit: bool = False, **kwargs) -> None:
+    def __init__(
+        self, page_size: Optional[int] = None, raise_on_commit: bool = False, **kwargs
+    ) -> None:
         self.conn_args = kwargs
         self._flavor: Optional[str] = None
+        self.page_size = page_size
         self.raise_on_commit = raise_on_commit
 
     def __enter__(self) -> ProvenanceStorageInterface:
@@ -132,8 +135,11 @@ class ProvenanceStoragePostgreSql:
                     INSERT INTO location(path) VALUES %s
                       ON CONFLICT DO NOTHING
                     """
+                page_size = self.page_size or len(values)
                 with self.transaction() as cursor:
-                    psycopg2.extras.execute_values(cursor, sql, argslist=values)
+                    psycopg2.extras.execute_values(
+                        cursor, sql, argslist=values, page_size=page_size
+                    )
             return True
         except:  # noqa: E722
             # Unexpected error occurred, rollback all changes and log message
@@ -156,9 +162,13 @@ class ProvenanceStoragePostgreSql:
                     INSERT INTO origin(sha1, url) VALUES %s
                       ON CONFLICT DO NOTHING
                     """
+                page_size = self.page_size or len(orgs)
                 with self.transaction() as cursor:
                     psycopg2.extras.execute_values(
-                        cur=cursor, sql=sql, argslist=orgs.items()
+                        cur=cursor,
+                        sql=sql,
+                        argslist=orgs.items(),
+                        page_size=page_size,
                     )
             return True
         except:  # noqa: E722
@@ -212,8 +222,11 @@ class ProvenanceStoragePostgreSql:
                         date=LEAST(EXCLUDED.date, revision.date),
                         origin=COALESCE(EXCLUDED.origin, revision.origin)
                     """
+                page_size = self.page_size or len(data)
                 with self.transaction() as cursor:
-                    psycopg2.extras.execute_values(cur=cursor, sql=sql, argslist=data)
+                    psycopg2.extras.execute_values(
+                        cur=cursor, sql=sql, argslist=data, page_size=page_size
+                    )
             return True
         except:  # noqa: E722
             # Unexpected error occurred, rollback all changes and log message
@@ -253,7 +266,7 @@ class ProvenanceStoragePostgreSql:
             if rows:
                 rel_table = relation.value
                 src_table, *_, dst_table = rel_table.split("_")
-
+                page_size = self.page_size or len(rows)
                 # Put the next three queries in a manual single transaction:
                 # they use the same temp table
                 with self.transaction() as cursor:
@@ -262,6 +275,7 @@ class ProvenanceStoragePostgreSql:
                         cur=cursor,
                         sql="INSERT INTO tmp_relation_add(src, dst, path) VALUES %s",
                         argslist=rows,
+                        page_size=page_size,
                     )
                     sql = "SELECT swh_provenance_relation_add_from_temp(%s, %s, %s)"
                     cursor.execute(query=sql, vars=(rel_table, src_table, dst_table))
@@ -319,8 +333,11 @@ class ProvenanceStoragePostgreSql:
                       ON CONFLICT (sha1) DO
                       UPDATE SET date=LEAST(EXCLUDED.date,{entity}.date)
                     """
+                page_size = self.page_size or len(data)
                 with self.transaction() as cursor:
-                    psycopg2.extras.execute_values(cursor, sql, argslist=data.items())
+                    psycopg2.extras.execute_values(
+                        cursor, sql, argslist=data.items(), page_size=page_size
+                    )
             return True
         except:  # noqa: E722
             # Unexpected error occurred, rollback all changes and log message

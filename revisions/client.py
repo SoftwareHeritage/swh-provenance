@@ -1,23 +1,20 @@
 #!/usr/bin/env python
 
-import iso8601
 import logging
 import logging.handlers
 import sys
 import time
-import zmq
-
+from datetime import timezone
 from multiprocessing import Process
 from threading import Thread
+from typing import Any, Dict
 
-
+import iso8601
+import zmq
 from swh.model.hashutil import hash_to_bytes
 from swh.provenance import get_archive, get_provenance
 from swh.provenance.archive import ArchiveInterface
-from swh.provenance.provenance import revision_add
-from swh.provenance.model import RevisionEntry
-from typing import Any, Dict
-
+from swh.provenance.revision import RevisionEntry, revision_add
 
 # TODO: take this from a configuration file
 conninfo = {
@@ -31,12 +28,9 @@ conninfo = {
         },
     },
     "provenance": {
-        "cls": "local",
-        "db": {
-            "host": "/var/run/postgresql",
-            "port": "5436",
-            "dbname": "provenance",
-        },
+        "cls": "rabbitmq",
+        "url": "amqp://localhost:5672/%2f",
+        "storage_config": {"cls": "postgresql", "db": {"service": "provenance"}},
     },
 }
 
@@ -93,10 +87,10 @@ class Worker(Thread):
         super().__init__()
         self.idx = idx
         self.archive = archive
-        self.server = conninfo["server"]
+        self.server = conninfo["rev_server"]
         # Each worker has its own provenance object to isolate
         # the processing of each revision.
-        self.provenance = get_provenance(**conninfo["provenance"])
+        # self.provenance = get_provenance(**conninfo["provenance"])
         self.trackall = trackall
         self.lower = lower
         self.mindepth = mindepth
@@ -108,28 +102,32 @@ class Worker(Thread):
         context = zmq.Context()
         socket = context.socket(zmq.REQ)
         socket.connect(self.server)
-        while True:
-            socket.send(b"NEXT")
-            response = socket.recv_json()
+        with get_provenance(**conninfo["provenance"]) as provenance:
+            while True:
+                socket.send(b"NEXT")
+                response = socket.recv_json()
 
-            if response is None:
-                break
+                if response is None:
+                    break
 
-            revision = RevisionEntry(
-                hash_to_bytes(response["rev"]),
-                date=iso8601.parse_date(
-                    response["date"], default_timezone=timezone.utc
-                ),
-                root=hash_to_bytes(response["root"]),
-            )
-            revision_add(
-                self.provenance,
-                self.archive,
-                [revision],
-                trackall=self.trackall,
-                lower=self.lower,
-                mindepth=self.mindepth,
-            )
+                # Ensure date has a valid timezone
+                date = iso8601.parse_date(response["date"])
+                if date.tzinfo is None:
+                    date = date.replace(tzinfo=timezone.utc)
+
+                revision = RevisionEntry(
+                    hash_to_bytes(response["rev"]),
+                    date=date,
+                    root=hash_to_bytes(response["root"]),
+                )
+                revision_add(
+                    provenance,
+                    self.archive,
+                    [revision],
+                    trackall=self.trackall,
+                    lower=self.lower,
+                    mindepth=self.mindepth,
+                )
 
 
 if __name__ == "__main__":
@@ -144,12 +142,7 @@ if __name__ == "__main__":
     trackall = sys.argv[3].lower() != "false"
     lower = sys.argv[4].lower() != "false"
     mindepth = int(sys.argv[5])
-    dbname = conninfo["provenance"]["db"]["dbname"]
-    conninfo["server"] = f"tcp://localhost:{port}"
-    # conninfo["server"] = f"tcp://128.93.73.182:{port}"  # petit-palais
-
-    # Set logging level
-    logging.getLogger().setLevel(logging.INFO)
+    conninfo["rev_server"] = f"tcp://localhost:{port}"
 
     # Start counter
     start = time.time()

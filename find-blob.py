@@ -8,7 +8,6 @@ from swh.model.cli import identify_object
 from swh.model.hashutil import hash_to_bytes, hash_to_hex
 from swh.provenance import get_provenance
 
-
 # TODO: take conninfo as command line arguments.
 conninfo = {
     "cls": "local",
@@ -37,20 +36,18 @@ if __name__ == "__main__":
 
     if first is not None:
         print(
-            "==============================================================================="
+            "==========================================================================="
         )
         print(f"First occurrence of {obj}:")
         print(
-            "   content: swh:1:cnt:{cnt}, revision: swh:1:rev:{rev}, date: {date}, location: {path}".format(
-                cnt=hash_to_hex(first[0]),
-                rev=hash_to_hex(first[1]),
-                date=first[2],
-                path=os.fsdecode(first[3]),
-            )
+            f" content: swh:1:cnt:{hash_to_hex(first[0])},"
+            f" revision: swh:1:rev:{hash_to_hex(first[1])},"
+            f" date: {first[2]},"
+            f" location: {os.fsdecode(first[3])}"
         )
 
         print(
-            "==============================================================================="
+            "==========================================================================="
         )
         if limit is None:
             print(f"All occurrences of {obj}:")
@@ -58,12 +55,10 @@ if __name__ == "__main__":
             print(f"First {limit} occurrences of {obj}:")
         for occur in provenance.content_find_all(sha1, limit=limit):
             print(
-                "   content: swh:1:cnt:{cnt}, revision: swh:1:rev:{rev}, date: {date}, location: {path}".format(
-                    cnt=hash_to_hex(occur[0]),
-                    rev=hash_to_hex(occur[1]),
-                    date=occur[2],
-                    path=os.fsdecode(occur[3]),
-                )
+                f" content: swh:1:cnt:{hash_to_hex(occur[0])},"
+                f" revision: swh:1:rev:{hash_to_hex(occur[1])},"
+                f" date: {occur[2]},"
+                f" location: {os.fsdecode(occur[3])}"
             )
 
     else:

@@ -3,9 +3,9 @@
 import io
 import sys
 
-from swh.model.hashutil import hash_to_hex, hash_to_bytes
-from swh.provenance.postgresql.db_utils import connect
-
+import psycopg2
+from swh.core.db import BaseDb
+from swh.model.hashutil import hash_to_bytes, hash_to_hex
 
 conninfo = {
     "host": "db.internal.softwareheritage.org",
@@ -22,7 +22,8 @@ if __name__ == "__main__":
     filename = sys.argv[1]
 
     print(f"Connection to database: {conninfo}...")
-    conn = connect(conninfo)
+    conn: psycopg2.connection = BaseDb.connect(**conninfo).conn
+    BaseDb.adapt_conn(conn)
     cursor = conn.cursor()
 
     revisions = set(

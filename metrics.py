@@ -1,14 +1,8 @@
 #!/usr/bin/env python
 
-import io
-import json
-import os
-import sys
-
-from swh.model.hashutil import hash_to_hex
 from swh.provenance import get_provenance
+from swh.provenance.postgresql.provenance import ProvenanceStoragePostgreSql
 from swh.provenance.provenance import ProvenanceInterface
-
 
 # TODO: take conninfo as command line arguments.
 conninfo = {
@@ -18,6 +12,9 @@ conninfo = {
 
 
 def get_tables_stats(provenance: ProvenanceInterface):
+    # TODO: use ProvenanceStorageInterface instead!
+    assert isinstance(provenance.storage, ProvenanceStoragePostgreSql)
+
     tables = {
         "content": dict(),
         "content_early_in_rev": dict(),
@@ -29,20 +26,21 @@ def get_tables_stats(provenance: ProvenanceInterface):
     }
 
     for table in tables:
-        provenance.cursor.execute(f"SELECT COUNT(*) FROM {table}")
-        tables[table]["row_count"] = provenance.cursor.fetchone()[0]
+        with provenance.storage.transaction() as cursor:
+            cursor.execute(f"SELECT COUNT(*) FROM {table}")
+            tables[table]["row_count"] = cursor.fetchone()[0]
 
-        provenance.cursor.execute(f"SELECT pg_table_size('{table}')")
-        tables[table]["table_size"] = provenance.cursor.fetchone()[0]
+            cursor.execute(f"SELECT pg_table_size('{table}')")
+            tables[table]["table_size"] = cursor.fetchone()[0]
 
-        provenance.cursor.execute(f"SELECT pg_indexes_size('{table}')")
-        tables[table]["indexes_size"] = provenance.cursor.fetchone()[0]
+            cursor.execute(f"SELECT pg_indexes_size('{table}')")
+            tables[table]["indexes_size"] = cursor.fetchone()[0]
 
-        # provenance.cursor.execute(f"SELECT pg_total_relation_size('{table}')")
-        # relation_size[table] = provenance.cursor.fetchone()[0]
-        tables[table]["relation_size"] = (
-            tables[table]["table_size"] + tables[table]["indexes_size"]
-        )
+            # cursor.execute(f"SELECT pg_total_relation_size('{table}')")
+            # relation_size[table] = cursor.fetchone()[0]
+            tables[table]["relation_size"] = (
+                tables[table]["table_size"] + tables[table]["indexes_size"]
+            )
 
     return tables
 
@@ -50,6 +48,8 @@ def get_tables_stats(provenance: ProvenanceInterface):
 if __name__ == "__main__":
     # Get provenance object.
     provenance = get_provenance(**conninfo)
+    # TODO: use ProvenanceStorageInterface instead!
+    assert isinstance(provenance.storage, ProvenanceStoragePostgreSql)
 
     tables = get_tables_stats(provenance)
 
@@ -102,56 +102,57 @@ if __name__ == "__main__":
     )
 
     # Metrics for frontiers defined in root directories.
-    provenance.cursor.execute(
-        f"""SELECT dir
-              FROM directory_in_rev
-              INNER JOIN location
-                ON loc=location.id
-              WHERE location.path=%s""",
-        (b"",),
-    )
-    directories = list(provenance.cursor.fetchall())
-    print(f"Total root frontiers used:              {len(directories)}")
+    with provenance.storage.transaction() as cursor:
+        cursor.execute(
+            f"""SELECT dir
+                FROM directory_in_rev
+                INNER JOIN location
+                    ON loc=location.id
+                WHERE location.path=%s""",
+            (b"",),
+        )
+        directories = list(cursor.fetchall())
+        print(f"Total root frontiers used:              {len(directories)}")
 
-    provenance.cursor.execute(
-        f"""SELECT dir
-              FROM directory_in_rev
-              INNER JOIN location
-                ON loc=location.id
-              WHERE location.path=%s
-              GROUP BY dir""",
-        (b"",),
-    )
-    directories = list(provenance.cursor.fetchall())
-    print(f"Total distinct root frontiers:          {len(directories)}")
+        cursor.execute(
+            f"""SELECT dir
+                FROM directory_in_rev
+                INNER JOIN location
+                    ON loc=location.id
+                WHERE location.path=%s
+                GROUP BY dir""",
+            (b"",),
+        )
+        directories = list(cursor.fetchall())
+        print(f"Total distinct root frontiers:          {len(directories)}")
 
-    provenance.cursor.execute(
-        f"""SELECT roots.dir
-              FROM (SELECT dir, loc
-                      FROM directory_in_rev
-                      INNER JOIN location
-                        ON loc=location.id
-                      WHERE location.path=%s) AS roots
-              JOIN directory_in_rev
-                ON directory_in_rev.dir=roots.dir
-              WHERE directory_in_rev.loc!=roots.loc""",
-        (b"",),
-    )
-    directories = list(provenance.cursor.fetchall())
-    print(f"Total other uses of these frontiers:    {len(directories)}")
+        cursor.execute(
+            f"""SELECT roots.dir
+                FROM (SELECT dir, loc
+                        FROM directory_in_rev
+                        INNER JOIN location
+                            ON loc=location.id
+                        WHERE location.path=%s) AS roots
+                JOIN directory_in_rev
+                    ON directory_in_rev.dir=roots.dir
+                WHERE directory_in_rev.loc!=roots.loc""",
+            (b"",),
+        )
+        directories = list(cursor.fetchall())
+        print(f"Total other uses of these frontiers:    {len(directories)}")
 
-    provenance.cursor.execute(
-        f"""SELECT roots.dir
-              FROM (SELECT dir, loc
-                      FROM directory_in_rev
-                      INNER JOIN location
-                        ON loc=location.id
-                      WHERE location.path=%s) AS roots
-              JOIN directory_in_rev
-                ON directory_in_rev.dir=roots.dir
-              WHERE directory_in_rev.loc!=roots.loc
-              GROUP BY roots.dir""",
-        (b"",),
-    )
-    directories = list(provenance.cursor.fetchall())
-    print(f"Total distinct other uses of frontiers: {len(directories)}")
+        cursor.execute(
+            f"""SELECT roots.dir
+                FROM (SELECT dir, loc
+                        FROM directory_in_rev
+                        INNER JOIN location
+                            ON loc=location.id
+                        WHERE location.path=%s) AS roots
+                JOIN directory_in_rev
+                    ON directory_in_rev.dir=roots.dir
+                WHERE directory_in_rev.loc!=roots.loc
+                GROUP BY roots.dir""",
+            (b"",),
+        )
+        directories = list(cursor.fetchall())
+        print(f"Total distinct other uses of frontiers: {len(directories)}")

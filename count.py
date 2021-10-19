@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 
+import io
 import sys
 
 
-def linecount(filename):
+def linecount(filename: str) -> None:
     count = 0
-    for line in open(filename).xreadlines():
+    for _ in io.open(filename).xreadlines():
         count += 1
     return count
 

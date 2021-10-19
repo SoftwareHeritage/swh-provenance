@@ -7,7 +7,7 @@ import os
 
 from swh.model.hashutil import hash_to_hex
 from swh.provenance import get_provenance
-from swh.provenance.postgresql.provenance import ProvenanceStoragePostgreSql
+from swh.provenance.interface import EntityType
 
 # TODO: take conninfo as command line arguments.
 conninfo1 = {
@@ -106,17 +106,8 @@ if __name__ == "__main__":
     provenance1 = get_provenance(**conninfo1)
     provenance2 = get_provenance(**conninfo2)
 
-    # TODO: use ProvenanceStorageInterface instead!
-    assert isinstance(provenance1.storage, ProvenanceStoragePostgreSql)
-    assert isinstance(provenance2.storage, ProvenanceStoragePostgreSql)
-
-    with provenance1.storage.transaction() as cursor:
-        cursor.execute("""SELECT id FROM content ORDER BY id""")
-        content1 = set(map(lambda row: row[0], cursor.fetchall()))
-
-    with provenance2.storage.transaction() as cursor:
-        cursor.execute("""SELECT sha1 FROM content ORDER BY sha1""")
-        content2 = set(map(lambda row: row[0], cursor.fetchall()))
+    content1 = provenance1.storage.entity_get_all(EntityType.CONTENT)
+    content2 = provenance2.storage.entity_get_all(EntityType.CONTENT)
 
     if content1 == content2:
         # If lists of content match, we check that occurrences does as well.
@@ -126,20 +117,7 @@ if __name__ == "__main__":
         mismatch = False
         # Iterate over all content querying all its occurrences on both databases.
         for i, blobid in enumerate(content1):
-            with provenance1.storage.transaction() as cursor:
-                cursor.execute(
-                    """SELECT content_early_in_rev.blob,
-                            content_early_in_rev.rev,
-                            revision.date,
-                            content_early_in_rev.path
-                        FROM content_early_in_rev
-                        JOIN revision
-                        ON revision.id=content_early_in_rev.rev
-                        WHERE content_early_in_rev.blob=%s
-                        ORDER BY date, rev, path ASC LIMIT 1""",
-                    (blobid,),
-                )
-                occurrence1 = cursor.fetchone()
+            occurrence1 = provenance1.content_find_first(blobid)
             occurrence2 = provenance2.content_find_first(blobid)
 
             # If there is a mismatch log it to file. We can only compare the timestamp

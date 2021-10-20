@@ -100,20 +100,23 @@ class Worker(Thread):
                 if response is None:
                     break
 
-                # Ensure date has a valid timezone
-                date = iso8601.parse_date(response["date"])
-                if date.tzinfo is None:
-                    date = date.replace(tzinfo=timezone.utc)
-
-                revision = RevisionEntry(
-                    hash_to_bytes(response["rev"]),
-                    date=date,
-                    root=hash_to_bytes(response["root"]),
-                )
+                revisions = []
+                for revision in response:
+                    # Ensure date has a valid timezone
+                    date = iso8601.parse_date(revision["date"])
+                    if date.tzinfo is None:
+                        date = date.replace(tzinfo=timezone.utc)
+                    revisions.append(
+                        RevisionEntry(
+                            hash_to_bytes(revision["rev"]),
+                            date=date,
+                            root=hash_to_bytes(revision["root"]),
+                        )
+                    )
                 revision_add(
                     provenance,
                     self.archive,
-                    [revision],
+                    revisions,
                     trackall=self.trackall,
                     lower=self.lower,
                     mindepth=self.mindepth,

@@ -4,10 +4,12 @@ import glob
 import io
 import logging
 import os
+from typing import Iterable
 
 from swh.model.hashutil import hash_to_hex
+from swh.model.model import Sha1Git
 from swh.provenance import get_provenance
-from swh.provenance.interface import EntityType
+from swh.provenance.interface import EntityType, ProvenanceResult
 
 # TODO: take conninfo as command line arguments.
 conninfo1 = {
@@ -21,37 +23,37 @@ conninfo2 = {
 
 
 # Write log file with occurrence detail.
-def logdiff(filename, occurrences):
+def logdiff(filename: str, occurrences: Iterable[ProvenanceResult]) -> None:
     with io.open(filename, "a") as outfile:
-        for row in occurrences:
+        for occur in occurrences:
             try:
                 # Try to decode path.
-                path = os.fsdecode(row[3]).decode("utf-8", "replace")
+                path = os.fsdecode(occur.path).decode("utf-8", "replace")
             except:
                 # Use its raw value if not possible
-                path = row[3]
+                path = occur.path
             outfile.write(
                 "{blob},{rev},{date},{path}\n".format(
-                    blob=hash_to_hex(row[0]),
-                    rev=hash_to_hex(row[1]),
-                    date=row[2],
+                    blob=hash_to_hex(occur.content),
+                    rev=hash_to_hex(occur.revision),
+                    date=occur.date,
                     path=path,
                 )
             )
 
 
 # Write log file with list of occurrences.
-def loglist(filename, occurrences):
+def loglist(filename: str, occurrences: Iterable[Sha1Git]) -> None:
     with io.open(filename, "a") as outfile:
-        for blobid in occurrences:
-            outfile.write("{blob}\n".format(blob=hash_to_hex(blobid)))
+        for sha1 in occurrences:
+            outfile.write("{blob}\n".format(blob=hash_to_hex(sha1)))
 
 
 # Output log file name.
 nextidx = None
 
 
-def outfilename(suffix):
+def outfilename(suffix: str) -> str:
     global nextidx
     basename, _ = os.path.splitext(os.path.basename(os.path.abspath(__file__)))
     prefix = os.path.join(os.getcwd(), basename + "-")
@@ -69,14 +71,14 @@ def outfilename(suffix):
 # Print iterations progress.
 # TODO: move to utils module.
 def progress(
-    iteration,
-    total,
-    prefix="Progress:",
-    suffix="Complete",
-    decimals=1,
-    length=50,
-    fill="█",
-    printEnd="\r",
+    iteration: int,
+    total: int,
+    prefix: str = "Progress:",
+    suffix: str = "Complete",
+    decimals: int = 1,
+    length: int = 50,
+    fill: str = "█",
+    printEnd: str = "\r",
 ):
     """
     Call in a loop to create terminal progress bar
@@ -104,39 +106,41 @@ if __name__ == "__main__":
     logging.getLogger().setLevel(logging.INFO)
 
     # Get provenance object for both databases and query its lists of content.
-    provenance1 = get_provenance(**conninfo1)
-    provenance2 = get_provenance(**conninfo2)
+    with get_provenance(**conninfo1) as provenance1:
+        with get_provenance(**conninfo2) as provenance2:
+            content1 = provenance1.storage.entity_get_all(EntityType.CONTENT)
+            content2 = provenance2.storage.entity_get_all(EntityType.CONTENT)
 
-    content1 = provenance1.storage.entity_get_all(EntityType.CONTENT)
-    content2 = provenance2.storage.entity_get_all(EntityType.CONTENT)
+            if content1 == content2:
+                # If lists of content match, we check that occurrences does as well.
+                total = len(content1)
+                progress(0, total)
 
-    if content1 == content2:
-        # If lists of content match, we check that occurrences does as well.
-        total = len(content1)
-        progress(0, total)
+                mismatch = False
+                # Iterate over all content querying all its occurrences on both
+                # databases.
+                for i, sha1 in enumerate(content1):
+                    occurrences1 = list(provenance1.content_find_all(sha1))
+                    occurrences2 = list(provenance2.content_find_all(sha1))
 
-        mismatch = False
-        # Iterate over all content querying all its occurrences on both databases.
-        for i, blobid in enumerate(content1):
-            occurrences1 = list(provenance1.content_find_all(blobid))
-            occurrences2 = list(provenance2.content_find_all(blobid))
+                    # If there is a mismatch log it to file.
+                    if len(occurrences1) != len(occurrences2) or set(
+                        occurrences1
+                    ) != set(occurrences2):
+                        mismatch = True
+                        logging.warning(
+                            f"Occurrencies mismatch for {hash_to_hex(sha1)}"
+                        )
+                        logdiff(outfilename(conninfo1["db"]["dbname"]), occurrences1)
+                        logdiff(outfilename(conninfo2["db"]["dbname"]), occurrences2)
 
-            # If there is a mismatch log it to file.
-            if len(occurrences1) != len(occurrences2) or set(occurrences1) != set(
-                occurrences2
-            ):
-                mismatch = True
-                logging.warning(f"Occurrencies mismatch for {hash_to_hex(blobid)}")
-                logdiff(outfilename(conninfo1["db"]["dbname"]), occurrences1)
-                logdiff(outfilename(conninfo2["db"]["dbname"]), occurrences2)
+                    progress(i + 1, total)
 
-            progress(i + 1, total)
+                if not mismatch:
+                    logging.info("Databases are equivalent!")
 
-        if not mismatch:
-            logging.info("Databases are equivalent!")
-
-    else:
-        # If lists of content don't match, we are done.
-        loglist(outfilename(conninfo1["db"]["dbname"]), content1)
-        loglist(outfilename(conninfo2["db"]["dbname"]), content2)
-        logging.warning("Content lists are different")
+            else:
+                # If lists of content don't match, we are done.
+                loglist(outfilename(conninfo1["db"]["dbname"]), content1)
+                loglist(outfilename(conninfo2["db"]["dbname"]), content2)
+                logging.warning("Content lists are different")

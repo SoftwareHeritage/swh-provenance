@@ -47,112 +47,112 @@ def get_tables_stats(provenance: ProvenanceInterface):
 
 if __name__ == "__main__":
     # Get provenance object.
-    provenance = get_provenance(**conninfo)
-    # TODO: use ProvenanceStorageInterface instead!
-    assert isinstance(provenance.storage, ProvenanceStoragePostgreSql)
+    with get_provenance(**conninfo) as provenance:
+        # TODO: use ProvenanceStorageInterface instead!
+        assert isinstance(provenance.storage, ProvenanceStoragePostgreSql)
 
-    tables = get_tables_stats(provenance)
+        tables = get_tables_stats(provenance)
 
-    for table in tables:
-        row_count = tables[table]["row_count"]
-        table_size = tables[table]["table_size"]
-        indexes_size = tables[table]["indexes_size"]
-        relation_size = tables[table]["relation_size"]
+        for table in tables:
+            row_count = tables[table]["row_count"]
+            table_size = tables[table]["table_size"]
+            indexes_size = tables[table]["indexes_size"]
+            relation_size = tables[table]["relation_size"]
 
-        print(f"{table}:")
-        print(f"    total rows: {row_count}")
-        if row_count == 0:
-            row_count = 1
+            print(f"{table}:")
+            print(f"    total rows: {row_count}")
+            if row_count == 0:
+                row_count = 1
+            print(
+                f"    table size: {table_size} bytes ({table_size / row_count:.2f} per row)"
+            )
+            print(
+                f"    index size: {indexes_size} bytes ({indexes_size / row_count:.2f} per row)"
+            )
+            print(
+                f"    total size: {relation_size} bytes ({relation_size / row_count:.2f} per row)"
+            )
+
+        # Ratios between de different entities/relations.
+        print("ratios:")
         print(
-            f"    table size: {table_size} bytes ({table_size / row_count:.2f} per row)"
+            f"    content/revision:              {tables['content']['row_count'] / (tables['revision']['row_count'] if tables['revision']['row_count'] != 0 else 1):.2f}"
         )
         print(
-            f"    index size: {indexes_size} bytes ({indexes_size / row_count:.2f} per row)"
+            f"    content_early_in_rev/content:  {tables['content_early_in_rev']['row_count'] / (tables['content']['row_count'] if tables['content']['row_count'] != 0 else 1):.2f}"
         )
         print(
-            f"    total size: {relation_size} bytes ({relation_size / row_count:.2f} per row)"
+            f"    content_in_dir/content:        {tables['content_in_dir']['row_count'] / (tables['content']['row_count'] if tables['content']['row_count'] != 0 else 1):.2f}"
+        )
+        print(
+            f"    directory/revision:            {tables['directory']['row_count'] / (tables['revision']['row_count'] if tables['revision']['row_count'] != 0 else 1):.2f}"
+        )
+        print(
+            f"    directory_in_rev/directory:    {tables['directory_in_rev']['row_count'] / (tables['directory']['row_count'] if tables['directory']['row_count'] != 0 else 1):.2f}"
+        )
+        print(f"    ==============================")
+        print(
+            f"    content_early_in_rev/revision: {tables['content_early_in_rev']['row_count'] / (tables['revision']['row_count'] if tables['revision']['row_count'] != 0 else 1):.2f}"
+        )
+        print(
+            f"    content_in_dir/directory:      {tables['content_in_dir']['row_count'] / (tables['directory']['row_count'] if tables['directory']['row_count'] != 0 else 1):.2f}"
+        )
+        print(
+            f"    directory_in_rev/revision:     {tables['directory_in_rev']['row_count'] / (tables['revision']['row_count'] if tables['revision']['row_count'] != 0 else 1):.2f}"
         )
 
-    # Ratios between de different entities/relations.
-    print("ratios:")
-    print(
-        f"    content/revision:              {tables['content']['row_count'] / (tables['revision']['row_count'] if tables['revision']['row_count'] != 0 else 1):.2f}"
-    )
-    print(
-        f"    content_early_in_rev/content:  {tables['content_early_in_rev']['row_count'] / (tables['content']['row_count'] if tables['content']['row_count'] != 0 else 1):.2f}"
-    )
-    print(
-        f"    content_in_dir/content:        {tables['content_in_dir']['row_count'] / (tables['content']['row_count'] if tables['content']['row_count'] != 0 else 1):.2f}"
-    )
-    print(
-        f"    directory/revision:            {tables['directory']['row_count'] / (tables['revision']['row_count'] if tables['revision']['row_count'] != 0 else 1):.2f}"
-    )
-    print(
-        f"    directory_in_rev/directory:    {tables['directory_in_rev']['row_count'] / (tables['directory']['row_count'] if tables['directory']['row_count'] != 0 else 1):.2f}"
-    )
-    print(f"    ==============================")
-    print(
-        f"    content_early_in_rev/revision: {tables['content_early_in_rev']['row_count'] / (tables['revision']['row_count'] if tables['revision']['row_count'] != 0 else 1):.2f}"
-    )
-    print(
-        f"    content_in_dir/directory:      {tables['content_in_dir']['row_count'] / (tables['directory']['row_count'] if tables['directory']['row_count'] != 0 else 1):.2f}"
-    )
-    print(
-        f"    directory_in_rev/revision:     {tables['directory_in_rev']['row_count'] / (tables['revision']['row_count'] if tables['revision']['row_count'] != 0 else 1):.2f}"
-    )
+        # Metrics for frontiers defined in root directories.
+        with provenance.storage.transaction() as cursor:
+            cursor.execute(
+                f"""SELECT dir
+                    FROM directory_in_rev
+                    INNER JOIN location
+                        ON loc=location.id
+                    WHERE location.path=%s""",
+                (b"",),
+            )
+            directories = list(cursor.fetchall())
+            print(f"Total root frontiers used:              {len(directories)}")
 
-    # Metrics for frontiers defined in root directories.
-    with provenance.storage.transaction() as cursor:
-        cursor.execute(
-            f"""SELECT dir
-                FROM directory_in_rev
-                INNER JOIN location
-                    ON loc=location.id
-                WHERE location.path=%s""",
-            (b"",),
-        )
-        directories = list(cursor.fetchall())
-        print(f"Total root frontiers used:              {len(directories)}")
+            cursor.execute(
+                f"""SELECT dir
+                    FROM directory_in_rev
+                    INNER JOIN location
+                        ON loc=location.id
+                    WHERE location.path=%s
+                    GROUP BY dir""",
+                (b"",),
+            )
+            directories = list(cursor.fetchall())
+            print(f"Total distinct root frontiers:          {len(directories)}")
 
-        cursor.execute(
-            f"""SELECT dir
-                FROM directory_in_rev
-                INNER JOIN location
-                    ON loc=location.id
-                WHERE location.path=%s
-                GROUP BY dir""",
-            (b"",),
-        )
-        directories = list(cursor.fetchall())
-        print(f"Total distinct root frontiers:          {len(directories)}")
+            cursor.execute(
+                f"""SELECT roots.dir
+                    FROM (SELECT dir, loc
+                            FROM directory_in_rev
+                            INNER JOIN location
+                                ON loc=location.id
+                            WHERE location.path=%s) AS roots
+                    JOIN directory_in_rev
+                        ON directory_in_rev.dir=roots.dir
+                    WHERE directory_in_rev.loc!=roots.loc""",
+                (b"",),
+            )
+            directories = list(cursor.fetchall())
+            print(f"Total other uses of these frontiers:    {len(directories)}")
 
-        cursor.execute(
-            f"""SELECT roots.dir
-                FROM (SELECT dir, loc
-                        FROM directory_in_rev
-                        INNER JOIN location
-                            ON loc=location.id
-                        WHERE location.path=%s) AS roots
-                JOIN directory_in_rev
-                    ON directory_in_rev.dir=roots.dir
-                WHERE directory_in_rev.loc!=roots.loc""",
-            (b"",),
-        )
-        directories = list(cursor.fetchall())
-        print(f"Total other uses of these frontiers:    {len(directories)}")
-
-        cursor.execute(
-            f"""SELECT roots.dir
-                FROM (SELECT dir, loc
-                        FROM directory_in_rev
-                        INNER JOIN location
-                            ON loc=location.id
-                        WHERE location.path=%s) AS roots
-                JOIN directory_in_rev
-                    ON directory_in_rev.dir=roots.dir
-                WHERE directory_in_rev.loc!=roots.loc
-                GROUP BY roots.dir""",
-            (b"",),
-        )
-        directories = list(cursor.fetchall())
-        print(f"Total distinct other uses of frontiers: {len(directories)}")
+            cursor.execute(
+                f"""SELECT roots.dir
+                    FROM (SELECT dir, loc
+                            FROM directory_in_rev
+                            INNER JOIN location
+                                ON loc=location.id
+                            WHERE location.path=%s) AS roots
+                    JOIN directory_in_rev
+                        ON directory_in_rev.dir=roots.dir
+                    WHERE directory_in_rev.loc!=roots.loc
+                    GROUP BY roots.dir""",
+                (b"",),
+            )
+            directories = list(cursor.fetchall())
+            print(f"Total distinct other uses of frontiers: {len(directories)}")

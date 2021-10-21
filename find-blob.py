@@ -23,43 +23,44 @@ if __name__ == "__main__":
         print("usage: find-blob <filename> [limit]")
         exit(-1)
 
-    # Get provenance object.
-    provenance = get_provenance(**conninfo)
-
     obj, swhid = identify_object("content", True, True, sys.argv[1])
     sha1 = hash_to_bytes(swhid.split(":")[-1])
     print(f"Identifier of object {obj}: {swhid}")
 
     limit = sys.argv[2] if len(sys.argv) > 2 else None
 
-    first = provenance.content_find_first(sha1)
+    # Get provenance object.
+    with get_provenance(**conninfo) as provenance:
+        first = provenance.content_find_first(sha1)
 
-    if first is not None:
-        print(
-            "==========================================================================="
-        )
-        print(f"First occurrence of {obj}:")
-        print(
-            f" content: swh:1:cnt:{hash_to_hex(first[0])},"
-            f" revision: swh:1:rev:{hash_to_hex(first[1])},"
-            f" date: {first[2]},"
-            f" location: {os.fsdecode(first[3])}"
-        )
-
-        print(
-            "==========================================================================="
-        )
-        if limit is None:
-            print(f"All occurrences of {obj}:")
-        else:
-            print(f"First {limit} occurrences of {obj}:")
-        for occur in provenance.content_find_all(sha1, limit=limit):
+        if first is not None:
             print(
-                f" content: swh:1:cnt:{hash_to_hex(occur[0])},"
-                f" revision: swh:1:rev:{hash_to_hex(occur[1])},"
-                f" date: {occur[2]},"
-                f" location: {os.fsdecode(occur[3])}"
+                "======================================================================"
+            )
+            print(f"First occurrence of {obj}:")
+            print(
+                f" content: swh:1:cnt:{hash_to_hex(first[0])},"
+                f" revision: swh:1:rev:{hash_to_hex(first[1])},"
+                f" date: {first[2]},"
+                f" location: {os.fsdecode(first[3])}"
             )
 
-    else:
-        logging.warning("Requested content not available in the provenance database.")
+            print(
+                "======================================================================"
+            )
+            if limit is None:
+                print(f"All occurrences of {obj}:")
+            else:
+                print(f"First {limit} occurrences of {obj}:")
+            for occur in provenance.content_find_all(sha1, limit=limit):
+                print(
+                    f" content: swh:1:cnt:{hash_to_hex(occur[0])},"
+                    f" revision: swh:1:rev:{hash_to_hex(occur[1])},"
+                    f" date: {occur[2]},"
+                    f" location: {os.fsdecode(occur[3])}"
+                )
+
+        else:
+            logging.warning(
+                "Requested content not available in the provenance database."
+            )

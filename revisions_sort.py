@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
+from datetime import datetime
 import gzip
 import sys
-from datetime import datetime
 
 from swh.model.hashutil import hash_to_bytes, hash_to_hex
 

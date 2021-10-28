@@ -106,7 +106,7 @@ def generate_repo(repo_desc: List[Dict[str, Any]], output_dir: str) -> None:
 @click.argument("output-dir")
 @click.option("-C", "--clean-output/--no-clean-output", default=False)
 def main(input_file: str, output_dir: str, clean_output: bool) -> None:
-    repo_desc = yaml.load(open(input_file))
+    repo_desc = yaml.load(open(input_file), Loader=yaml.Loader)
     if clean_output and os.path.exists(output_dir):
         shutil.rmtree(output_dir)
     generate_repo(repo_desc, output_dir)

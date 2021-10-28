@@ -18,14 +18,16 @@ class ArchiveStorage:
         self.storage = storage
 
     @statsd.timed(metric=ARCHIVE_DURATION_METRIC, tags={"method": "directory_ls"})
-    def directory_ls(self, id: Sha1Git) -> Iterable[Dict[str, Any]]:
-        # TODO: add file size filtering
+    def directory_ls(self, id: Sha1Git, minsize: int = 0) -> Iterable[Dict[str, Any]]:
         for entry in self.storage.directory_ls(id):
-            yield {
-                "name": entry["name"],
-                "target": entry["target"],
-                "type": entry["type"],
-            }
+            if entry["type"] == "dir" or (
+                entry["type"] == "file" and entry["length"] >= minsize
+            ):
+                yield {
+                    "name": entry["name"],
+                    "target": entry["target"],
+                    "type": entry["type"],
+                }
 
     @statsd.timed(
         metric=ARCHIVE_DURATION_METRIC, tags={"method": "revision_get_parents"}

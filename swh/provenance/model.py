@@ -86,11 +86,11 @@ class DirectoryEntry:
         self._files: Optional[List[FileEntry]] = None
         self._dirs: Optional[List[DirectoryEntry]] = None
 
-    def retrieve_children(self, archive: ArchiveInterface) -> None:
+    def retrieve_children(self, archive: ArchiveInterface, minsize: int = 0) -> None:
         if self._files is None and self._dirs is None:
             self._files = []
             self._dirs = []
-            for child in archive.directory_ls(self.id):
+            for child in archive.directory_ls(self.id, minsize=minsize):
                 if child["type"] == "dir":
                     self._dirs.append(
                         DirectoryEntry(child["target"], name=child["name"])

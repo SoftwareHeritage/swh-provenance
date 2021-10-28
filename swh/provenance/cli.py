@@ -130,6 +130,7 @@ def cli(ctx: click.core.Context, config_file: Optional[str], profile: str) -> No
 @click.option("-l", "--limit", type=int)
 @click.option("-m", "--min-depth", default=1, type=int)
 @click.option("-r", "--reuse", default=True, type=bool)
+@click.option("-s", "--min-size", default=0, type=int)
 @click.pass_context
 def iter_revisions(
     ctx: click.core.Context,
@@ -138,8 +139,8 @@ def iter_revisions(
     limit: Optional[int],
     min_depth: int,
     reuse: bool,
+    min_size: int,
 ) -> None:
-    # TODO: add file size filtering
     """Process a provided list of revisions."""
     from . import get_archive, get_provenance
     from .revision import CSVRevisionIterator, revision_add
@@ -157,6 +158,7 @@ def iter_revisions(
                 trackall=track_all,
                 lower=reuse,
                 mindepth=min_depth,
+                minsize=min_size,
             )
 
 

@@ -22,14 +22,13 @@ class ArchivePostgreSQL:
         )
         self.conn = conn
 
-    def directory_ls(self, id: Sha1Git) -> Iterable[Dict[str, Any]]:
-        entries = self._directory_ls(id)
+    def directory_ls(self, id: Sha1Git, minsize: int = 0) -> Iterable[Dict[str, Any]]:
+        entries = self._directory_ls(id, minsize=minsize)
         yield from entries
 
     @lru_cache(maxsize=100000)
     @statsd.timed(metric=ARCHIVE_DURATION_METRIC, tags={"method": "directory_ls"})
-    def _directory_ls(self, id: Sha1Git) -> List[Dict[str, Any]]:
-        # TODO: add file size filtering
+    def _directory_ls(self, id: Sha1Git, minsize: int = 0) -> List[Dict[str, Any]]:
         with self.conn.cursor() as cursor:
             cursor.execute(
                 """
@@ -49,7 +48,9 @@ class ArchivePostgreSQL:
                             c.sha1_git
                         FROM ls_f
                         LEFT JOIN directory_entry_file e ON ls_f.entry_id=e.id
-                        INNER JOIN content c ON e.target=c.sha1_git)
+                        INNER JOIN content c ON e.target=c.sha1_git
+                        WHERE c.length >= %s
+                    )
                     SELECT * FROM known_contents
                     UNION
                     (SELECT 'file'::directory_entry_type AS type, e.target, e.name,
@@ -61,10 +62,11 @@ class ArchivePostgreSQL:
                             SELECT 1 FROM known_contents
                                 WHERE known_contents.sha1_git=e.target
                         )
+                        AND c.length >= %s
                     )
                 )
                 """,
-                (id,),
+                (id, minsize, minsize),
             )
             return [
                 {"type": row[0], "target": row[1], "name": row[2]} for row in cursor
@@ -84,7 +86,6 @@ class ArchivePostgreSQL:
                 """,
                 (id,),
             )
-            # There should be at most one row anyway
             yield from (row[0] for row in cursor)
 
     @statsd.timed(metric=ARCHIVE_DURATION_METRIC, tags={"method": "snapshot_get_heads"})

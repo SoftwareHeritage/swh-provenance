@@ -15,7 +15,7 @@ from swh.storage.interface import StorageInterface
 class ArchiveInterface(Protocol):
     storage: StorageInterface
 
-    def directory_ls(self, id: Sha1Git) -> Iterable[Dict[str, Any]]:
+    def directory_ls(self, id: Sha1Git, minsize: int = 0) -> Iterable[Dict[str, Any]]:
         """List entries for one directory.
 
         Args:

@@ -59,6 +59,7 @@ def revision_add(
     trackall: bool = True,
     lower: bool = True,
     mindepth: int = 1,
+    minsize: int = 0,
     commit: bool = True,
 ) -> None:
     for revision in revisions:
@@ -72,8 +73,8 @@ def revision_add(
                 provenance,
                 revision,
                 DirectoryEntry(revision.root),
+                minsize=minsize,
             )
-            # TODO: add file size filtering
             revision_process_content(
                 archive,
                 provenance,
@@ -82,6 +83,7 @@ def revision_add(
                 trackall=trackall,
                 lower=lower,
                 mindepth=mindepth,
+                minsize=minsize,
             )
     if commit:
         provenance.flush()
@@ -96,6 +98,7 @@ def revision_process_content(
     trackall: bool = True,
     lower: bool = True,
     mindepth: int = 1,
+    minsize: int = 0,
 ) -> None:
     assert revision.date is not None
     provenance.revision_add(revision)
@@ -132,7 +135,9 @@ def revision_process_content(
                     provenance.directory_add_to_revision(
                         revision, current.entry, current.path
                     )
-                    flatten_directory(archive, provenance, current.entry)
+                    flatten_directory(
+                        archive, provenance, current.entry, minsize=minsize
+                    )
             else:
                 # If current node is an invalidated frontier, update its date for future
                 # revisions to get the proper value.
@@ -158,6 +163,7 @@ def flatten_directory(
     archive: ArchiveInterface,
     provenance: ProvenanceInterface,
     directory: DirectoryEntry,
+    minsize: int = 0,
 ) -> None:
     """Recursively retrieve all the files of 'directory' and insert them in the
     'provenance' database in the 'content_to_directory' table.
@@ -165,7 +171,7 @@ def flatten_directory(
     stack = [(directory, b"")]
     while stack:
         current, prefix = stack.pop()
-        current.retrieve_children(archive)
+        current.retrieve_children(archive, minsize=minsize)
         for f_child in current.files:
             # Add content to the directory with the computed prefix.
             provenance.content_add_to_directory(directory, f_child, prefix)

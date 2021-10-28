@@ -176,6 +176,7 @@ def build_isochrone_graph(
     provenance: ProvenanceInterface,
     revision: RevisionEntry,
     directory: DirectoryEntry,
+    minsize: int = 0,
 ) -> IsochroneNode:
     assert revision.date is not None
     assert revision.root == directory.id
@@ -208,7 +209,7 @@ def build_isochrone_graph(
             # Pre-query all known dates for directories in the current directory
             # for the provenance object to have them cached and (potentially) improve
             # performance.
-            current.entry.retrieve_children(archive)
+            current.entry.retrieve_children(archive, minsize=minsize)
             ddates = provenance.directory_get_dates_in_isochrone_frontier(
                 current.entry.dirs
             )

@@ -20,7 +20,7 @@ from swh.provenance.archive import ArchiveInterface
 from swh.provenance.interface import ProvenanceInterface, ProvenanceStorageInterface
 from swh.provenance.storage.archive import ArchiveStorage
 from swh.storage.interface import StorageInterface
-from swh.storage.replay import process_replay_objects
+from swh.storage.replay import OBJECT_CONVERTERS, process_replay_objects
 
 
 @pytest.fixture(
@@ -124,6 +124,10 @@ def filter_dict(d: Dict[Any, Any], keys: Iterable[Any]) -> Dict[Any, Any]:
 
 
 def fill_storage(storage: StorageInterface, data: Dict[str, Any]) -> None:
+    data = {
+        object_type: [OBJECT_CONVERTERS[object_type](d) for d in values]
+        for object_type, values in data.items()
+    }
     process_replay_objects(data, storage=storage)
 
 

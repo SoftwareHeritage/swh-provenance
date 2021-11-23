@@ -58,6 +58,9 @@ class StatsWorker(threading.Thread):
                 with provenance.storage.transaction(readonly=True) as cursor:
                     cursor.execute(f"SELECT COUNT(*) AS count FROM {table}")
                     stats[table] = cursor.fetchone()["count"]
+            with provenance.storage.transaction(readonly=True) as cursor:
+                cursor.execute(f"SELECT MAX(date) AS date FROM revision")
+                stats["maxdate"] = cursor.fetchone()["date"]
             return stats
 
     def init_stats(self, filename: str) -> List[str]:
@@ -73,6 +76,7 @@ class StatsWorker(threading.Thread):
         header = ["datetime"]
         for table in tables:
             header.append(f"{table} rows")
+        header.append("revision maxdate")
         with io.open(filename, "w") as outfile:
             outfile.write(",".join(header))
             outfile.write("\n")
@@ -99,8 +103,8 @@ class StatsWorker(threading.Thread):
 
     def write_stats(self, filename: str, stats: Dict[str, int]) -> None:
         line = [str(datetime.now())]
-        for _, count in stats.items():
-            line.append(str(count))
+        for _, stat in stats.items():
+            line.append(str(stat))
         with io.open(filename, "a") as outfile:
             outfile.write(",".join(line))
             outfile.write("\n")

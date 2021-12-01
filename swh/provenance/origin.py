@@ -55,7 +55,7 @@ def origin_add(
         provenance.origin_add(origin)
         origin.retrieve_revisions(archive)
         for revision in origin.revisions:
-            graph = HistoryGraph(archive, provenance, revision)
+            graph = HistoryGraph(provenance, archive, revision)
             origin_add_revision(provenance, origin, graph)
     provenance.flush()
 

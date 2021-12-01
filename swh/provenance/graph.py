@@ -54,8 +54,8 @@ class HistoryGraph:
     @statsd.timed(metric=GRAPH_DURATION_METRIC, tags={"method": "build_history_graph"})
     def __init__(
         self,
-        archive: ArchiveInterface,
         provenance: ProvenanceInterface,
+        archive: ArchiveInterface,
         revision: RevisionEntry,
     ) -> None:
         self._head = HistoryNode(
@@ -172,8 +172,8 @@ class IsochroneNode:
 
 @statsd.timed(metric=GRAPH_DURATION_METRIC, tags={"method": "build_isochrone_graph"})
 def build_isochrone_graph(
-    archive: ArchiveInterface,
     provenance: ProvenanceInterface,
+    archive: ArchiveInterface,
     revision: RevisionEntry,
     directory: DirectoryEntry,
     minsize: int = 0,

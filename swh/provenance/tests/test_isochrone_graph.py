@@ -94,8 +94,8 @@ def test_isochrone_graph(
             # Create graph for current revision and check it has the expected structure.
             assert entry.root is not None
             computed_graph = build_isochrone_graph(
-                archive,
                 provenance,
+                archive,
                 entry,
                 DirectoryEntry(entry.root),
             )

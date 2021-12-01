@@ -342,9 +342,9 @@ def test_provenance_storage_relation(
 
 
 def test_provenance_storage_find(
-    archive: ArchiveInterface,
     provenance: ProvenanceInterface,
     provenance_storage: ProvenanceStorageInterface,
+    archive: ArchiveInterface,
 ) -> None:
     """Tests `content_find_first` and `content_find_all` methods for every
     `ProvenanceStorageInterface` implementation.

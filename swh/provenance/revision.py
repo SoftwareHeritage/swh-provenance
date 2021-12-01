@@ -69,15 +69,15 @@ def revision_add(
         date = provenance.revision_get_date(revision)
         if date is None or revision.date < date:
             graph = build_isochrone_graph(
-                archive,
                 provenance,
+                archive,
                 revision,
                 DirectoryEntry(revision.root),
                 minsize=minsize,
             )
             revision_process_content(
-                archive,
                 provenance,
+                archive,
                 revision,
                 graph,
                 trackall=trackall,
@@ -91,8 +91,8 @@ def revision_add(
 
 @statsd.timed(metric=REVISION_DURATION_METRIC, tags={"method": "process_content"})
 def revision_process_content(
-    archive: ArchiveInterface,
     provenance: ProvenanceInterface,
+    archive: ArchiveInterface,
     revision: RevisionEntry,
     graph: IsochroneNode,
     trackall: bool = True,
@@ -136,7 +136,7 @@ def revision_process_content(
                         revision, current.entry, current.path
                     )
                     flatten_directory(
-                        archive, provenance, current.entry, minsize=minsize
+                        provenance, archive, current.entry, minsize=minsize
                     )
             else:
                 # If current node is an invalidated frontier, update its date for future
@@ -160,8 +160,8 @@ def revision_process_content(
 
 @statsd.timed(metric=REVISION_DURATION_METRIC, tags={"method": "flatten_directory"})
 def flatten_directory(
-    archive: ArchiveInterface,
     provenance: ProvenanceInterface,
+    archive: ArchiveInterface,
     directory: DirectoryEntry,
     minsize: int = 0,
 ) -> None:

@@ -42,8 +42,8 @@ def test_history_graph(
                 print("Expected graph:", expected_graph_as_dict)
 
                 computed_graph = HistoryGraph(
-                    archive,
                     provenance,
+                    archive,
                     RevisionEntry(hash_to_bytes(expected_graph_as_dict["head"]["rev"])),
                 )
                 print("Computed graph:", computed_graph.as_dict())

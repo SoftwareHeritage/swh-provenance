@@ -259,12 +259,9 @@ def test_revision_content_result(
         }, synth_rev["msg"]
         # check timestamps
         for rd in synth_rev["R_D"]:
-            assert (
-                rev_ts + rd["rel_ts"]
-                == provenance.storage.directory_get([rd["dst"]])[
-                    rd["dst"]
-                ].date.timestamp()
-            ), synth_rev["msg"]
+            dir_data = provenance.storage.directory_get([rd["dst"]])[rd["dst"]]
+            assert rev_ts + rd["rel_ts"] == dir_data.date.timestamp(), synth_rev["msg"]
+            assert dir_data.flat, synth_rev["msg"]
 
         # ... + a number of rows in the "content_in_dir" table
         #     for content of the directory.

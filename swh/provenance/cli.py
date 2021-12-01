@@ -139,6 +139,43 @@ def cli(ctx: click.core.Context, config_file: Optional[str], profile: str) -> No
         atexit.register(exit)
 
 
+@cli.command(name="iter-frontiers")
+@click.argument("filename")
+@click.option("-l", "--limit", type=int)
+@click.option("-s", "--min-size", default=0, type=int)
+@click.pass_context
+def iter_frontiers(
+    ctx: click.core.Context,
+    filename: str,
+    limit: Optional[int],
+    min_size: int,
+) -> None:
+    """Process a provided list of directories in the isochrone frontier."""
+    from . import get_archive, get_provenance
+    from .directory import CSVDirectoryIterator, directory_add
+
+    archive = get_archive(**ctx.obj["config"]["provenance"]["archive"])
+    directories_provider = generate_directory_ids(filename)
+    directories = CSVDirectoryIterator(directories_provider, limit=limit)
+
+    with get_provenance(**ctx.obj["config"]["provenance"]["storage"]) as provenance:
+        for directory in directories:
+            directory_add(
+                provenance,
+                archive,
+                [directory],
+                minsize=min_size,
+            )
+
+
+def generate_directory_ids(
+    filename: str,
+) -> Generator[Sha1Git, None, None]:
+    for line in open(filename, "r"):
+        if line.strip():
+            yield hash_to_bytes(line.strip())
+
+
 @cli.command(name="iter-revisions")
 @click.argument("filename")
 @click.option("-a", "--track-all", default=True, type=bool)

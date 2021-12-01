@@ -25,6 +25,7 @@ def test_cli_swh_db_help() -> None:
     for command in (
         "find-all",
         "find-first",
+        "iter-frontiers",
         "iter-origins",
         "iter-revisions",
     ):

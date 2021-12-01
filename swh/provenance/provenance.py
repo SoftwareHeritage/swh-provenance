@@ -319,7 +319,7 @@ class Provenance:
                 date=date, flat=self.cache["directory_flatten"].get(sha1) or False
             )
             for sha1, date in self.cache["directory"]["data"].items()
-            if sha1 in self.cache["directory"]["added"] and date is not None
+            if self.cache["directory_flatten"].get(sha1) and date is not None
         }
         if dir_acks:
             while not self.storage.directory_add(dir_acks):
@@ -386,6 +386,21 @@ class Provenance:
         self.cache["directory_in_revision"].add(
             (directory.id, revision.id, path_normalize(path))
         )
+
+    def directory_already_flattenned(self, directory: DirectoryEntry) -> Optional[bool]:
+        cache = self.cache["directory_flatten"]
+        if directory.id not in cache:
+            cache.setdefault(directory.id, None)
+            ret = self.storage.directory_get([directory.id])
+            if directory.id in ret:
+                dir = ret[directory.id]
+                cache[directory.id] = dir.flat
+                # date is kept to ensure we have it available when flushing
+                self.cache["directory"]["data"][directory.id] = dir.date
+        return cache.get(directory.id)
+
+    def directory_flag_as_flattenned(self, directory: DirectoryEntry) -> None:
+        self.cache["directory_flatten"][directory.id] = True
 
     def directory_get_date_in_isochrone_frontier(
         self, directory: DirectoryEntry

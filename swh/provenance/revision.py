@@ -4,13 +4,13 @@
 # See top-level LICENSE file for more information
 
 from datetime import datetime, timezone
-import os
 from typing import Generator, Iterable, Iterator, List, Optional, Tuple
 
 from swh.core.statsd import statsd
 from swh.model.model import Sha1Git
 
 from .archive import ArchiveInterface
+from .directory import directory_flatten
 from .graph import IsochroneNode, build_isochrone_graph
 from .interface import ProvenanceInterface
 from .model import DirectoryEntry, RevisionEntry
@@ -135,7 +135,7 @@ def revision_process_content(
                     provenance.directory_add_to_revision(
                         revision, current.entry, current.path
                     )
-                    flatten_directory(
+                    directory_flatten(
                         provenance, archive, current.entry, minsize=minsize
                     )
             else:
@@ -156,28 +156,6 @@ def revision_process_content(
                     provenance.content_add_to_revision(revision, blob, current.path)
                 for child in current.children:
                     stack.append(child)
-
-
-@statsd.timed(metric=REVISION_DURATION_METRIC, tags={"method": "flatten_directory"})
-def flatten_directory(
-    provenance: ProvenanceInterface,
-    archive: ArchiveInterface,
-    directory: DirectoryEntry,
-    minsize: int = 0,
-) -> None:
-    """Recursively retrieve all the files of 'directory' and insert them in the
-    'provenance' database in the 'content_to_directory' table.
-    """
-    stack = [(directory, b"")]
-    while stack:
-        current, prefix = stack.pop()
-        current.retrieve_children(archive, minsize=minsize)
-        for f_child in current.files:
-            # Add content to the directory with the computed prefix.
-            provenance.content_add_to_directory(directory, f_child, prefix)
-        for d_child in current.dirs:
-            # Recursively walk the child directory.
-            stack.append((d_child, os.path.join(prefix, d_child.name)))
 
 
 def is_new_frontier(

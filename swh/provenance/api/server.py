@@ -31,7 +31,13 @@ from swh.model.hashutil import hash_to_hex
 from swh.model.model import Sha1Git
 
 from .. import get_provenance_storage
-from ..interface import EntityType, RelationData, RelationType, RevisionData
+from ..interface import (
+    DirectoryData,
+    EntityType,
+    RelationData,
+    RelationType,
+    RevisionData,
+)
 from ..util import path_id
 from .serializers import DECODERS, ENCODERS
 
@@ -53,18 +59,28 @@ class TerminateSignal(BaseException):
     pass
 
 
-def resolve_dates(
-    dates: Iterable[Union[Tuple[Sha1Git, Optional[datetime]], Tuple[Sha1Git]]]
-) -> Dict[Sha1Git, Optional[datetime]]:
-    result: Dict[Sha1Git, Optional[datetime]] = {}
-    for row in dates:
-        sha1 = row[0]
-        date = (
-            cast(Tuple[Sha1Git, Optional[datetime]], row)[1] if len(row) > 1 else None
-        )
-        known = result.setdefault(sha1, None)
-        if date is not None and (known is None or date < known):
+def resolve_dates(dates: Iterable[Tuple[Sha1Git, datetime]]) -> Dict[Sha1Git, datetime]:
+    result: Dict[Sha1Git, datetime] = {}
+    for sha1, date in dates:
+        known = result.setdefault(sha1, date)
+        if date < known:
             result[sha1] = date
+    return result
+
+
+def resolve_directory(
+    data: Iterable[Tuple[Sha1Git, DirectoryData]]
+) -> Dict[Sha1Git, DirectoryData]:
+    result: Dict[Sha1Git, DirectoryData] = {}
+    for sha1, dir in data:
+        known = result.setdefault(sha1, dir)
+        value = known
+        if dir.date < known.date:
+            value = DirectoryData(date=dir.date, flat=value.flat)
+        if dir.flat:
+            value = DirectoryData(date=value.date, flat=dir.flat)
+        if value != known:
+            result[sha1] = value
     return result
 
 
@@ -458,8 +474,10 @@ class ProvenanceStorageRabbitMQWorker(multiprocessing.Process):
 
     @staticmethod
     def get_conflicts_func(meth_name: str) -> Callable[[Iterable[Any]], Any]:
-        if meth_name in ["content_add", "directory_add"]:
+        if meth_name == "content_add":
             return resolve_dates
+        elif meth_name == "directory_add":
+            return resolve_directory
         elif meth_name == "location_add":
             return lambda data: set(data)  # just remove duplicates
         elif meth_name == "origin_add":

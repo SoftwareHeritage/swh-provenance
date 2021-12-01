@@ -16,7 +16,7 @@ comment on column dbversion.description is 'Release description';
 
 -- latest schema version
 insert into dbversion(version, release, description)
-    values(1, now(), 'Work In Progress');
+    values(2, now(), 'Work In Progress');
 
 -- a Git object ID, i.e., a Git-style salted SHA1 checksum
 create domain sha1_git as bytea check (length(value) = 20);
@@ -35,9 +35,9 @@ comment on type rel_flt is 'Relation get filter types';
 -- entity tables
 create table content
 (
-    id      bigserial primary key,      -- internal identifier of the content blob
-    sha1    sha1_git unique not null,   -- intrinsic identifier of the content blob
-    date    timestamptz                 -- timestamp of the revision where the blob appears early
+    id      bigserial primary key,          -- internal identifier of the content blob
+    sha1    sha1_git unique not null,       -- intrinsic identifier of the content blob
+    date    timestamptz not null            -- timestamp of the revision where the blob appears early
 );
 comment on column content.id is 'Content internal identifier';
 comment on column content.sha1 is 'Content intrinsic identifier';
@@ -45,9 +45,10 @@ comment on column content.date is 'Earliest timestamp for the content (first see
 
 create table directory
 (
-    id      bigserial primary key,      -- internal identifier of the directory appearing in an isochrone inner frontier
-    sha1    sha1_git unique not null,   -- intrinsic identifier of the directory
-    date    timestamptz                 -- max timestamp among those of the directory children's
+    id      bigserial primary key,          -- internal identifier of the directory appearing in an isochrone inner frontier
+    sha1    sha1_git unique not null,       -- intrinsic identifier of the directory
+    date    timestamptz not null,           -- max timestamp among those of the directory children's
+    flat    boolean not null default false  -- flag acknowledging if the directory is flattenned in the model
 );
 comment on column directory.id is 'Directory internal identifier';
 comment on column directory.sha1 is 'Directory intrinsic identifier';
@@ -55,10 +56,10 @@ comment on column directory.date is 'Latest timestamp for the content in the dir
 
 create table revision
 (
-    id      bigserial primary key,      -- internal identifier of the revision
-    sha1    sha1_git unique not null,   -- intrinsic identifier of the revision
-    date    timestamptz,                -- timestamp of the revision
-    origin  bigint                      -- id of the preferred origin
+    id      bigserial primary key,          -- internal identifier of the revision
+    sha1    sha1_git unique not null,       -- intrinsic identifier of the revision
+    date    timestamptz,                    -- timestamp of the revision
+    origin  bigint                          -- id of the preferred origin
     -- foreign key (origin) references origin (id)
 );
 comment on column revision.id is 'Revision internal identifier';
@@ -68,17 +69,17 @@ comment on column revision.origin is 'preferred origin for the revision';
 
 create table location
 (
-    id      bigserial primary key,      -- internal identifier of the location
-    path    unix_path unique not null   -- path to the location
+    id      bigserial primary key,          -- internal identifier of the location
+    path    unix_path unique not null       -- path to the location
 );
 comment on column location.id is 'Location internal identifier';
 comment on column location.path is 'Path to the location';
 
 create table origin
 (
-    id      bigserial primary key,      -- internal identifier of the origin
-    sha1    sha1_git unique not null,   -- intrinsic identifier of the origin
-    url     text unique not null        -- url of the origin
+    id      bigserial primary key,          -- internal identifier of the origin
+    sha1    sha1_git unique not null,       -- intrinsic identifier of the origin
+    url     text unique not null            -- url of the origin
 );
 comment on column origin.id is 'Origin internal identifier';
 comment on column origin.sha1 is 'Origin intrinsic identifier';
@@ -87,13 +88,13 @@ comment on column origin.url is 'URL of the origin';
 -- relation tables
 create table content_in_revision
 (
-    content  bigint not null,           -- internal identifier of the content blob
+    content  bigint not null,               -- internal identifier of the content blob
 \if :dbflavor_norm
-    revision bigint not null,           -- internal identifier of the revision where the blob appears for the first time
-    location bigint                     -- location of the content relative to the revision's root directory
+    revision bigint not null,               -- internal identifier of the revision where the blob appears for the first time
+    location bigint                         -- location of the content relative to the revision's root directory
 \else
-    revision bigint[],                  -- internal identifiers of the revisions where the blob appears for the first time
-    location bigint[]                   -- locations of the content relative to the revisions' root directory
+    revision bigint[],                      -- internal identifiers of the revisions where the blob appears for the first time
+    location bigint[]                       -- locations of the content relative to the revisions' root directory
 \endif
     -- foreign key (content) references content (id),
     -- foreign key (revision) references revision (id),
@@ -109,13 +110,13 @@ comment on column content_in_revision.revision is 'Revision/location internal id
 
 create table content_in_directory
 (
-    content   bigint not null,          -- internal identifier of the content blob
+    content   bigint not null,              -- internal identifier of the content blob
 \if :dbflavor_norm
-    directory bigint not null,          -- internal identifier of the directory containing the blob
-    location  bigint                    -- location of the content relative to its parent directory in the isochrone frontier
+    directory bigint not null,              -- internal identifier of the directory containing the blob
+    location  bigint                        -- location of the content relative to its parent directory in the isochrone frontier
 \else
-    directory bigint[],                 -- internal reference of the directories containing the blob
-    location bigint[]                   -- locations of the content relative to its parent directories in the isochrone frontier
+    directory bigint[],                     -- internal reference of the directories containing the blob
+    location bigint[]                       -- locations of the content relative to its parent directories in the isochrone frontier
 \endif
     -- foreign key (content) references content (id),
     -- foreign key (directory) references directory (id),
@@ -131,13 +132,13 @@ comment on column content_in_directory.directory is 'Directory/location internal
 
 create table directory_in_revision
 (
-    directory bigint not null,          -- internal identifier of the directory appearing in the revision
+    directory bigint not null,              -- internal identifier of the directory appearing in the revision
 \if :dbflavor_norm
-    revision  bigint not null,          -- internal identifier of the revision containing the directory
-    location  bigint                    -- location of the directory relative to the revision's root directory
+    revision  bigint not null,              -- internal identifier of the revision containing the directory
+    location  bigint                        -- location of the directory relative to the revision's root directory
 \else
-    revision bigint[],                  -- internal identifiers of the revisions containing the directory
-    location bigint[]                   -- locations of the directory relative to the revisions' root directory
+    revision bigint[],                      -- internal identifiers of the revisions containing the directory
+    location bigint[]                       -- locations of the directory relative to the revisions' root directory
 \endif
     -- foreign key (directory) references directory (id),
     -- foreign key (revision) references revision (id),
@@ -153,8 +154,8 @@ comment on column directory_in_revision.revision is 'Revision/location internal 
 
 create table revision_in_origin
 (
-    revision bigint not null,           -- internal identifier of the revision poined by the origin
-    origin   bigint not null            -- internal identifier of the origin that points to the revision
+    revision bigint not null,               -- internal identifier of the revision poined by the origin
+    origin   bigint not null                -- internal identifier of the origin that points to the revision
     -- foreign key (revision) references revision (id),
     -- foreign key (origin) references origin (id)
 );
@@ -163,8 +164,8 @@ comment on column revision_in_origin.origin is 'Origin internal identifier';
 
 create table revision_before_revision
 (
-    prev    bigserial not null,         -- internal identifier of the source revision
-    next    bigserial not null          -- internal identifier of the destination revision
+    prev    bigserial not null,             -- internal identifier of the source revision
+    next    bigserial not null              -- internal identifier of the destination revision
     -- foreign key (prev) references revision (id),
     -- foreign key (next) references revision (id)
 );

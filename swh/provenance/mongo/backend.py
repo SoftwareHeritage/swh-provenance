@@ -18,6 +18,7 @@ from swh.core.statsd import statsd
 from swh.model.model import Sha1Git
 
 from ..interface import (
+    DirectoryData,
     EntityType,
     ProvenanceResult,
     ProvenanceStorageInterface,
@@ -52,21 +53,18 @@ class ProvenanceStorageMongoDb:
         self.db.client.close()
 
     @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "content_add"})
-    def content_add(
-        self, cnts: Union[Iterable[Sha1Git], Dict[Sha1Git, Optional[datetime]]]
-    ) -> bool:
-        data = cnts if isinstance(cnts, dict) else dict.fromkeys(cnts)
+    def content_add(self, cnts: Dict[Sha1Git, datetime]) -> bool:
         existing = {
             x["sha1"]: x
             for x in self.db.content.find(
-                {"sha1": {"$in": list(data)}}, {"sha1": 1, "ts": 1, "_id": 1}
+                {"sha1": {"$in": list(cnts)}}, {"sha1": 1, "ts": 1, "_id": 1}
             )
         }
-        for sha1, date in data.items():
-            ts = datetime.timestamp(date) if date is not None else None
+        for sha1, date in cnts.items():
+            ts = datetime.timestamp(date)
             if sha1 in existing:
                 cnt = existing[sha1]
-                if ts is not None and (cnt["ts"] is None or ts < cnt["ts"]):
+                if ts < cnt["ts"]:
                     self.db.content.update_one(
                         {"_id": cnt["_id"]}, {"$set": {"ts": ts}}
                     )
@@ -173,41 +171,43 @@ class ProvenanceStorageMongoDb:
         return {
             x["sha1"]: datetime.fromtimestamp(x["ts"], timezone.utc)
             for x in self.db.content.find(
-                {"sha1": {"$in": list(ids)}, "ts": {"$ne": None}},
-                {"sha1": 1, "ts": 1, "_id": 0},
+                {"sha1": {"$in": list(ids)}}, {"sha1": 1, "ts": 1, "_id": 0}
             )
         }
 
     @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "directory_add"})
-    def directory_add(
-        self, dirs: Union[Iterable[Sha1Git], Dict[Sha1Git, Optional[datetime]]]
-    ) -> bool:
-        data = dirs if isinstance(dirs, dict) else dict.fromkeys(dirs)
+    def directory_add(self, dirs: Dict[Sha1Git, DirectoryData]) -> bool:
         existing = {
             x["sha1"]: x
             for x in self.db.directory.find(
-                {"sha1": {"$in": list(data)}}, {"sha1": 1, "ts": 1, "_id": 1}
+                {"sha1": {"$in": list(dirs)}}, {"sha1": 1, "ts": 1, "flat": 1, "_id": 1}
             )
         }
-        for sha1, date in data.items():
-            ts = datetime.timestamp(date) if date is not None else None
+        for sha1, info in dirs.items():
+            ts = datetime.timestamp(info.date)
             if sha1 in existing:
                 dir = existing[sha1]
-                if ts is not None and (dir["ts"] is None or ts < dir["ts"]):
+                if ts >= dir["ts"]:
+                    ts = dir["ts"]
+                flat = info.flat or dir["flat"]
+                if ts != dir["ts"] or flat != dir["flat"]:
                     self.db.directory.update_one(
-                        {"_id": dir["_id"]}, {"$set": {"ts": ts}}
+                        {"_id": dir["_id"]}, {"$set": {"ts": ts, "flat": flat}}
                     )
             else:
-                self.db.directory.insert_one({"sha1": sha1, "ts": ts, "revision": {}})
+                self.db.directory.insert_one(
+                    {"sha1": sha1, "ts": ts, "revision": {}, "flat": info.flat}
+                )
         return True
 
     @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "directory_get"})
-    def directory_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, datetime]:
+    def directory_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, DirectoryData]:
         return {
-            x["sha1"]: datetime.fromtimestamp(x["ts"], timezone.utc)
+            x["sha1"]: DirectoryData(
+                date=datetime.fromtimestamp(x["ts"], timezone.utc), flat=x["flat"]
+            )
             for x in self.db.directory.find(
-                {"sha1": {"$in": list(ids)}, "ts": {"$ne": None}},
-                {"sha1": 1, "ts": 1, "_id": 0},
+                {"sha1": {"$in": list(ids)}}, {"sha1": 1, "ts": 1, "flat": 1, "_id": 0}
             )
         }
 

@@ -33,11 +33,12 @@ def _decode_enum(d: Dict[str, Any]) -> Enum:
 
 
 ENCODERS: List[Tuple[type, str, Callable]] = [
+    (interface.DirectoryData, "dataclass", _encode_dataclass),
+    (interface.EntityType, "enum", _encode_enum),
     (interface.ProvenanceResult, "dataclass", _encode_dataclass),
     (interface.RelationData, "dataclass", _encode_dataclass),
-    (interface.RevisionData, "dataclass", _encode_dataclass),
-    (interface.EntityType, "enum", _encode_enum),
     (interface.RelationType, "enum", _encode_enum),
+    (interface.RevisionData, "dataclass", _encode_dataclass),
     (set, "set", list),
 ]
 

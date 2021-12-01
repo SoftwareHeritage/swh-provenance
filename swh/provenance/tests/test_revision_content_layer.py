@@ -261,7 +261,9 @@ def test_revision_content_result(
         for rd in synth_rev["R_D"]:
             assert (
                 rev_ts + rd["rel_ts"]
-                == provenance.storage.directory_get([rd["dst"]])[rd["dst"]].timestamp()
+                == provenance.storage.directory_get([rd["dst"]])[
+                    rd["dst"]
+                ].date.timestamp()
             ), synth_rev["msg"]
 
         # ... + a number of rows in the "content_in_dir" table

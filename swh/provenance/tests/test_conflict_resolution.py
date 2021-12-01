@@ -4,32 +4,21 @@
 # See top-level LICENSE file for more information
 
 from datetime import datetime
-from typing import List, Optional, Tuple, Union
+from typing import List, Tuple, Union
 
 from swh.model.hashutil import hash_to_bytes
 from swh.model.model import Sha1Git
-from swh.provenance.api.server import resolve_dates, resolve_relation, resolve_revision
-from swh.provenance.interface import RelationData, RevisionData
+from swh.provenance.api.server import (
+    resolve_dates,
+    resolve_directory,
+    resolve_relation,
+    resolve_revision,
+)
+from swh.provenance.interface import DirectoryData, RelationData, RevisionData
 
 
 def test_resolve_dates() -> None:
-    items: List[Union[Tuple[Sha1Git, Optional[datetime]], Tuple[Sha1Git]]] = [
-        (hash_to_bytes("20329687bb9c1231a7e05afe86160343ad49b494"),),
-        (
-            hash_to_bytes("20329687bb9c1231a7e05afe86160343ad49b494"),
-            datetime.fromtimestamp(1000000000),
-        ),
-        (hash_to_bytes("20329687bb9c1231a7e05afe86160343ad49b494"), None),
-    ]
-    assert resolve_dates(items) == {
-        hash_to_bytes(
-            "20329687bb9c1231a7e05afe86160343ad49b494"
-        ): datetime.fromtimestamp(1000000000)
-    }
-
-
-def test_resolve_dates_keep_min() -> None:
-    items: List[Union[Tuple[Sha1Git, Optional[datetime]], Tuple[Sha1Git]]] = [
+    items: List[Tuple[Sha1Git, datetime]] = [
         (
             hash_to_bytes("20329687bb9c1231a7e05afe86160343ad49b494"),
             datetime.fromtimestamp(1000000001),
@@ -43,6 +32,28 @@ def test_resolve_dates_keep_min() -> None:
         hash_to_bytes(
             "20329687bb9c1231a7e05afe86160343ad49b494"
         ): datetime.fromtimestamp(1000000000)
+    }
+
+
+def test_resolve_directory() -> None:
+    items: List[Tuple[Sha1Git, DirectoryData]] = [
+        (
+            hash_to_bytes("c0d8929936631ecbcf9147be6b8aa13b13b014e4"),
+            DirectoryData(date=datetime.fromtimestamp(1000000002), flat=False),
+        ),
+        (
+            hash_to_bytes("c0d8929936631ecbcf9147be6b8aa13b13b014e4"),
+            DirectoryData(date=datetime.fromtimestamp(1000000001), flat=True),
+        ),
+        (
+            hash_to_bytes("c0d8929936631ecbcf9147be6b8aa13b13b014e4"),
+            DirectoryData(date=datetime.fromtimestamp(1000000000), flat=False),
+        ),
+    ]
+    assert resolve_directory(items) == {
+        hash_to_bytes("c0d8929936631ecbcf9147be6b8aa13b13b014e4"): DirectoryData(
+            date=datetime.fromtimestamp(1000000000), flat=True
+        )
     }
 
 

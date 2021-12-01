@@ -14,13 +14,13 @@ from typing import Dict, Generator, Iterable, List, Optional, Set, Type, Union
 
 import psycopg2.extensions
 import psycopg2.extras
-from typing_extensions import Literal
 
 from swh.core.db import BaseDb
 from swh.core.statsd import statsd
 from swh.model.model import Sha1Git
 
 from ..interface import (
+    DirectoryData,
     EntityType,
     ProvenanceResult,
     ProvenanceStorageInterface,
@@ -82,10 +82,26 @@ class ProvenanceStoragePostgreSql:
         self.conn.close()
 
     @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "content_add"})
-    def content_add(
-        self, cnts: Union[Iterable[Sha1Git], Dict[Sha1Git, Optional[datetime]]]
-    ) -> bool:
-        return self._entity_set_date("content", cnts)
+    def content_add(self, cnts: Dict[Sha1Git, datetime]) -> bool:
+        try:
+            if cnts:
+                sql = """
+                    INSERT INTO content(sha1, date) VALUES %s
+                      ON CONFLICT (sha1) DO
+                      UPDATE SET date=LEAST(EXCLUDED.date,content.date)
+                    """
+                page_size = self.page_size or len(cnts)
+                with self.transaction() as cursor:
+                    psycopg2.extras.execute_values(
+                        cursor, sql, argslist=cnts.items(), page_size=page_size
+                    )
+            return True
+        except:  # noqa: E722
+            # Unexpected error occurred, rollback all changes and log message
+            LOGGER.exception("Unexpected error")
+            if self.raise_on_commit:
+                raise
+        return False
 
     @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "content_find_first"})
     def content_find_first(self, id: Sha1Git) -> Optional[ProvenanceResult]:
@@ -106,17 +122,67 @@ class ProvenanceStoragePostgreSql:
 
     @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "content_get"})
     def content_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, datetime]:
-        return self._entity_get_date("content", ids)
+        dates: Dict[Sha1Git, datetime] = {}
+        sha1s = tuple(ids)
+        if sha1s:
+            # TODO: consider splitting this query in several ones if sha1s is too big!
+            values = ", ".join(itertools.repeat("%s", len(sha1s)))
+            sql = f"""
+                SELECT sha1, date
+                  FROM content
+                  WHERE sha1 IN ({values})
+                    AND date IS NOT NULL
+                """
+            with self.transaction(readonly=True) as cursor:
+                cursor.execute(query=sql, vars=sha1s)
+                dates.update((row["sha1"], row["date"]) for row in cursor)
+        return dates
 
     @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "directory_add"})
-    def directory_add(
-        self, dirs: Union[Iterable[Sha1Git], Dict[Sha1Git, Optional[datetime]]]
-    ) -> bool:
-        return self._entity_set_date("directory", dirs)
+    def directory_add(self, dirs: Dict[Sha1Git, DirectoryData]) -> bool:
+        data = [(sha1, rev.date, rev.flat) for sha1, rev in dirs.items()]
+        try:
+            if data:
+                sql = """
+                    INSERT INTO directory(sha1, date, flat) VALUES %s
+                      ON CONFLICT (sha1) DO
+                      UPDATE SET
+                        date=LEAST(EXCLUDED.date, directory.date),
+                        flat=(EXCLUDED.flat OR directory.flat)
+                    """
+                page_size = self.page_size or len(data)
+                with self.transaction() as cursor:
+                    psycopg2.extras.execute_values(
+                        cur=cursor, sql=sql, argslist=data, page_size=page_size
+                    )
+            return True
+        except:  # noqa: E722
+            # Unexpected error occurred, rollback all changes and log message
+            LOGGER.exception("Unexpected error")
+            if self.raise_on_commit:
+                raise
+        return False
 
     @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "directory_get"})
-    def directory_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, datetime]:
-        return self._entity_get_date("directory", ids)
+    def directory_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, DirectoryData]:
+        result: Dict[Sha1Git, DirectoryData] = {}
+        sha1s = tuple(ids)
+        if sha1s:
+            # TODO: consider splitting this query in several ones if sha1s is too big!
+            values = ", ".join(itertools.repeat("%s", len(sha1s)))
+            sql = f"""
+                SELECT sha1, date, flat
+                  FROM directory
+                  WHERE sha1 IN ({values})
+                    AND date IS NOT NULL
+                """
+            with self.transaction(readonly=True) as cursor:
+                cursor.execute(query=sql, vars=sha1s)
+                result.update(
+                    (row["sha1"], DirectoryData(date=row["date"], flat=row["flat"]))
+                    for row in cursor
+                )
+        return result
 
     @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "entity_get_all"})
     def entity_get_all(self, entity: EntityType) -> Set[Sha1Git]:
@@ -298,53 +364,6 @@ class ProvenanceStoragePostgreSql:
         self, relation: RelationType
     ) -> Dict[Sha1Git, Set[RelationData]]:
         return self._relation_get(relation, None)
-
-    def _entity_get_date(
-        self,
-        entity: Literal["content", "directory", "revision"],
-        ids: Iterable[Sha1Git],
-    ) -> Dict[Sha1Git, datetime]:
-        dates: Dict[Sha1Git, datetime] = {}
-        sha1s = tuple(ids)
-        if sha1s:
-            # TODO: consider splitting this query in several ones if sha1s is too big!
-            values = ", ".join(itertools.repeat("%s", len(sha1s)))
-            sql = f"""
-                SELECT sha1, date
-                  FROM {entity}
-                  WHERE sha1 IN ({values})
-                    AND date IS NOT NULL
-                """
-            with self.transaction(readonly=True) as cursor:
-                cursor.execute(query=sql, vars=sha1s)
-                dates.update((row["sha1"], row["date"]) for row in cursor)
-        return dates
-
-    def _entity_set_date(
-        self,
-        entity: Literal["content", "directory"],
-        dates: Union[Iterable[Sha1Git], Dict[Sha1Git, Optional[datetime]]],
-    ) -> bool:
-        data = dates if isinstance(dates, dict) else dict.fromkeys(dates)
-        try:
-            if data:
-                sql = f"""
-                    INSERT INTO {entity}(sha1, date) VALUES %s
-                      ON CONFLICT (sha1) DO
-                      UPDATE SET date=LEAST(EXCLUDED.date,{entity}.date)
-                    """
-                page_size = self.page_size or len(data)
-                with self.transaction() as cursor:
-                    psycopg2.extras.execute_values(
-                        cursor, sql, argslist=data.items(), page_size=page_size
-                    )
-            return True
-        except:  # noqa: E722
-            # Unexpected error occurred, rollback all changes and log message
-            LOGGER.exception("Unexpected error")
-            if self.raise_on_commit:
-                raise
-        return False
 
     def _relation_get(
         self,

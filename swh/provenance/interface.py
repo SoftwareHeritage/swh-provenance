@@ -44,6 +44,18 @@ class ProvenanceResult:
 
 
 @dataclass(eq=True, frozen=True)
+class DirectoryData:
+    """Object representing the data associated to a directory in the provenance model,
+    where `date` is the date of the directory in the isochrone frontier, and `flat` is a
+    flag acknowledging that a flat model for the elements outside the frontier has
+    already been created.
+    """
+
+    date: datetime
+    flat: bool
+
+
+@dataclass(eq=True, frozen=True)
 class RevisionData:
     """Object representing the data associated to a revision in the provenance model,
     where `date` is the optional date of the revision (specifying it acknowledges that
@@ -85,11 +97,9 @@ class ProvenanceStorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content_add")
-    def content_add(
-        self, cnts: Union[Iterable[Sha1Git], Dict[Sha1Git, Optional[datetime]]]
-    ) -> bool:
-        """Add blobs identified by sha1 ids, with an optional associated date (as paired
-        in `cnts`) to the provenance storage. Return a boolean stating whether the
+    def content_add(self, cnts: Dict[Sha1Git, datetime]) -> bool:
+        """Add blobs identified by sha1 ids, with an associated date (as paired in
+        `cnts`) to the provenance storage. Return a boolean stating whether the
         information was successfully stored.
         """
         ...
@@ -108,25 +118,23 @@ class ProvenanceStorageInterface(Protocol):
 
     @remote_api_endpoint("content_get")
     def content_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, datetime]:
-        """Retrieve the associated date for each blob sha1 in `ids`. If some blob has
-        no associated date, it is not present in the resulting dictionary.
-        """
+        """Retrieve the associated date for each blob sha1 in `ids`."""
         ...
 
     @remote_api_endpoint("directory_add")
-    def directory_add(
-        self, dirs: Union[Iterable[Sha1Git], Dict[Sha1Git, Optional[datetime]]]
-    ) -> bool:
-        """Add directories identified by sha1 ids, with an optional associated date (as
-        paired in `dirs`) to the provenance storage. Return a boolean stating if the
-        information was successfully stored.
+    def directory_add(self, dirs: Dict[Sha1Git, DirectoryData]) -> bool:
+        """Add directories identified by sha1 ids, with associated date and (optional)
+        flatten flag (as paired in `dirs`) to the provenance storage. If the flatten
+        flag is set to None, the previous value present in the storage is preserved.
+        Return a boolean stating if the information was successfully stored.
         """
         ...
 
     @remote_api_endpoint("directory_get")
-    def directory_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, datetime]:
-        """Retrieve the associated date for each directory sha1 in `ids`. If some
-        directory has no associated date, it is not present in the resulting dictionary.
+    def directory_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, DirectoryData]:
+        """Retrieve the associated date and (optional) flatten flag for each directory
+        sha1 in `ids`. If some directories has no associated date, it is not present in
+        the resulting dictionary.
         """
         ...
 

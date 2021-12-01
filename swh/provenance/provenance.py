@@ -15,6 +15,7 @@ from swh.core.statsd import statsd
 from swh.model.model import Sha1Git
 
 from .interface import (
+    DirectoryData,
     ProvenanceInterface,
     ProvenanceResult,
     ProvenanceStorageInterface,
@@ -32,7 +33,7 @@ BACKEND_OPERATIONS_METRIC = "swh_provenance_backend_operations_total"
 
 
 class DatetimeCache(TypedDict):
-    data: Dict[Sha1Git, Optional[datetime]]
+    data: Dict[Sha1Git, Optional[datetime]]  # None means unknown
     added: Set[Sha1Git]
 
 
@@ -49,6 +50,7 @@ class RevisionCache(TypedDict):
 class ProvenanceCache(TypedDict):
     content: DatetimeCache
     directory: DatetimeCache
+    directory_flatten: Dict[Sha1Git, Optional[bool]]  # None means unknown
     revision: DatetimeCache
     # below are insertion caches only
     content_in_revision: Set[Tuple[Sha1Git, Sha1Git, bytes]]
@@ -65,6 +67,7 @@ def new_cache() -> ProvenanceCache:
     return ProvenanceCache(
         content=DatetimeCache(data={}, added=set()),
         directory=DatetimeCache(data={}, added=set()),
+        directory_flatten={},
         revision=DatetimeCache(data={}, added=set()),
         content_in_revision=set(),
         content_in_directory=set(),
@@ -194,7 +197,8 @@ class Provenance:
         # properly resolve any internal reference if needed. Content and directory
         # entries may safely be registered with their associated dates. In contrast,
         # revision entries should be registered without date, as it is used to
-        # acknowledge that the flushing was successful.
+        # acknowledge that the flushing was successful. Also, directories are
+        # registered with their flatten flag not set.
         cnt_dates = {
             sha1: date
             for sha1, date in self.cache["content"]["data"].items()
@@ -211,7 +215,7 @@ class Provenance:
                 )
 
         dir_dates = {
-            sha1: date
+            sha1: DirectoryData(date=date, flat=False)
             for sha1, date in self.cache["directory"]["data"].items()
             if sha1 in self.cache["directory"]["added"] and date is not None
         }
@@ -306,8 +310,27 @@ class Provenance:
                     RelationType.DIR_IN_REV,
                 )
 
-        # After relations, dates for the revisions can be safely set, acknowledging that
-        # these revisions won't need to be reprocessed in case of failure.
+        # After relations, flatten flags for directories can be safely set (if
+        # applicable) acknowledging those directories that have already be flattened.
+        # Similarly, dates for the revisions are set to acknowledge that these revisions
+        # won't need to be reprocessed in case of failure.
+        dir_acks = {
+            sha1: DirectoryData(
+                date=date, flat=self.cache["directory_flatten"].get(sha1) or False
+            )
+            for sha1, date in self.cache["directory"]["data"].items()
+            if sha1 in self.cache["directory"]["added"] and date is not None
+        }
+        if dir_acks:
+            while not self.storage.directory_add(dir_acks):
+                statsd.increment(
+                    metric=BACKEND_OPERATIONS_METRIC,
+                    tags={"method": "flush_revision_content_retry_directory_ack"},
+                )
+                LOGGER.warning(
+                    "Unable to write directory dates to the storage. Retrying..."
+                )
+
         rev_dates = {
             sha1: RevisionData(date=date, origin=None)
             for sha1, date in self.cache["revision"]["data"].items()
@@ -388,14 +411,22 @@ class Provenance:
         cache = self.cache[entity]
         missing_ids = set(id for id in ids if id not in cache)
         if missing_ids:
-            if entity == "revision":
-                updated = {
-                    id: rev.date
-                    for id, rev in self.storage.revision_get(missing_ids).items()
-                }
-            else:
-                updated = getattr(self.storage, f"{entity}_get")(missing_ids)
-            cache["data"].update(updated)
+            if entity == "content":
+                cache["data"].update(self.storage.content_get(missing_ids))
+            elif entity == "directory":
+                cache["data"].update(
+                    {
+                        id: dir.date
+                        for id, dir in self.storage.directory_get(missing_ids).items()
+                    }
+                )
+            elif entity == "revision":
+                cache["data"].update(
+                    {
+                        id: rev.date
+                        for id, rev in self.storage.revision_get(missing_ids).items()
+                    }
+                )
         dates: Dict[Sha1Git, datetime] = {}
         for sha1 in ids:
             date = cache["data"].setdefault(sha1, None)

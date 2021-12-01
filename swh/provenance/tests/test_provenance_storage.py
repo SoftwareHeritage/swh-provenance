@@ -12,6 +12,7 @@ from swh.model.hashutil import hash_to_bytes
 from swh.model.model import Origin, Sha1Git
 from swh.provenance.archive import ArchiveInterface
 from swh.provenance.interface import (
+    DirectoryData,
     EntityType,
     ProvenanceInterface,
     ProvenanceResult,
@@ -38,17 +39,12 @@ def test_provenance_storage_content(
 
     # Add all content present in the current repo to the storage, just assigning their
     # creation dates. Then check that the returned results when querying are the same.
-    cnts = {cnt["sha1_git"] for idx, cnt in enumerate(data["content"]) if idx % 2 == 0}
     cnt_dates = {
-        cnt["sha1_git"]: cnt["ctime"]
-        for idx, cnt in enumerate(data["content"])
-        if idx % 2 == 1
+        cnt["sha1_git"]: cnt["ctime"] for idx, cnt in enumerate(data["content"])
     }
-    assert cnts or cnt_dates
-    assert provenance_storage.content_add(cnts)
     assert provenance_storage.content_add(cnt_dates)
     assert provenance_storage.content_get(set(cnt_dates.keys())) == cnt_dates
-    assert provenance_storage.entity_get_all(EntityType.CONTENT) == cnts | set(
+    assert provenance_storage.entity_get_all(EntityType.CONTENT) == set(
         cnt_dates.keys()
     )
 
@@ -75,21 +71,15 @@ def test_provenance_storage_directory(
         ]
         return max(dates) if dates else None
 
-    dirs = {
-        dir["id"]
-        for dir in data["directory"]
-        if getmaxdate(dir, data["content"]) is None
-    }
-    dir_dates = {
-        dir["id"]: getmaxdate(dir, data["content"])
-        for dir in data["directory"]
-        if getmaxdate(dir, data["content"]) is not None
-    }
-    assert dirs
-    assert provenance_storage.directory_add(dirs)
+    flat_values = (False, True)
+    dir_dates = {}
+    for idx, dir in enumerate(data["directory"]):
+        date = getmaxdate(dir, data["content"])
+        if date is not None:
+            dir_dates[dir["id"]] = DirectoryData(date=date, flat=flat_values[idx % 2])
     assert provenance_storage.directory_add(dir_dates)
     assert provenance_storage.directory_get(set(dir_dates.keys())) == dir_dates
-    assert provenance_storage.entity_get_all(EntityType.DIRECTORY) == dirs | set(
+    assert provenance_storage.entity_get_all(EntityType.DIRECTORY) == set(
         dir_dates.keys()
     )
 
@@ -199,10 +189,13 @@ def dircontent(
 def entity_add(
     storage: ProvenanceStorageInterface, entity: EntityType, ids: Set[Sha1Git]
 ) -> bool:
+    now = datetime.now(tz=timezone.utc)
     if entity == EntityType.CONTENT:
-        return storage.content_add({sha1: None for sha1 in ids})
+        return storage.content_add({sha1: now for sha1 in ids})
     elif entity == EntityType.DIRECTORY:
-        return storage.directory_add({sha1: None for sha1 in ids})
+        return storage.directory_add(
+            {sha1: DirectoryData(date=now, flat=False) for sha1 in ids}
+        )
     else:  # entity == EntityType.REVISION:
         return storage.revision_add(
             {sha1: RevisionData(date=None, origin=None) for sha1 in ids}

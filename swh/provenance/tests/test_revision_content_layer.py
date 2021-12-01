@@ -12,8 +12,9 @@ from typing_extensions import TypedDict
 from swh.model.hashutil import hash_to_bytes
 from swh.model.model import Sha1Git
 from swh.provenance.archive import ArchiveInterface
+from swh.provenance.directory import directory_add
 from swh.provenance.interface import EntityType, ProvenanceInterface, RelationType
-from swh.provenance.model import RevisionEntry
+from swh.provenance.model import DirectoryEntry, RevisionEntry
 from swh.provenance.revision import revision_add
 from swh.provenance.tests.conftest import (
     fill_storage,
@@ -148,13 +149,18 @@ def _mk_synth_rev(synth_rev: List[Dict[str, str]]) -> SynthRevision:
 
 
 @pytest.mark.parametrize(
-    "repo, lower, mindepth",
+    "repo, lower, mindepth, flatten",
     (
-        ("cmdbts2", True, 1),
-        ("cmdbts2", False, 1),
-        ("cmdbts2", True, 2),
-        ("cmdbts2", False, 2),
-        ("out-of-order", True, 1),
+        ("cmdbts2", True, 1, True),
+        ("cmdbts2", True, 1, False),
+        ("cmdbts2", False, 1, True),
+        ("cmdbts2", False, 1, False),
+        ("cmdbts2", True, 2, True),
+        ("cmdbts2", True, 2, False),
+        ("cmdbts2", False, 2, True),
+        ("cmdbts2", False, 2, False),
+        ("out-of-order", True, 1, True),
+        ("out-of-order", True, 1, False),
     ),
 )
 def test_revision_content_result(
@@ -163,6 +169,7 @@ def test_revision_content_result(
     repo: str,
     lower: bool,
     mindepth: int,
+    flatten: bool,
 ) -> None:
     # read data/README.md for more details on how these datasets are generated
     data = load_repo_data(repo)
@@ -195,7 +202,28 @@ def test_revision_content_result(
             date=ts2dt(revision["date"]),
             root=revision["directory"],
         )
-        revision_add(provenance, archive, [entry], lower=lower, mindepth=mindepth)
+
+        if flatten:
+            revision_add(provenance, archive, [entry], lower=lower, mindepth=mindepth)
+        else:
+            prev_directories = provenance.storage.entity_get_all(EntityType.DIRECTORY)
+            revision_add(
+                provenance,
+                archive,
+                [entry],
+                lower=lower,
+                mindepth=mindepth,
+                flatten=False,
+            )
+            directories = [
+                DirectoryEntry(id=sha1)
+                for sha1 in provenance.storage.entity_get_all(
+                    EntityType.DIRECTORY
+                ).difference(prev_directories)
+            ]
+            for directory in directories:
+                assert not provenance.directory_already_flattenned(directory)
+            directory_add(provenance, archive, directories)
 
         # each "entry" in the synth file is one new revision
         rows["revision"].add(synth_rev["sha1"])

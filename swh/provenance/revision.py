@@ -57,6 +57,7 @@ def revision_add(
     archive: ArchiveInterface,
     revisions: List[RevisionEntry],
     trackall: bool = True,
+    flatten: bool = True,
     lower: bool = True,
     mindepth: int = 1,
     minsize: int = 0,
@@ -81,6 +82,7 @@ def revision_add(
                 revision,
                 graph,
                 trackall=trackall,
+                flatten=flatten,
                 lower=lower,
                 mindepth=mindepth,
                 minsize=minsize,
@@ -96,6 +98,7 @@ def revision_process_content(
     revision: RevisionEntry,
     graph: IsochroneNode,
     trackall: bool = True,
+    flatten: bool = True,
     lower: bool = True,
     mindepth: int = 1,
     minsize: int = 0,
@@ -135,9 +138,10 @@ def revision_process_content(
                     provenance.directory_add_to_revision(
                         revision, current.entry, current.path
                     )
-                    directory_flatten(
-                        provenance, archive, current.entry, minsize=minsize
-                    )
+                    if flatten:
+                        directory_flatten(
+                            provenance, archive, current.entry, minsize=minsize
+                        )
             else:
                 # If current node is an invalidated frontier, update its date for future
                 # revisions to get the proper value.

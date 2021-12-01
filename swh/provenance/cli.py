@@ -141,8 +141,20 @@ def cli(ctx: click.core.Context, config_file: Optional[str], profile: str) -> No
 
 @cli.command(name="iter-frontiers")
 @click.argument("filename")
-@click.option("-l", "--limit", type=int)
-@click.option("-s", "--min-size", default=0, type=int)
+@click.option(
+    "-l",
+    "--limit",
+    type=int,
+    help="""Limit the amount of entries (directories) to read from the input file.""",
+)
+@click.option(
+    "-s",
+    "--min-size",
+    default=0,
+    type=int,
+    help="""Set the minimum size (in bytes) of files to be indexed. """
+    """Any smaller file will be ignored.""",
+)
 @click.pass_context
 def iter_frontiers(
     ctx: click.core.Context,
@@ -178,16 +190,56 @@ def generate_directory_ids(
 
 @cli.command(name="iter-revisions")
 @click.argument("filename")
-@click.option("-a", "--track-all", default=True, type=bool)
-@click.option("-l", "--limit", type=int)
-@click.option("-m", "--min-depth", default=1, type=int)
-@click.option("-r", "--reuse", default=True, type=bool)
-@click.option("-s", "--min-size", default=0, type=int)
+@click.option(
+    "-a",
+    "--track-all",
+    default=True,
+    type=bool,
+    help="""Index all occurrences of files in the development history.""",
+)
+@click.option(
+    "-f",
+    "--flatten",
+    default=True,
+    type=bool,
+    help="""Create flat models for directories in the isochrone frontier.""",
+)
+@click.option(
+    "-l",
+    "--limit",
+    type=int,
+    help="""Limit the amount of entries (revisions) to read from the input file.""",
+)
+@click.option(
+    "-m",
+    "--min-depth",
+    default=1,
+    type=int,
+    help="""Set minimum depth (in the directory tree) at which an isochrone """
+    """frontier can be defined.""",
+)
+@click.option(
+    "-r",
+    "--reuse",
+    default=True,
+    type=bool,
+    help="""Prioritize the usage of previously defined isochrone frontiers """
+    """whenever possible.""",
+)
+@click.option(
+    "-s",
+    "--min-size",
+    default=0,
+    type=int,
+    help="""Set the minimum size (in bytes) of files to be indexed. """
+    """Any smaller file will be ignored.""",
+)
 @click.pass_context
 def iter_revisions(
     ctx: click.core.Context,
     filename: str,
     track_all: bool,
+    flatten: bool,
     limit: Optional[int],
     min_depth: int,
     reuse: bool,
@@ -208,6 +260,7 @@ def iter_revisions(
                 archive,
                 [revision],
                 trackall=track_all,
+                flatten=flatten,
                 lower=reuse,
                 mindepth=min_depth,
                 minsize=min_size,
@@ -229,7 +282,12 @@ def generate_revision_tuples(
 
 @cli.command(name="iter-origins")
 @click.argument("filename")
-@click.option("-l", "--limit", type=int)
+@click.option(
+    "-l",
+    "--limit",
+    type=int,
+    help="""Limit the amount of entries (origins) to read from the input file.""",
+)
 @click.pass_context
 def iter_origins(ctx: click.core.Context, filename: str, limit: Optional[int]) -> None:
     """Process a provided list of origins."""
@@ -275,7 +333,9 @@ def find_first(ctx: click.core.Context, swhid: str) -> None:
 
 @cli.command(name="find-all")
 @click.argument("swhid")
-@click.option("-l", "--limit", type=int)
+@click.option(
+    "-l", "--limit", type=int, help="""Limit the amount results to be retrieved."""
+)
 @click.pass_context
 def find_all(ctx: click.core.Context, swhid: str, limit: Optional[int]) -> None:
     """Find all occurrences of the requested blob."""

@@ -9,7 +9,7 @@ import queue
 import sys
 import threading
 import time
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import iso8601
 from swh.core import config

@@ -7,7 +7,7 @@ import multiprocessing
 import os
 import sys
 import time
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional
 
 import iso8601
 from swh.core import config
@@ -27,6 +27,7 @@ class Client(multiprocessing.Process):
         self,
         conf: Dict[str, Any],
         trackall: bool,
+        flatten: bool,
         lower: bool,
         mindepth: int,
         group: None = None,
@@ -38,6 +39,7 @@ class Client(multiprocessing.Process):
         self.storage_conf = conf["storage"]
         self.url = f"tcp://{conf['rev_server']['host']}:{conf['rev_server']['port']}"
         self.trackall = trackall
+        self.flatten = flatten
         self.lower = lower
         self.mindepth = mindepth
         logging.info(f"Client {self.name} created")
@@ -77,6 +79,7 @@ class Client(multiprocessing.Process):
                     archive,
                     batch,
                     trackall=self.trackall,
+                    flatten=self.flatten,
                     lower=self.lower,
                     mindepth=self.mindepth,
                 )
@@ -85,14 +88,15 @@ class Client(multiprocessing.Process):
 
 if __name__ == "__main__":
     # Check parameters
-    if len(sys.argv) != 5:
-        print("usage: client <processes> <trackall> <lower> <mindepth>")
+    if len(sys.argv) != 6:
+        print("usage: client <processes> <trackall> <flatten> <lower> <mindepth>")
         exit(-1)
 
     processes = int(sys.argv[1])
     trackall = sys.argv[2].lower() != "false"
-    lower = sys.argv[3].lower() != "false"
-    mindepth = int(sys.argv[4])
+    flatten = sys.argv[3].lower() != "false"
+    lower = sys.argv[4].lower() != "false"
+    mindepth = int(sys.argv[5])
 
     config_file = None  # TODO: add as a cli option
     if (
@@ -115,7 +119,14 @@ if __name__ == "__main__":
     clients: List[Client] = []
     for idx in range(processes):
         logging.info(f"MAIN: launching process {idx}")
-        client = Client(conf, trackall, lower, mindepth, name=f"worker{idx}")
+        client = Client(
+            conf,
+            trackall=trackall,
+            flatten=flatten,
+            lower=lower,
+            mindepth=mindepth,
+            name=f"worker{idx}",
+        )
         client.start()
         clients.append(client)
 

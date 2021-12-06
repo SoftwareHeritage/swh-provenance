@@ -124,7 +124,6 @@ def revision_process_content(
             if is_new_frontier(
                 current,
                 revision=revision,
-                trackall=trackall,
                 lower=lower,
                 mindepth=mindepth,
             ):
@@ -165,35 +164,19 @@ def revision_process_content(
 def is_new_frontier(
     node: IsochroneNode,
     revision: RevisionEntry,
-    trackall: bool = True,
     lower: bool = True,
     mindepth: int = 1,
 ) -> bool:
     assert node.maxdate is not None  # for mypy
     assert revision.date is not None  # idem
-    if trackall:
-        # The only real condition for a directory to be a frontier is that its content
-        # is already known and its maxdate is less (or equal) than current revision's
-        # date. Checking mindepth is meant to skip root directories (or any arbitrary
-        # depth) to improve the result. The option lower tries to maximize the reuse
-        # rate of previously defined  frontiers by keeping them low in the directory
-        # tree.
-        return (
-            node.known
-            and node.maxdate <= revision.date  # all content is earlier than revision
-            and node.depth
-            >= mindepth  # current node is deeper than the min allowed depth
-            and (has_blobs(node) if lower else True)  # there is at least one blob in it
-        )
-    else:
-        # If we are only tracking first occurrences, we want to ensure that all first
-        # occurrences end up in the content_early_in_rev relation. Thus, we force for
-        # every blob outside a frontier to have an strictly earlier date.
-        return (
-            node.maxdate < revision.date  # all content is earlier than revision
-            and node.depth >= mindepth  # deeper than the min allowed depth
-            and (has_blobs(node) if lower else True)  # there is at least one blob
-        )
+    # We want to ensure that all first occurrences end up in the content_early_in_rev
+    # relation. Thus, we force for every blob outside a frontier to have an strictly
+    # earlier date.
+    return (
+        node.maxdate < revision.date  # all content is earlier than revision
+        and node.depth >= mindepth  # deeper than the min allowed depth
+        and (has_blobs(node) if lower else True)  # there is at least one blob
+    )
 
 
 def has_blobs(node: IsochroneNode) -> bool:
@@ -205,8 +188,7 @@ def has_blobs(node: IsochroneNode) -> bool:
     # stack = [node]
     # while stack:
     #     current = stack.pop()
-    #     if any(
-    #         map(lambda child: isinstance(child.entry, FileEntry), current.children)):
+    #     if any(current.entry.files):
     #         return True
     #     else:
     #         # All children are directory entries.
@@ -215,14 +197,3 @@ def has_blobs(node: IsochroneNode) -> bool:
     # 3. Files in the intermediate directories between current node and any previously
     #    defined frontier:
     # TODO: complete this case!
-    # return any(
-    #     map(lambda child: isinstance(child.entry, FileEntry), node.children)
-    # ) or all(
-    #     map(
-    #         lambda child: (
-    #             not (isinstance(child.entry, DirectoryEntry) and child.date is None)
-    #         )
-    #         or has_blobs(child),
-    #         node.children,
-    #     )
-    # )

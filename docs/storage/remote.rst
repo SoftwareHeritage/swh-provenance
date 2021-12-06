@@ -403,12 +403,12 @@ It is the client’s responsibility to properly split data along messages
 according to the remote storage server policy.
 
 Since there is overlapping between methods in the
-``ProvenanceInterface`` operating over the same entity, one worker may
-have to handle more than one method to guarantee conflict-free writings
-to the underlying storage. For instance, consider the ``content``
-entity, for a given ID range, methods ``content_add`` and
-``relation_add`` with ``relation=CNT_EARLY_IN_REV`` may conflict. Is the
-worker’s responsibility to solve this kind of conflicts.
+``ProvenanceStorageInterface`` operating over the same entity, one worker
+may have to handle more than one method to guarantee conflict-free
+writings to the underlying storage. For instance, consider the
+``content`` entity, for a given ID range, methods ``content_add`` and
+``relation_add`` with ``relation=CNT_EARLY_IN_REV`` may conflict. It is
+the worker’s responsibility to solve this kind of conflicts.
 
 To initialize a server object it is required to provide two mandatory
 parameters:

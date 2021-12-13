@@ -199,11 +199,11 @@ def build_isochrone_graph(
     fdates: Dict[Sha1Git, datetime] = {}  # map {file_id: date}
     while stack:
         current = stack.pop()
-        if current.dbdate is None or current.dbdate > revision.date:
+        if current.dbdate is None or current.dbdate >= revision.date:
             # If current directory has an associated date in the isochrone frontier that
             # is greater or equal to the current revision's one, it should be ignored as
             # the revision is being processed out of order.
-            if current.dbdate is not None and current.dbdate > revision.date:
+            if current.dbdate is not None and current.dbdate >= revision.date:
                 current.invalidate()
 
             # Pre-query all known dates for directories in the current directory

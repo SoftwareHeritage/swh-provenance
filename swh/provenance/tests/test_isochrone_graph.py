@@ -44,7 +44,6 @@ def isochrone_graph_from_dict(d: Dict[str, Any], depth: int = 0) -> IsochroneNod
         depth=depth,
     )
     node.maxdate = datetime.fromtimestamp(d["maxdate"], timezone.utc)
-    node.known = d.get("known", False)
     node.invalid = d.get("invalid", False)
     node.path = bytes(d["path"], encoding="utf-8")
     node.children = set(

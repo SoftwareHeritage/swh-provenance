@@ -75,7 +75,6 @@
                   id: "c9cabe7f49012e3fdef6ac6b929efb5654f583cf"
                   name: "C"
                 maxdate: 1000000010.0
-                known: True
                 path: "A/B/C"
 # Isochrone graph for R03
 - rev: "540bd6155a3c50cc47b2e6f43aeaace67a696d1d"
@@ -84,14 +83,12 @@
       id: "cea28838ec1fb757e44b724fe1365d64c6a94e24"
       name: ""
     maxdate: 1000000010.0
-    known: True
     path: ""
     children:
       - entry:
           id: "48007c961cc734d1f63886d0413a6dc605e3e2ea"
           name: "A"
         maxdate: 1000000010.0
-        known: True
         path: "A"
         children:
           - entry:
@@ -99,7 +96,6 @@
               name: "C"
             dbdate: 1000000010.0
             maxdate: 1000000010.0
-            known: True
             path: "A/C"
 # Isochrone graph for R04
 - rev: "17ed10db0612c9b46ba340943cb6b48b25431419"
@@ -108,21 +104,18 @@
       id: "195601c98c28f04e0d19c218434738006990db72"
       name: ""
     maxdate: 1000000020.0
-    known: True
     path: ""
     children:
       - entry:
           id: "d591b308488541aabffd854eae85a9bf83a9d9f5"
           name: "A"
         maxdate: 1000000020.0
-        known: True
         path: "A"
         children:
           - entry:
               id: "0e540a8ebea2f5de3e62b92e2139902cf6f46e92"
               name: "B"
             maxdate: 1000000020.0
-            known: True
             path: "A/B"
             children:
               - entry:
@@ -130,7 +123,6 @@
                   name: "C"
                 dbdate: 1000000010.0
                 maxdate: 1000000010.0
-                known: True
                 path: "A/B/C"
 # Isochrone graph for R05
 - rev: "c8bef45193355db33d64f375b4a4e4f23ac2a4f6"
@@ -153,28 +145,24 @@
       id: "c86d2f588234098642ef6f33ca662a6a9de865bc"
       name: ""
     maxdate: 1000000050.0
-    known: True
     path: ""
     children:
       - entry:
           id: "8a3993f4efa9385ce993775cab5ec4dc2c78d7f6"
           name: "D"
         maxdate: 1000000050.0
-        known: True
         path: "D"
         children:
           - entry:
               id: "fa63f03d67d1a15563afe9f8ba97832dfb20f42a"
               name: "E"
             maxdate: 1000000050.0
-            known: True
             path: "D/E"
             children:
               - entry:
                   id: "12f1bc8ca9678ecc055bc65efd7fb4dd1f13457e"
                   name: "D"
                 maxdate: 1000000050.0
-                known: True
                 path: "D/E/D"
 # Isochrone graph for R07
 - rev: "91ed6a03c80b61e0d63d328f7a4325230e7a0237"
@@ -183,14 +171,12 @@
       id: "641baf6738fa5ebb3c5eb39af45f62ff52f8cc62"
       name: ""
     maxdate: 1000000050.0
-    known: True
     path: ""
     children:
       - entry:
           id: "b0ae56ed5ca7daa34fd7a91a28db443ab3c389a0"
           name: "F"
         maxdate: 1000000050.0
-        known: True
         path: "F"
         children:
           - entry:
@@ -198,7 +184,6 @@
               name: "E"
             dbdate: 1000000050.0
             maxdate: 1000000050.0
-            known: True
             path: "F/E"
 # Isochrone graph for R08
 - rev: "a97e5c8a626510eefaa637091924cf800b1e8b06"
@@ -207,28 +192,24 @@
       id: "79e219827e12f40e7146cc6834ee04b617a8073a"
       name: ""
     maxdate: 1000000050.0
-    known: True
     path: ""
     children:
       - entry:
           id: "9a7b5762e20b11735b93a635cda451c75bd31270"
           name: "F"
         maxdate: 1000000050.0
-        known: True
         path: "F"
         children:
           - entry:
               id: "81b84d8fd8ceebd47f51896d19ce1aa286629225"
               name: "E"
             maxdate: 1000000050.0
-            known: True
             path: "F/E"
             children:
               - entry:
                   id: "cb211f2d9dfee6c3968837a07960afd6ab09506c"
                   name: "D"
                 maxdate: 1000000050.0
-                known: True
                 path: "F/E/D"
 # Isochrone graph for R09
 - rev: "3c5ad6be812b182ee2a01e84884b8ab7d384a4a0"
@@ -275,14 +256,12 @@
               id: "8b4df27934ce48db6f4bdf326b3bce89d4571252"
               name: "E"
             maxdate: 1000000090.0
-            known: True
             path: "F/E"
             children:
               - entry:
                   id: "2cb3ae467165716d1d0e7fa85190d753c3b76d78"
                   name: "D"
                 maxdate: 1000000090.0
-                known: True
                 path: "F/E/D"
 # Isochrone graph for R11
 - rev: "f4b2d6d273a6f0d9f2b1299c668b7b7ea095a6a2"
@@ -304,7 +283,6 @@
               name: "E"
             dbdate: 1000000090.0
             maxdate: 1000000090.0
-            known: True
             path: "G/E"
 # Isochrone graph for R12
 - rev: "99bd98e1803343ecfabe4b05d0218475c2b1bf74"
@@ -326,7 +304,6 @@
               name: "H"
             dbdate: 1000000090.0
             maxdate: 1000000090.0
-            known: True
             path: "G/H"
 # Isochrone graph for R13
 - rev: "10287882c7ed1b7c96f43da269e6a868b98291ff"
@@ -347,19 +324,16 @@
               id: "2cb3ae467165716d1d0e7fa85190d753c3b76d78"
               name: "D"
             maxdate: 1000000090.0
-            known: True
             path: "G/D"
           - entry:
               id: "8b4df27934ce48db6f4bdf326b3bce89d4571252"
               name: "I"
             dbdate: 1000000090.0
             maxdate: 1000000090.0
-            known: True
             path: "G/I"
           - entry:
               id: "8b4df27934ce48db6f4bdf326b3bce89d4571252"
               name: "H"
             dbdate: 1000000090.0
             maxdate: 1000000090.0
-            known: True
             path: "G/H"

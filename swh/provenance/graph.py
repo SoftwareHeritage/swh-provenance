@@ -122,10 +122,6 @@ class IsochroneNode:
         # maxdate is set by the maxdate computation algorithm
         self.maxdate: Optional[datetime] = None
 
-        # known is True if this node is already known in the db; either because
-        # the current directory actually exists in the database, or because all
-        # the content of the current directory is known (subdirectories and files)
-        self.known = self.dbdate is not None
         self.invalid = False
         self.path = os.path.join(prefix, self.entry.name) if prefix else self.entry.name
         self.children: Set[IsochroneNode] = set()
@@ -141,7 +137,6 @@ class IsochroneNode:
         )
         self._dbdate = None
         self.maxdate = None
-        self.known = False
         self.invalid = True
 
     def add_directory(
@@ -156,9 +151,8 @@ class IsochroneNode:
 
     def __str__(self) -> str:
         return (
-            f"<{self.entry}: depth={self.depth}, "
-            f"dbdate={self.dbdate}, maxdate={self.maxdate}, "
-            f"known={self.known}, invalid={self.invalid}, path={self.path!r}, "
+            f"<{self.entry}: depth={self.depth}, dbdate={self.dbdate}, "
+            f"maxdate={self.maxdate}, invalid={self.invalid}, path={self.path!r}, "
             f"children=[{', '.join(str(child) for child in self.children)}]>"
         )
 
@@ -228,7 +222,7 @@ def build_isochrone_graph(
         current = stack.pop()
         # Current directory node is known if it already has an assigned date (ie. it was
         # already seen as an isochrone frontier).
-        if current.known:
+        if current.dbdate is not None:
             assert current.maxdate is None
             current.maxdate = current.dbdate
         else:
@@ -245,31 +239,19 @@ def build_isochrone_graph(
                 # we can infer the maxdate for current directory
                 assert current.maxdate is None
                 # if all content is already known, update current directory info.
-                current.maxdate = max(
-                    [UTCMIN]
-                    + [
-                        child.maxdate
-                        for child in current.children
-                        if child.maxdate is not None  # unnecessary, but needed for mypy
-                    ]
-                    + [
-                        fdates.get(file.id, revision.date)
-                        for file in current.entry.files
-                    ]
+                current.maxdate = min(
+                    max(
+                        [UTCMIN]
+                        + [
+                            child.maxdate
+                            for child in current.children
+                            if child.maxdate is not None  # for mypy
+                        ]
+                        + [
+                            fdates.get(file.id, revision.date)
+                            for file in current.entry.files
+                        ]
+                    ),
+                    revision.date,
                 )
-                if current.maxdate <= revision.date:
-                    current.known = (
-                        # true if all subdirectories are known
-                        all(child.known for child in current.children)
-                        # true if all files are in fdates, i.e. if all files were known
-                        # *before building this isochrone graph node*
-                        # Note: the 'all()' is lazy: will stop iterating as soon as
-                        # possible
-                        and all((file.id in fdates) for file in current.entry.files)
-                    )
-                else:
-                    # at least one content is being processed out-of-order, then current
-                    # node should be treated as unknown
-                    current.maxdate = revision.date
-                    current.known = False
     return root

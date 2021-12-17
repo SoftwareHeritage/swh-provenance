@@ -487,18 +487,8 @@ class Provenance:
                     cache[revision.id] = origin
         return cache.get(revision.id)
 
-    def revision_in_history(self, revision: RevisionEntry) -> bool:
-        return revision.id in self.cache["revision_before_revision"] or bool(
-            self.storage.relation_get(RelationType.REV_BEFORE_REV, [revision.id])
-        )
-
     def revision_set_preferred_origin(
         self, origin: OriginEntry, revision: RevisionEntry
     ) -> None:
         self.cache["revision_origin"]["data"][revision.id] = origin.id
         self.cache["revision_origin"]["added"].add(revision.id)
-
-    def revision_visited(self, revision: RevisionEntry) -> bool:
-        return revision.id in dict(self.cache["revision_in_origin"]) or bool(
-            self.storage.relation_get(RelationType.REV_IN_ORG, [revision.id])
-        )

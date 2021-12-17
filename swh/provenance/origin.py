@@ -55,7 +55,7 @@ def origin_add(
         provenance.origin_add(origin)
         origin.retrieve_revisions(archive)
         for revision in origin.revisions:
-            graph = HistoryGraph(provenance, archive, revision)
+            graph = HistoryGraph(archive, revision)
             origin_add_revision(provenance, origin, graph)
     provenance.flush()
 
@@ -66,24 +66,19 @@ def origin_add_revision(
     origin: OriginEntry,
     graph: HistoryGraph,
 ) -> None:
-    # XXX: simplified version of the origin-revision algorithm. This is generating flat
-    # models for the history of all head revisions. No previous result is reused now!
-    # The previous implementation was missing some paths from origins to certain
-    # revisions due to a wrong reuse logic.
-
     # head is treated separately since it should always be added to the given origin
-    check_preferred_origin(provenance, origin, graph.head.entry)
-    provenance.revision_add_to_origin(origin, graph.head.entry)
+    check_preferred_origin(provenance, origin, graph.head)
+    provenance.revision_add_to_origin(origin, graph.head)
     visited = {graph.head}
 
     # head's history should be recursively iterated starting from its parents
     stack = list(graph.parents[graph.head])
     while stack:
         current = stack.pop()
-        check_preferred_origin(provenance, origin, current.entry)
+        check_preferred_origin(provenance, origin, current)
 
         # create a link between it and the head, and recursively walk its history
-        provenance.revision_add_before_revision(graph.head.entry, current.entry)
+        provenance.revision_add_before_revision(graph.head, current)
         visited.add(current)
         for parent in graph.parents[current]:
             if parent not in visited:

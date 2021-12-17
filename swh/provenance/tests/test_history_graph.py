@@ -42,9 +42,8 @@ def test_history_graph(
                 print("Expected graph:", expected_graph_as_dict)
 
                 computed_graph = HistoryGraph(
-                    provenance,
                     archive,
-                    RevisionEntry(hash_to_bytes(expected_graph_as_dict["head"]["rev"])),
+                    RevisionEntry(hash_to_bytes(expected_graph_as_dict["head"])),
                 )
                 print("Computed graph:", computed_graph.as_dict())
                 assert computed_graph.as_dict() == expected_graph_as_dict

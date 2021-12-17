@@ -377,20 +377,8 @@ class ProvenanceInterface(Protocol):
         """Retrieve the preferred origin associated to `revision`."""
         ...
 
-    def revision_in_history(self, revision: RevisionEntry) -> bool:
-        """Check if `revision` is known to be an ancestor of some head revision in the
-        provenance model.
-        """
-        ...
-
     def revision_set_preferred_origin(
         self, origin: OriginEntry, revision: RevisionEntry
     ) -> None:
         """Associate `origin` as the preferred origin for `revision`."""
-        ...
-
-    def revision_visited(self, revision: RevisionEntry) -> bool:
-        """Check if `revision` is known to be a head revision for some origin in the
-        provenance model.
-        """
         ...

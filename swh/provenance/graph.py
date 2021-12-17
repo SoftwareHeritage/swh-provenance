@@ -23,47 +23,15 @@ GRAPH_OPERATIONS_METRIC = "swh_provenance_graph_operations_total"
 UTCMIN = datetime.min.replace(tzinfo=timezone.utc)
 
 
-class HistoryNode:
-    def __init__(
-        self, entry: RevisionEntry, is_head: bool = False, in_history: bool = False
-    ) -> None:
-        self.entry = entry
-        # A revision is `is_head` if it is directly pointed by an origin (ie. a head
-        # revision for some snapshot)
-        self.is_head = is_head
-        # A revision is `in_history` if it appears in the history graph of an already
-        # processed revision in the provenance database
-        self.in_history = in_history
-        # XXX: the current simplified version of the origin-revision layer algorithm
-        # does not use this previous two flags at all. They are kept for now but might
-        # be removed in the future (hence, RevisionEntry might be used instead of
-        # HistoryNode).
-
-    def __str__(self) -> str:
-        return f"<{self.entry}: is_head={self.is_head}, in_history={self.in_history}>"
-
-    def as_dict(self) -> Dict[str, Any]:
-        return {
-            "rev": hash_to_hex(self.entry.id),
-            "is_head": self.is_head,
-            "in_history": self.in_history,
-        }
-
-
 class HistoryGraph:
     @statsd.timed(metric=GRAPH_DURATION_METRIC, tags={"method": "build_history_graph"})
     def __init__(
         self,
-        provenance: ProvenanceInterface,
         archive: ArchiveInterface,
         revision: RevisionEntry,
     ) -> None:
-        self._head = HistoryNode(
-            revision,
-            is_head=provenance.revision_visited(revision),
-            in_history=provenance.revision_in_history(revision),
-        )
-        self._graph: Dict[HistoryNode, Set[HistoryNode]] = {}
+        self._head = revision
+        self._graph: Dict[RevisionEntry, Set[RevisionEntry]] = {}
 
         stack = [self._head]
         while stack:
@@ -71,22 +39,17 @@ class HistoryGraph:
 
             if current not in self._graph:
                 self._graph[current] = set()
-                current.entry.retrieve_parents(archive)
-                for parent in current.entry.parents:
-                    node = HistoryNode(
-                        parent,
-                        is_head=provenance.revision_visited(parent),
-                        in_history=provenance.revision_in_history(parent),
-                    )
-                    self._graph[current].add(node)
-                    stack.append(node)
+                current.retrieve_parents(archive)
+                for parent in current.parents:
+                    self._graph[current].add(parent)
+                    stack.append(parent)
 
     @property
-    def head(self) -> HistoryNode:
+    def head(self) -> RevisionEntry:
         return self._head
 
     @property
-    def parents(self) -> Dict[HistoryNode, Set[HistoryNode]]:
+    def parents(self) -> Dict[RevisionEntry, Set[RevisionEntry]]:
         return self._graph
 
     def __str__(self) -> str:
@@ -94,11 +57,10 @@ class HistoryGraph:
 
     def as_dict(self) -> Dict[str, Any]:
         return {
-            "head": self.head.as_dict(),
+            "head": hash_to_hex(self.head.id),
             "graph": {
-                hash_to_hex(node.entry.id): sorted(
-                    [parent.as_dict() for parent in parents],
-                    key=lambda d: d["rev"],
+                hash_to_hex(node.id): sorted(
+                    [hash_to_hex(parent.id) for parent in parents]
                 )
                 for node, parents in self._graph.items()
             },

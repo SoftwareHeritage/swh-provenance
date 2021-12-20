@@ -110,7 +110,7 @@ def revision_process_content(
     while stack:
         current = stack.pop()
         if current.dbdate is not None:
-            assert current.dbdate <= revision.date
+            assert current.dbdate < revision.date
             if trackall:
                 # Current directory is an outer isochrone frontier for a previously
                 # processed revision. It should be reused as is.
@@ -146,7 +146,7 @@ def revision_process_content(
                 # revisions to get the proper value.
                 if current.invalid:
                     provenance.directory_set_date_in_isochrone_frontier(
-                        current.entry, current.maxdate
+                        current.entry, revision.date
                     )
                 # No point moving the frontier here. Either there are no files or they
                 # are being seen for the first time here. Add all blobs to current

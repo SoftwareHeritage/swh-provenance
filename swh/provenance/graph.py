@@ -239,19 +239,16 @@ def build_isochrone_graph(
                 # we can infer the maxdate for current directory
                 assert current.maxdate is None
                 # if all content is already known, update current directory info.
-                current.maxdate = min(
-                    max(
-                        [UTCMIN]
-                        + [
-                            child.maxdate
-                            for child in current.children
-                            if child.maxdate is not None  # for mypy
-                        ]
-                        + [
-                            fdates.get(file.id, revision.date)
-                            for file in current.entry.files
-                        ]
-                    ),
-                    revision.date,
+                current.maxdate = max(
+                    [UTCMIN]
+                    + [
+                        child.maxdate
+                        for child in current.children
+                        if child.maxdate is not None  # for mypy
+                    ]
+                    + [
+                        fdates.get(file.id, revision.date)
+                        for file in current.entry.files
+                    ]
                 )
     return root

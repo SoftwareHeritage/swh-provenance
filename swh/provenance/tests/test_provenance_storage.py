@@ -431,7 +431,7 @@ def test_provenance_storage_find(
         } == set(provenance_storage.content_find_all(cnt))
 
 
-def test_types(provenance_storage: ProvenanceInterface) -> None:
+def test_types(provenance_storage: ProvenanceStorageInterface) -> None:
     """Checks all methods of ProvenanceStorageInterface are implemented by this
     backend, and that they have the same signature."""
     # Create an instance of the protocol (which cannot be instantiated

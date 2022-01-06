@@ -23,8 +23,7 @@ class ArchivePostgreSQL:
         self.conn = conn
 
     def directory_ls(self, id: Sha1Git, minsize: int = 0) -> Iterable[Dict[str, Any]]:
-        entries = self._directory_ls(id, minsize=minsize)
-        yield from entries
+        yield from self._directory_ls(id, minsize=minsize)
 
     @lru_cache(maxsize=100000)
     @statsd.timed(metric=ARCHIVE_DURATION_METRIC, tags={"method": "directory_ls"})
@@ -87,10 +86,14 @@ class ArchivePostgreSQL:
                 {"type": row[0], "target": row[1], "name": row[2]} for row in cursor
             ]
 
+    def revision_get_parents(self, id: Sha1Git) -> Iterable[Sha1Git]:
+        yield from self._revision_get_parents(id)
+
+    @lru_cache(maxsize=100000)
     @statsd.timed(
         metric=ARCHIVE_DURATION_METRIC, tags={"method": "revision_get_parents"}
     )
-    def revision_get_parents(self, id: Sha1Git) -> Iterable[Sha1Git]:
+    def _revision_get_parents(self, id: Sha1Git) -> List[Sha1Git]:
         with self.conn.cursor() as cursor:
             cursor.execute(
                 """
@@ -101,7 +104,7 @@ class ArchivePostgreSQL:
                 """,
                 (id,),
             )
-            yield from (row[0] for row in cursor)
+            return [row[0] for row in cursor]
 
     @statsd.timed(metric=ARCHIVE_DURATION_METRIC, tags={"method": "snapshot_get_heads"})
     def snapshot_get_heads(self, id: Sha1Git) -> Iterable[Sha1Git]:

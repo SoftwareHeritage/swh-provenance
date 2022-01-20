@@ -70,4 +70,4 @@ class ArchiveStorage:
                 if revision is not None and revision.date is not None
             )
 
-        yield from (head for _, head in sorted(revisions))
+        yield from (head for _, head in revisions)

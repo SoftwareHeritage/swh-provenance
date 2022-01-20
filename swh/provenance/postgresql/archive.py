@@ -135,7 +135,7 @@ class ArchivePostgreSQL:
                               ON (RL.target=RV.id)
                             WHERE B.target_type='release'::snapshot_target
                               AND RL.target_type='revision'::object_type)
-                          ORDER BY date, id)
+                         )
                 SELECT id FROM heads
                 """,
                 (id,),

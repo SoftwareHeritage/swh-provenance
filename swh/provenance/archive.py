@@ -47,8 +47,7 @@ class ArchiveInterface(Protocol):
             id: sha1 id of the snapshot.
 
         Yields:
-            sha1 ids of revisions that are a target of such snapshot. Revisions are
-            guaranteed to be retrieved in chronological order
+            sha1 ids of revisions that are a target of such snapshot.
 
         """
         ...

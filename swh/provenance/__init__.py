@@ -17,7 +17,7 @@ def get_archive(cls: str, **kwargs) -> ArchiveInterface:
     """Get an archive object of class ``cls`` with arguments ``args``.
 
     Args:
-        cls: archive's class, either 'api' or 'direct'
+        cls: archive's class, either 'api', 'direct' or 'graph'
         args: dictionary of arguments passed to the archive class constructor
 
     Returns:
@@ -33,12 +33,27 @@ def get_archive(cls: str, **kwargs) -> ArchiveInterface:
         from .storage.archive import ArchiveStorage
 
         return ArchiveStorage(get_storage(**kwargs["storage"]))
+
     elif cls == "direct":
         from swh.core.db import BaseDb
 
         from .postgresql.archive import ArchivePostgreSQL
 
         return ArchivePostgreSQL(BaseDb.connect(**kwargs["db"]).conn)
+
+    elif cls == "graph":
+        try:
+            from swh.graph.client import RemoteGraphClient
+
+            from .swhgraph.archive import ArchiveGraph
+
+            graph = RemoteGraphClient(kwargs.get("url"))
+            return ArchiveGraph(graph, get_storage(**kwargs["storage"]))
+
+        except ModuleNotFoundError:
+            raise EnvironmentError(
+                "Graph configuration required but module is not installed."
+            )
     else:
         raise ValueError
 

@@ -33,10 +33,10 @@ class ArchivePostgreSQL:
                 cursor.execute(
                     """
                     WITH
-                    dir AS (SELECT id AS dir_id, dir_entries, file_entries
+                    dir AS (SELECT dir_entries, file_entries
                               FROM directory WHERE id=%s),
-                    ls_d AS (SELECT dir_id, UNNEST(dir_entries) AS entry_id FROM dir),
-                    ls_f AS (SELECT dir_id, UNNEST(file_entries) AS entry_id FROM dir)
+                    ls_d AS (SELECT DISTINCT UNNEST(dir_entries) AS entry_id FROM dir),
+                    ls_f AS (SELECT DISTINCT UNNEST(file_entries) AS entry_id FROM dir)
                     (SELECT 'dir'::directory_entry_type AS type, e.target, e.name
                        FROM ls_d
                        LEFT JOIN directory_entry_dir e ON ls_d.entry_id=e.id)
@@ -68,10 +68,10 @@ class ArchivePostgreSQL:
                 cursor.execute(
                     """
                     WITH
-                    dir AS (SELECT id AS dir_id, dir_entries, file_entries
+                    dir AS (SELECT dir_entries, file_entries
                               FROM directory WHERE id=%s),
-                    ls_d AS (SELECT dir_id, UNNEST(dir_entries) AS entry_id FROM dir),
-                    ls_f AS (SELECT dir_id, UNNEST(file_entries) AS entry_id FROM dir)
+                    ls_d AS (SELECT DISTINCT UNNEST(dir_entries) AS entry_id FROM dir),
+                    ls_f AS (SELECT DISTINCT UNNEST(file_entries) AS entry_id FROM dir)
                     (SELECT 'dir'::directory_entry_type AS type, e.target, e.name
                        FROM ls_d
                        LEFT JOIN directory_entry_dir e ON ls_d.entry_id=e.id)

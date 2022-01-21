@@ -31,15 +31,15 @@ setup):
 
 The provenance index DB comes in 2 feature flags, so there are 4 possible flavors. Feature flags are:
 
-- `with-path` / `without-path`: whether the provenance index database will store file path,
-- `normalized` / `denormalized`: whether or not the main relation tables are normalized (see below).
+- ``with-path`` / ``without-path``: whether the provenance index database will store file path,
+- ``normalized`` / ``denormalized``: whether or not the main relation tables are normalized (see below).
 
 So the possible flavors are:
 
-- `with-path`
-- `without-path`
-- `with-path-denormalized`
-- `without-path-denormalized`
+- ``with-path``
+- ``without-path``
+- ``with-path-denormalized``
+- ``without-path-denormalized``
 
 Filling the provenance index database
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -78,7 +78,7 @@ You need a configuration file, like:
         url: http://storage:5002/
 
 Note that you need access to the internal API of a :ref:`swh-storage
-<swh-storage>` instance (here the machine named `storage`) for this.
+<swh-storage>` instance (here the machine named ``storage``) for this.
 
 Then you can feed the provenance index database using:
 

@@ -16,7 +16,7 @@ comment on column dbversion.description is 'Release description';
 
 -- latest schema version
 insert into dbversion(version, release, description)
-    values(2, now(), 'Work In Progress');
+    values(3, now(), 'Work In Progress');
 
 -- a Git object ID, i.e., a Git-style salted SHA1 checksum
 create domain sha1_git as bytea check (length(value) = 20);
@@ -70,7 +70,7 @@ comment on column revision.origin is 'preferred origin for the revision';
 create table location
 (
     id      bigserial primary key,          -- internal identifier of the location
-    path    unix_path unique not null       -- path to the location
+    path    unix_path                       -- path to the location
 );
 comment on column location.id is 'Location internal identifier';
 comment on column location.path is 'Path to the location';
@@ -79,7 +79,7 @@ create table origin
 (
     id      bigserial primary key,          -- internal identifier of the origin
     sha1    sha1_git unique not null,       -- intrinsic identifier of the origin
-    url     text unique not null            -- url of the origin
+    url     text                            -- url of the origin
 );
 comment on column origin.id is 'Origin internal identifier';
 comment on column origin.sha1 is 'Origin intrinsic identifier';

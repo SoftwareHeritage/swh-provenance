@@ -1,5 +1,7 @@
 include Makefile
+include README.md
 include requirements*.txt
 include version.txt
-include README.md
+recursive-include sql *
+recursive-include swh/provenance/sql *
 recursive-include swh py.typed

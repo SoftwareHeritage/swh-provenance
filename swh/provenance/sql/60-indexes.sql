@@ -13,6 +13,7 @@ create unique index on directory_in_revision(directory);
 create unique index on content_in_directory(content);
 \endif
 
+create unique index on location(digest(path, 'sha1'));
 
 alter table revision_in_origin add primary key (revision, origin);
 alter table revision_before_revision add primary key (prev, next);

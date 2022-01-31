@@ -7,7 +7,10 @@
 insert into dbversion(version, release, description)
     values(3, now(), 'Work In Progress');
 
-drop index if exists location_path_key;
-create unique index on location(digest(path::bytea, 'sha1'::text));
+alter table location
+    drop constraint if exists location_path_key;
 
-drop index if exists origin_url_key;
+create unique index on location(digest(path, 'sha1'));
+
+alter table origin
+    drop constraint if exists origin_url_key;

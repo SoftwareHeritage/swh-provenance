@@ -100,7 +100,7 @@ as $$
     begin
         if src_table in ('content'::regclass, 'directory'::regclass) then
             select_fields := 'D.id, L.id';
-            join_location := 'inner join location as L on (L.path = V.path)';
+            join_location := 'inner join location as L on (digest(L.path,''sha1'') = digest(V.path,''sha1''))';
         else
             select_fields := 'D.id';
             join_location := '';
@@ -419,7 +419,7 @@ as $$
     begin
         if src_table in ('content'::regclass, 'directory'::regclass) then
             select_fields := 'array_agg(D.id), array_agg(L.id)';
-            join_location := 'inner join location as L on (L.path = V.path)';
+            join_location := 'inner join location as L on (digest(L.path,''sha1'') = digest(V.path,''sha1''))';
             group_entries := 'group by S.id';
             on_conflict := format('
                 (%s) do update

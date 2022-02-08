@@ -11,7 +11,6 @@ import threading
 import time
 from typing import Any, Callable, Dict, List, Optional
 
-import iso8601
 from swh.core import config
 from swh.provenance import get_provenance
 from swh.provenance.postgresql.provenance import ProvenanceStoragePostgreSql
@@ -22,7 +21,7 @@ CONFIG_ENVVAR = "SWH_CONFIG_FILENAME"
 
 DEFAULT_BATCH_SIZE = 1
 DEFAULT_PATH = os.environ.get(CONFIG_ENVVAR, None)
-DEFAULT_PORT = 5556
+DEFAULT_PORT = 5555
 DEFAULT_STATS_RATE = 300
 DEFAULT_SKIP_VALUE = 0
 
@@ -58,25 +57,18 @@ class StatsWorker(threading.Thread):
                 with provenance.storage.transaction(readonly=True) as cursor:
                     cursor.execute(f"SELECT COUNT(*) AS count FROM {table}")
                     stats[table] = cursor.fetchone()["count"]
-            with provenance.storage.transaction(readonly=True) as cursor:
-                cursor.execute(f"SELECT MAX(date) AS date FROM revision")
-                stats["maxdate"] = cursor.fetchone()["date"]
             return stats
 
     def init_stats(self, filename: str) -> List[str]:
         tables = [
-            "content",
-            "content_in_revision",
-            "content_in_directory",
-            "directory",
-            "directory_in_revision",
-            "location",
+            "origin",
             "revision",
+            "revision_in_origin",
+            "revision_before_revision",
         ]
         header = ["datetime"]
         for table in tables:
             header.append(f"{table} rows")
-        header.append("revision maxdate")
         with io.open(filename, "w") as outfile:
             outfile.write(",".join(header))
             outfile.write("\n")
@@ -110,7 +102,7 @@ class StatsWorker(threading.Thread):
             outfile.write("\n")
 
 
-class RevisionWorker(threading.Thread):
+class OriginWorker(threading.Thread):
     def __init__(
         self,
         filename: str,
@@ -141,7 +133,9 @@ class RevisionWorker(threading.Thread):
             if os.path.splitext(self.filename)[1] == ".csv"
             else gzip.open(self.filename, "rt")
         )
-        provider = (line.strip().split(",") for line in file if line.strip())
+        provider = (
+            line.strip().rsplit(",", maxsplit=1) for line in file if line.strip()
+        )
 
         count = 0
         while True:
@@ -149,11 +143,11 @@ class RevisionWorker(threading.Thread):
                 break
 
             response = []
-            for rev, date, root in provider:
+            for url, snapshot in provider:
                 count += 1
-                if count <= self.skip or iso8601.parse_date(date) <= UTCEPOCH:
+                if count <= self.skip:
                     continue
-                response.append({"rev": rev, "date": date, "root": root})
+                response.append({"url": url, "snapshot": snapshot})
                 if len(response) == self.batch_size:
                     break
             if not response:
@@ -187,11 +181,9 @@ if __name__ == "__main__":
         print("usage: server <filename>")
         print("where")
         print(
-            "    filename     : csv file containing the list of revisions to be iterated (one per"
+            "    filename     : csv file containing the list of origins to be iterated (one per"
         )
-        print(
-            "                   line): revision sha1, date in ISO format, root directory sha1."
-        )
+        print("                   line): origin url, snapshot sha1.")
         exit(-1)
 
     config_file = None  # TODO: Add as a cli option
@@ -209,7 +201,7 @@ if __name__ == "__main__":
     conf = yaml.safe_load(open(config_file, "rb"))["provenance"]
 
     # Init stats
-    stats = conf["rev_server"].pop("stats", None)
+    stats = conf["org_server"].pop("stats", None)
     if stats is not None:
         storage_conf = (
             conf["storage"]["storage_config"]
@@ -220,12 +212,12 @@ if __name__ == "__main__":
         statsworker = StatsWorker(statsfile, storage_conf, **stats)
         statsworker.start()
 
-    # Init revision provider
-    revsfile = sys.argv[1]
-    host = conf["rev_server"].pop("host", None)
-    url = f"tcp://*:{conf['rev_server'].pop('port', DEFAULT_PORT)}"
-    revsworker = RevisionWorker(revsfile, url, **conf["rev_server"])
-    revsworker.start()
+    # Init origin provider
+    orgsfile = sys.argv[1]
+    host = conf["org_server"].pop("host", None)
+    url = f"tcp://*:{conf['org_server'].pop('port', DEFAULT_PORT)}"
+    orgsworker = OriginWorker(orgsfile, url, **conf["org_server"])
+    orgsworker.start()
 
     # Wait for user commands
     while True:
@@ -237,6 +229,6 @@ if __name__ == "__main__":
             pass
 
     # Release resources
-    revsworker.stop()
+    orgsworker.stop()
     if stats is not None:
         statsworker.stop()

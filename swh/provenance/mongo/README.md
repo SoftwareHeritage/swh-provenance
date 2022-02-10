@@ -10,7 +10,7 @@ initial data-model
 content
 {
     id: sha1
-    ts: int //optional
+    ts: int // optional
     revision: {<ref revision str>: [<ref path>]}
     directory: {<ref directory str>: [<ref path>]}
 }
@@ -18,7 +18,7 @@ content
 directory
 {
     id: sha1
-    ts: int  //optional
+    ts: int  // optional
     revision: {<ref revision str>: [<ref path>]}
 }
 
@@ -26,7 +26,7 @@ revision
 {
     id: sha1
     ts: int // optional
-    preferred  <ref origin>  //optinal
+    preferred  <ref origin>  // optional
     origin  [<ref origin>]
     revision [<ref revisions>]
 }

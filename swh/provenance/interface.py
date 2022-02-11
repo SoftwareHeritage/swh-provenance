@@ -367,6 +367,10 @@ class ProvenanceInterface(Protocol):
         target of an snapshot for `origin` in the archive)."""
         ...
 
+    def revision_is_head(self, revision: RevisionEntry) -> bool:
+        """Check if `revision` is associated as a head revision for some origin."""
+        ...
+
     def revision_get_date(self, revision: RevisionEntry) -> Optional[datetime]:
         """Retrieve the date associated to `revision`."""
         ...

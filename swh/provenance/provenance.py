@@ -472,6 +472,9 @@ class Provenance:
     ) -> None:
         self.cache["revision_in_origin"].add((revision.id, origin.id))
 
+    def revision_is_head(self, revision: RevisionEntry) -> bool:
+        return bool(self.storage.relation_get(RelationType.REV_IN_ORG, [revision.id]))
+
     def revision_get_date(self, revision: RevisionEntry) -> Optional[datetime]:
         return self.get_dates("revision", [revision.id]).get(revision.id)
 

@@ -50,14 +50,20 @@ def origin_add(
     provenance: ProvenanceInterface,
     archive: ArchiveInterface,
     origins: List[OriginEntry],
+    commit: bool = True,
 ) -> None:
     for origin in origins:
         provenance.origin_add(origin)
         origin.retrieve_revisions(archive)
         for revision in origin.revisions:
-            graph = HistoryGraph(archive, revision)
-            origin_add_revision(provenance, origin, graph)
-    provenance.flush()
+            if not provenance.revision_is_head(revision):
+                graph = HistoryGraph(archive, revision)
+                origin_add_revision(provenance, origin, graph)
+            # head is treated separately
+            check_preferred_origin(provenance, origin, revision)
+            provenance.revision_add_to_origin(origin, revision)
+    if commit:
+        provenance.flush()
 
 
 @statsd.timed(metric=ORIGIN_DURATION_METRIC, tags={"method": "process_revision"})
@@ -66,11 +72,7 @@ def origin_add_revision(
     origin: OriginEntry,
     graph: HistoryGraph,
 ) -> None:
-    # head is treated separately since it should always be added to the given origin
-    check_preferred_origin(provenance, origin, graph.head)
-    provenance.revision_add_to_origin(origin, graph.head)
     visited = {graph.head}
-
     # head's history should be recursively iterated starting from its parents
     stack = list(graph.parents[graph.head])
     while stack:

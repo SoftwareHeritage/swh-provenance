@@ -12,8 +12,8 @@ import pytest
 
 from swh.core.cli import swh as swhmain
 import swh.core.cli.db  # noqa ; ensure cli is loaded
-from swh.core.cli.db import init_admin_extensions
 from swh.core.db import BaseDb
+from swh.core.db.db_utils import init_admin_extensions
 import swh.provenance.cli  # noqa ; ensure cli is loaded
 
 
@@ -35,6 +35,7 @@ def test_cli_swh_db_help() -> None:
 
 TABLES = {
     "dbflavor",
+    "dbmodule",
     "dbversion",
     "content",
     "content_in_revision",
@@ -50,7 +51,7 @@ TABLES = {
 
 
 @pytest.mark.parametrize(
-    "flavor, dbtables", (("with-path", TABLES | {"location"}), ("without-path", TABLES))
+    "flavor, dbtables", (("with-path", TABLES), ("without-path", TABLES))
 )
 def test_cli_db_create_and_init_db_with_flavor(
     monkeypatch: MonkeyPatch,

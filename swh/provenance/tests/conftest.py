@@ -37,7 +37,10 @@ def provenance_postgresqldb(
     postgresql: psycopg2.extensions.connection,
 ) -> Dict[str, str]:
     """return a working and initialized provenance db"""
-    from swh.core.cli.db import init_admin_extensions, populate_database_for_package
+    from swh.core.db.db_utils import (
+        init_admin_extensions,
+        populate_database_for_package,
+    )
 
     init_admin_extensions("swh.provenance", postgresql.dsn)
     populate_database_for_package(
@@ -104,7 +107,10 @@ def provenance(
 ) -> Generator[ProvenanceInterface, None, None]:
     """Return a working and initialized ProvenanceInterface object"""
 
-    from swh.core.cli.db import init_admin_extensions, populate_database_for_package
+    from swh.core.db.db_utils import (
+        init_admin_extensions,
+        populate_database_for_package,
+    )
 
     init_admin_extensions("swh.provenance", provenance_postgresql.dsn)
     populate_database_for_package(

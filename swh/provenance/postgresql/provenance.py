@@ -74,7 +74,7 @@ class ProvenanceStoragePostgreSql:
     @contextmanager
     def transaction(
         self, readonly: bool = False
-    ) -> Generator[psycopg2.extensions.cursor, None, None]:
+    ) -> Generator[psycopg2.extras.RealDictCursor, None, None]:
         self.conn.set_session(readonly=readonly)
         with self.conn:
             with self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:

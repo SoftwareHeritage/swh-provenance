@@ -19,10 +19,10 @@ if __name__ == "__main__":
         sort = False
         for idx, line in enumerate(infile.readlines(), start=1):
             if line.strip():
-                splitted = line.split(",")
-                revision = hash_to_bytes(splitted[0])
-                date = datetime.fromisoformat(splitted[1])
-                root = hash_to_bytes(splitted[2])
+                split = line.split(",")
+                revision = hash_to_bytes(split[0])
+                date = datetime.fromisoformat(split[1])
+                root = hash_to_bytes(split[2])
 
                 assert date is not None
 

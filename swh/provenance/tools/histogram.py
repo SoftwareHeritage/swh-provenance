@@ -24,7 +24,7 @@ if __name__ == "__main__":
             with provenance.storage.transaction() as cursor:
                 cursor.execute(
                     f"""SELECT depths.depth, COUNT(depths.depth)
-                        FROM (SELECT 
+                        FROM (SELECT
                                 CASE location.path
                                     WHEN '' THEN 0
                                     WHEN '.' THEN 0

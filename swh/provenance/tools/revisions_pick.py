@@ -4,6 +4,7 @@ import io
 import sys
 
 import psycopg2
+
 from swh.core.db import BaseDb
 from swh.model.hashutil import hash_to_bytes, hash_to_hex
 

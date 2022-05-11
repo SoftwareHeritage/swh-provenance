@@ -56,55 +56,41 @@ if __name__ == "__main__":
         for table in tables:
             row_count = tables[table]["row_count"]
             table_size = tables[table]["table_size"]
+            table_ratio = table_size / (row_count or 1)
             indexes_size = tables[table]["indexes_size"]
+            indexes_ratio = indexes_size / (row_count or 1)
             relation_size = tables[table]["relation_size"]
+            relation_ratio = indexes_size / (row_count or 1)
 
             print(f"{table}:")
             print(f"    total rows: {row_count}")
             if row_count == 0:
                 row_count = 1
+            print(f"    table size: {table_size} bytes ({table_ratio:.2f} per row)")
+            print(f"    index size: {indexes_size} bytes ({indexes_ratio:.2f} per row)")
             print(
-                f"    table size: {table_size} bytes ({table_size / row_count:.2f} per row)"
-            )
-            print(
-                f"    index size: {indexes_size} bytes ({indexes_size / row_count:.2f} per row)"
-            )
-            print(
-                f"    total size: {relation_size} bytes ({relation_size / row_count:.2f} per row)"
+                f"    total size: {relation_size} bytes ({relation_ratio:.2f} per row)"
             )
 
         # Ratios between de different entities/relations.
         print("ratios:")
-        print(
-            f"    content/revision:              {tables['content']['row_count'] / (tables['revision']['row_count'] if tables['revision']['row_count'] != 0 else 1):.2f}"
-        )
-        print(
-            f"    content_early_in_rev/content:  {tables['content_early_in_rev']['row_count'] / (tables['content']['row_count'] if tables['content']['row_count'] != 0 else 1):.2f}"
-        )
-        print(
-            f"    content_in_dir/content:        {tables['content_in_dir']['row_count'] / (tables['content']['row_count'] if tables['content']['row_count'] != 0 else 1):.2f}"
-        )
-        print(
-            f"    directory/revision:            {tables['directory']['row_count'] / (tables['revision']['row_count'] if tables['revision']['row_count'] != 0 else 1):.2f}"
-        )
-        print(
-            f"    directory_in_rev/directory:    {tables['directory_in_rev']['row_count'] / (tables['directory']['row_count'] if tables['directory']['row_count'] != 0 else 1):.2f}"
-        )
-        print(f"    ==============================")
-        print(
-            f"    content_early_in_rev/revision: {tables['content_early_in_rev']['row_count'] / (tables['revision']['row_count'] if tables['revision']['row_count'] != 0 else 1):.2f}"
-        )
-        print(
-            f"    content_in_dir/directory:      {tables['content_in_dir']['row_count'] / (tables['directory']['row_count'] if tables['directory']['row_count'] != 0 else 1):.2f}"
-        )
-        print(
-            f"    directory_in_rev/revision:     {tables['directory_in_rev']['row_count'] / (tables['revision']['row_count'] if tables['revision']['row_count'] != 0 else 1):.2f}"
-        )
+        for num, den in (
+            ("content", "revision"),
+            ("content_early_in_rev", "content"),
+            ("content_in_dir", "content"),
+            ("directory", "revision"),
+            ("directory_in_rev", "directory"),
+            ("content_early_in_rev", "revision"),
+            ("content_in_dir", "directory"),
+            ("directory_in_rev", "revision"),
+        ):
+            ratio = tables[num]["row_count"] / (tables[den]["row_count"] or 1)
+            print(f"{num}/{den}: {ratio:.2f}")
 
         # Metrics for frontiers defined in root directories.
         with provenance.storage.transaction() as cursor:
             cursor.execute(
-                f"""SELECT dir
+                """SELECT dir
                     FROM directory_in_rev
                     INNER JOIN location
                         ON loc=location.id
@@ -115,7 +101,7 @@ if __name__ == "__main__":
             print(f"Total root frontiers used:              {len(directories)}")
 
             cursor.execute(
-                f"""SELECT dir
+                """SELECT dir
                     FROM directory_in_rev
                     INNER JOIN location
                         ON loc=location.id
@@ -127,7 +113,7 @@ if __name__ == "__main__":
             print(f"Total distinct root frontiers:          {len(directories)}")
 
             cursor.execute(
-                f"""SELECT roots.dir
+                """SELECT roots.dir
                     FROM (SELECT dir, loc
                             FROM directory_in_rev
                             INNER JOIN location
@@ -142,7 +128,7 @@ if __name__ == "__main__":
             print(f"Total other uses of these frontiers:    {len(directories)}")
 
             cursor.execute(
-                f"""SELECT roots.dir
+                """SELECT roots.dir
                     FROM (SELECT dir, loc
                             FROM directory_in_rev
                             INNER JOIN location

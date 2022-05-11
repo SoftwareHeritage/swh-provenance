@@ -11,11 +11,12 @@ import threading
 import time
 from typing import Any, Callable, Dict, List, Optional
 
+import yaml
+import zmq
+
 from swh.core import config
 from swh.provenance import get_provenance
 from swh.provenance.postgresql.provenance import ProvenanceStoragePostgreSql
-import yaml
-import zmq
 
 CONFIG_ENVVAR = "SWH_CONFIG_FILENAME"
 
@@ -179,11 +180,10 @@ if __name__ == "__main__":
     # TODO: improve command line parsing
     if len(sys.argv) < 2:
         print("usage: server <filename>")
-        print("where")
         print(
-            "    filename     : csv file containing the list of origins to be iterated (one per"
+            "filename: csv file containing the list of origins to be iterated (one per "
+            "line): origin url, snapshot sha1."
         )
-        print("                   line): origin url, snapshot sha1.")
         exit(-1)
 
     config_file = None  # TODO: Add as a cli option

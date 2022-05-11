@@ -10,12 +10,13 @@ import time
 from typing import Any, Callable, Dict, List, Optional
 
 import iso8601
+import yaml
+import zmq
+
 from swh.core import config
 from swh.model.hashutil import hash_to_bytes
 from swh.provenance import get_archive, get_provenance
 from swh.provenance.revision import RevisionEntry, revision_add
-import yaml
-import zmq
 
 CONFIG_ENVVAR = "SWH_CONFIG_FILENAME"
 

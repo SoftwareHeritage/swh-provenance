@@ -40,7 +40,7 @@ if __name__ == "__main__":
             date = None
             with gzip.open(outfilename, "wt") as outfile:
                 for rev in revisions:
-                    assert date == None or date <= rev[1]
+                    assert date is None or date <= rev[1]
                     date = rev[1]
                     outfile.write(
                         f"{hash_to_hex(rev[0])},{rev[1]},{hash_to_hex(rev[2])}\n"

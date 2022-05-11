@@ -5,6 +5,7 @@ import sys
 from typing import IO, Iterable
 
 import psycopg2
+
 from swh.core.db import BaseDb
 from swh.model.hashutil import hash_to_bytes, hash_to_hex
 from swh.model.model import Sha1Git

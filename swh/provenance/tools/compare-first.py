@@ -28,7 +28,7 @@ def logdiff(filename: str, occurrence: ProvenanceResult) -> None:
         try:
             # Try to decode path.
             path = os.fsdecode(occurrence.path).decode("utf-8", "replace")
-        except:
+        except Exception:
             # Use its raw value if not possible
             path = occurrence.path
         outfile.write(
@@ -62,7 +62,7 @@ def outfilename(suffix: str) -> str:
             try:
                 lastidx = int(filename.strip(prefix).split("-")[0])
                 nextidx = max(nextidx, lastidx + 1)
-            except:
+            except Exception:
                 continue
     return f"{prefix}{nextidx:02}-{suffix}.log"
 

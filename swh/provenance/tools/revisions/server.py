@@ -12,11 +12,12 @@ import time
 from typing import Any, Callable, Dict, List, Optional
 
 import iso8601
+import yaml
+import zmq
+
 from swh.core import config
 from swh.provenance import get_provenance
 from swh.provenance.postgresql.provenance import ProvenanceStoragePostgreSql
-import yaml
-import zmq
 
 CONFIG_ENVVAR = "SWH_CONFIG_FILENAME"
 
@@ -59,7 +60,7 @@ class StatsWorker(threading.Thread):
                     cursor.execute(f"SELECT COUNT(*) AS count FROM {table}")
                     stats[table] = cursor.fetchone()["count"]
             with provenance.storage.transaction(readonly=True) as cursor:
-                cursor.execute(f"SELECT MAX(date) AS date FROM revision")
+                cursor.execute("SELECT MAX(date) AS date FROM revision")
                 stats["maxdate"] = cursor.fetchone()["date"]
             return stats
 
@@ -185,12 +186,9 @@ if __name__ == "__main__":
     # TODO: improve command line parsing
     if len(sys.argv) < 2:
         print("usage: server <filename>")
-        print("where")
         print(
-            "    filename     : csv file containing the list of revisions to be iterated (one per"
-        )
-        print(
-            "                   line): revision sha1, date in ISO format, root directory sha1."
+            "filename: csv file containing the list of revisions to be iterated (one per"
+            " line): revision sha1, date in ISO format, root directory sha1."
         )
         exit(-1)
 

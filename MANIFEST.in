@@ -1,3 +1,7 @@
+# stuff we need to include into the sdist is handled automatically by
+# setuptools_scm - it includes all git-committed files.
+# but we want to exclude some committed files/dirs not needed in the sdist:
+recursive-exclude swh/provenance/tools *
 include Makefile
 include README.md
 include requirements*.txt

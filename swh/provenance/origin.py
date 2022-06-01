@@ -53,17 +53,24 @@ def origin_add(
     commit: bool = True,
 ) -> None:
     for origin in origins:
-        provenance.origin_add(origin)
-        origin.retrieve_revisions(archive)
-        for revision in origin.revisions:
-            if not provenance.revision_is_head(revision):
-                graph = HistoryGraph(archive, revision)
-                origin_add_revision(provenance, origin, graph)
-            # head is treated separately
-            check_preferred_origin(provenance, origin, revision)
-            provenance.revision_add_to_origin(origin, revision)
+        proceed_origin(provenance, archive, origin)
     if commit:
         provenance.flush()
+
+@statsd.timed(metric=ORIGIN_DURATION_METRIC, tags={"method": "proceed_origin"})
+def proceed_origin(
+        provenance: ProvenanceInterface,
+        archive: ArchiveInterface,
+        origin: OriginEntry) -> None:
+    provenance.origin_add(origin)
+    origin.retrieve_revisions(archive)
+    for revision in origin.revisions:
+        if not provenance.revision_is_head(revision):
+            graph = HistoryGraph(archive, revision)
+            origin_add_revision(provenance, origin, graph)
+        # head is treated separately
+        check_preferred_origin(provenance, origin, revision)
+        provenance.revision_add_to_origin(origin, revision)
 
 
 @statsd.timed(metric=ORIGIN_DURATION_METRIC, tags={"method": "process_revision"})

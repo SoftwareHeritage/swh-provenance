@@ -62,6 +62,9 @@ class Client(multiprocessing.Process):
 
 
 if __name__ == "__main__":
+
+    logging.basicConfig(level=logging.INFO)
+
     # Check parameters
     if len(sys.argv) != 2:
         print("usage: client <processes>")

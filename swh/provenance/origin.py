@@ -3,6 +3,10 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import logging
+
+from datetime import datetime
+
 from itertools import islice
 from typing import Generator, Iterable, Iterator, List, Optional, Tuple
 
@@ -14,7 +18,15 @@ from .graph import HistoryGraph
 from .interface import ProvenanceInterface
 from .model import OriginEntry, RevisionEntry
 
+
 ORIGIN_DURATION_METRIC = "swh_provenance_origin_revision_layer_duration_seconds"
+
+LOG_FORMAT = (
+    "%(levelname) -10s %(asctime)s %(name) -30s %(funcName) "
+    "-35s %(lineno) -5d: %(message)s"
+)
+
+LOGGER = logging.getLogger(__name__)
 
 
 class CSVOriginIterator:
@@ -57,11 +69,13 @@ def origin_add(
     if commit:
         provenance.flush()
 
+
 @statsd.timed(metric=ORIGIN_DURATION_METRIC, tags={"method": "proceed_origin"})
 def proceed_origin(
-        provenance: ProvenanceInterface,
-        archive: ArchiveInterface,
-        origin: OriginEntry) -> None:
+    provenance: ProvenanceInterface, archive: ArchiveInterface, origin: OriginEntry
+) -> None:
+    LOGGER.info("Processing origin %s", origin.url)
+    start = datetime.now()
     provenance.origin_add(origin)
     origin.retrieve_revisions(archive)
     for revision in origin.revisions:
@@ -71,6 +85,8 @@ def proceed_origin(
         # head is treated separately
         check_preferred_origin(provenance, origin, revision)
         provenance.revision_add_to_origin(origin, revision)
+    end = datetime.now()
+    LOGGER.info("Processed origin %s in %s", origin.url, (end - start))
 
 
 @statsd.timed(metric=ORIGIN_DURATION_METRIC, tags={"method": "process_revision"})

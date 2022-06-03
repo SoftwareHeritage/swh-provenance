@@ -34,3 +34,17 @@ provenance:
 
 
 ```
+
+Running in Docker
+-----------------
+
+### Build the image
+```
+docker build -t swh-provenance .
+```
+
+### Run the services
+```
+docker-compose up -d
+docker-compose logs -f
+```

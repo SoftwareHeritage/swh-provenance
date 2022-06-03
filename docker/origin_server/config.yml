@@ -1,0 +1,5 @@
+provenance:
+    org_server:  # origin provider
+        host: localhost
+        port: 5555
+        batch_size: 1

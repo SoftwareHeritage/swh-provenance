@@ -1,0 +1,53 @@
+version: '3'
+
+volumes:
+  storage-db:
+
+services:
+  storage-db:
+    image: postgres:13
+    command: [ "-c", "max_connections=1000"]
+    environment:
+      POSTGRES_PASSWORD: provenancepassword
+      POSTGRES_DB: provenance
+      POSTGRES_USER: provenance
+    volumes:
+      - storage-db:/var/lib/postgresql
+      - ./swh/provenance/sql:/docker-entrypoint-initdb.d
+
+  rabbitmq:
+    image: rabbitmq:3.6-management
+    ports:
+      - 5072:5672
+
+  storage:
+    image: swh-provenance
+    build: .
+    volumes:
+      - $PWD:/src/swh-provenance
+      - ./docker/storage/entrypoint.sh:/entrypoint.sh
+      - ./docker/storage/config.yml:/config.yml
+    depends_on:
+      - storage-db
+      - rabbitmq
+
+  origin_server:
+    image: swh-provenance
+    build: .
+    volumes:
+      - $PWD:/src/swh-provenance
+      - ./docker/origin_server/entrypoint.sh:/entrypoint.sh
+      - ./docker/origin_server/config.yml:/config.yml
+      - ./docker/data/origins.csv:/origins.csv
+    ports:
+      - 5555:5555
+
+  origin_client:
+    image: swh-provenance
+    build: .
+    volumes:
+      - $PWD:/src/swh-provenance
+      - ./docker/origin_client/entrypoint.sh:/entrypoint.sh
+      - ./docker/origin_client/config.yml:/config.yml
+    environment:
+      NB_CLIENTS: 3

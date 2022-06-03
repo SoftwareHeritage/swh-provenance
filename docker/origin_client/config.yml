@@ -1,0 +1,36 @@
+provenance:
+    storage:
+        cls: rabbitmq  # client configuration
+        url: amqp://rabbitmq:5672/%2f
+        storage_config:
+            cls: postgresql
+            db:
+                host: storage-db
+                dbname: provenance
+                user: provenance
+                password: provenancepassword
+        batch_size: 10000
+        prefetch_count: 100
+        wait_min: 60
+        wait_per_batch: 60
+
+
+    archive:
+        #cls: graph
+        #url: http://graph.internal.softwareheritage.org:5009/graph
+        # cls: direct
+        # db: 
+        #     host: swh-storage-db
+        #     port: 5432
+        #     dbname: swh
+        #     user: guest
+        cls: api
+        storage:
+            cls: remote
+            # url: http://webapp.internal.staging.swh.network:5002/
+            url: http://webapp1.internal.softwareheritage.org:5002
+
+    org_server:  # origin provider
+        host: origin_server
+        port: 5555
+        batch_size: 1

@@ -1,0 +1,12 @@
+provenance:
+    rabbitmq:  # remote storage server configuration
+        url: amqp://rabbitmq:5672/%2f
+        storage_config:
+            cls: postgresql
+            db:
+                host: storage-db
+                dbname: provenance
+                user: provenance
+                password: provenancepassword
+        batch_size: 10000
+        prefetch_count: 100

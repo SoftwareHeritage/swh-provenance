@@ -29,7 +29,7 @@ class ArchiveGraph:
         src = CoreSWHID(object_type=ObjectType.REVISION, object_id=id)
         request = self.graph.neighbors(str(src), edges="rev:rev", return_types="rev")
 
-        yield from (CoreSWHID.from_string(swhid).object_id for swhid in request)
+        yield from (CoreSWHID.from_string(swhid).object_id for swhid in request if swhid)
 
     @statsd.timed(metric=ARCHIVE_DURATION_METRIC, tags={"method": "snapshot_get_heads"})
     def snapshot_get_heads(self, id: Sha1Git) -> Iterable[Sha1Git]:
@@ -38,4 +38,4 @@ class ArchiveGraph:
             str(src), edges="snp:rev,snp:rel,rel:rev", return_types="rev"
         )
 
-        yield from (CoreSWHID.from_string(swhid).object_id for swhid in request)
+        yield from (CoreSWHID.from_string(swhid).object_id for swhid in request if swhid)

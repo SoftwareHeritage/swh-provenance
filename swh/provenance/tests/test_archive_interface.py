@@ -1,12 +1,13 @@
-# Copyright (C) 2021  The Software Heritage developers
+# Copyright (C) 2021-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 from collections import Counter
 from operator import itemgetter
+from typing import Any
 from typing import Counter as TCounter
-from typing import Dict, List, Set, Tuple, Type, Union
+from typing import Dict, Iterable, List, Set, Tuple, Type, Union
 
 import pytest
 
@@ -28,11 +29,26 @@ from swh.model.model import (
 )
 from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID
 from swh.provenance.archive import ArchiveInterface
+from swh.provenance.multiplexer.archive import ArchiveMultiplexed
 from swh.provenance.postgresql.archive import ArchivePostgreSQL
 from swh.provenance.storage.archive import ArchiveStorage
 from swh.provenance.swhgraph.archive import ArchiveGraph
 from swh.provenance.tests.conftest import fill_storage, load_repo_data
+from swh.storage.interface import StorageInterface
 from swh.storage.postgresql.storage import Storage
+
+
+class ArchiveNoop:
+    storage: StorageInterface
+
+    def directory_ls(self, id: Sha1Git, minsize: int = 0) -> Iterable[Dict[str, Any]]:
+        return []
+
+    def revision_get_parents(self, id: Sha1Git) -> Iterable[Sha1Git]:
+        return []
+
+    def snapshot_get_heads(self, id: Sha1Git) -> Iterable[Sha1Git]:
+        return []
 
 
 def check_directory_ls(
@@ -214,3 +230,19 @@ def test_archive_interface(repo: str, archive: ArchiveInterface) -> None:
         check_directory_ls(archive, archive_graph, data)
     check_revision_get_parents(archive, archive_graph, data)
     check_snapshot_get_heads(archive, archive_graph, data)
+
+    # test against ArchiveMultiplexer
+    archive_multiplexed = ArchiveMultiplexed(
+        [ArchiveNoop(), archive_graph, archive_api]
+    )
+    check_directory_ls(archive, archive_multiplexed, data)
+    check_revision_get_parents(archive, archive_multiplexed, data)
+    check_snapshot_get_heads(archive, archive_multiplexed, data)
+
+
+def test_noop_multiplexer():
+    archive = ArchiveMultiplexed([ArchiveNoop()])
+
+    assert not archive.directory_ls(Sha1Git(b"abcd"))
+    assert not archive.revision_get_parents(Sha1Git(b"abcd"))
+    assert not archive.snapshot_get_heads(Sha1Git(b"abcd"))

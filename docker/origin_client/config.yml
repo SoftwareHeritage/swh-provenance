@@ -16,19 +16,24 @@ provenance:
 
 
     archive:
-        #cls: graph
-        #url: http://graph.internal.softwareheritage.org:5009/graph
+        cls: multiplexer
+        archives:
+            - cls: graph
+              url: http://graph.internal.softwareheritage.org:5009/graph
+              storage:
+                  cls: remote
+                  url: http://webapp1.internal.softwareheritage.org:5002
+            - cls: api
+              storage:
+                  cls: remote
+                  url: http://webapp1.internal.softwareheritage.org:5002
         # cls: direct
         # db: 
         #     host: swh-storage-db
         #     port: 5432
         #     dbname: swh
         #     user: guest
-        cls: api
-        storage:
-            cls: remote
-            # url: http://webapp.internal.staging.swh.network:5002/
-            url: http://webapp1.internal.softwareheritage.org:5002
+        # cls: api
 
     org_server:  # origin provider
         host: origin_server

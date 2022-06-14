@@ -1,4 +1,4 @@
-# Copyright (C) 2021  The Software Heritage developers
+# Copyright (C) 2021-2022 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -14,12 +14,14 @@ from .archive import ArchiveInterface
 
 
 class OriginEntry:
+
+    revisions_count: int
+
     def __init__(self, url: str, snapshot: Sha1Git) -> None:
         self.url = url
         self.id = Origin(url=self.url).id
         self.snapshot = snapshot
         self._revisions: Optional[List[RevisionEntry]] = None
-        self._revisions_count = -1
 
     def retrieve_revisions(self, archive: ArchiveInterface) -> None:
         if self._revisions is None:
@@ -30,6 +32,8 @@ class OriginEntry:
 
     @property
     def revision_count(self) -> int:
+        if self._revisions_count is None:
+            raise ValueError("retrieve_revisions was not called")
         return self._revisions_count
 
     @property

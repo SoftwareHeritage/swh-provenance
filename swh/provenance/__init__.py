@@ -44,6 +44,7 @@ def get_archive(cls: str, **kwargs) -> ArchiveInterface:
     elif cls == "graph":
         try:
             from swh.graph.client import RemoteGraphClient
+            from swh.storage import get_storage
 
             from .swhgraph.archive import ArchiveGraph
 
@@ -54,6 +55,12 @@ def get_archive(cls: str, **kwargs) -> ArchiveInterface:
             raise EnvironmentError(
                 "Graph configuration required but module is not installed."
             )
+    elif cls == "multiplexer":
+
+        from .multiplexer.archive import ArchiveMultiplexed
+
+        archives = list((get_archive(**archive) for archive in kwargs["archives"]))
+        return ArchiveMultiplexed(archives)
     else:
         raise ValueError
 

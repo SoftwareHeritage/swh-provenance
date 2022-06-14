@@ -74,17 +74,37 @@ def origin_add(
 def proceed_origin(
     provenance: ProvenanceInterface, archive: ArchiveInterface, origin: OriginEntry
 ) -> None:
-    LOGGER.info("Processing origin %s", origin.url)
+    LOGGER.info("Processing origin=%s", origin)
     start = datetime.now()
+
+    LOGGER.debug("Add origin")
     provenance.origin_add(origin)
+
+    LOGGER.debug("Retrieving head revisions")
     origin.retrieve_revisions(archive)
-    for revision in origin.revisions:
+    LOGGER.info("%d heads founds", origin.revision_count)
+
+    for idx, revision in enumerate(origin.revisions):
+        LOGGER.info(
+            "checking revision %s (%d/%d)", revision, idx + 1, origin.revision_count
+        )
+
         if not provenance.revision_is_head(revision):
+            LOGGER.debug("revision %s not in heads", revision)
+
             graph = HistoryGraph(archive, revision)
+            LOGGER.debug("History graph built")
+
             origin_add_revision(provenance, origin, graph)
+            LOGGER.debug("Revision added")
+
         # head is treated separately
+        LOGGER.debug("Checking preferred origin")
         check_preferred_origin(provenance, origin, revision)
+
+        LOGGER.debug("Adding revision to origin")
         provenance.revision_add_to_origin(origin, revision)
+
     end = datetime.now()
     LOGGER.info("Processed origin %s in %s", origin.url, (end - start))
 

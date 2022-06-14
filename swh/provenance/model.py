@@ -19,12 +19,18 @@ class OriginEntry:
         self.id = Origin(url=self.url).id
         self.snapshot = snapshot
         self._revisions: Optional[List[RevisionEntry]] = None
+        self._revisions_count = -1
 
     def retrieve_revisions(self, archive: ArchiveInterface) -> None:
         if self._revisions is None:
             self._revisions = [
                 RevisionEntry(rev) for rev in archive.snapshot_get_heads(self.snapshot)
             ]
+            self._revisions_count = len(self._revisions)
+
+    @property
+    def revision_count(self) -> int:
+        return self._revisions_count
 
     @property
     def revisions(self) -> Iterator[RevisionEntry]:

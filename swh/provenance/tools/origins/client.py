@@ -19,6 +19,10 @@ from swh.provenance.origin import OriginEntry, origin_add
 CONFIG_ENVVAR = "SWH_CONFIG_FILENAME"
 
 DEFAULT_PATH = os.environ.get(CONFIG_ENVVAR, None)
+LOG_FORMAT = (
+    "%(asctime)s-%(levelname)s - %(process)d - %(name)s.%(funcName)s:%(lineno)d"
+    ": %(message)s"
+)
 
 
 class Client(multiprocessing.Process):
@@ -63,7 +67,7 @@ class Client(multiprocessing.Process):
 
 if __name__ == "__main__":
 
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.WARN, format=LOG_FORMAT)
 
     # Check parameters
     if len(sys.argv) != 2:

@@ -45,12 +45,22 @@ class ArchiveMultiplexed:
     def revision_get_parents(self, id: Sha1Git) -> Iterable[Sha1Git]:
 
         for archive in self.archives:
-            parents = list(archive.revision_get_parents(id))
-            if parents:
-                return parents
-            LOGGER.debug(
-                "No parents found for revision %s via %s", id.hex(), archive.__class__
-            )
+            try:
+                parents = list(archive.revision_get_parents(id))
+                if parents:
+                    return parents
+                LOGGER.debug(
+                    "No parents found for revision %s via %s",
+                    id.hex(),
+                    archive.__class__,
+                )
+            except Exception as e:
+                LOGGER.warn(
+                    "Error retrieving parents of revision %s via %s: %s",
+                    id.hex(),
+                    archive.__class__,
+                    e,
+                )
 
         return []
 

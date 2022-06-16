@@ -3,11 +3,9 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import logging
-
 from datetime import datetime
-
 from itertools import islice
+import logging
 from typing import Generator, Iterable, Iterator, List, Optional, Tuple
 
 from swh.core.statsd import statsd
@@ -17,7 +15,6 @@ from .archive import ArchiveInterface
 from .graph import HistoryGraph
 from .interface import ProvenanceInterface
 from .model import OriginEntry, RevisionEntry
-
 
 ORIGIN_DURATION_METRIC = "swh_provenance_origin_revision_layer_duration_seconds"
 
@@ -67,7 +64,10 @@ def origin_add(
     for origin in origins:
         proceed_origin(provenance, archive, origin)
     if commit:
+        start = datetime.now()
+        LOGGER.debug("Flushing cache")
         provenance.flush()
+        LOGGER.info("Cache flushed in %s", (datetime.now() - start))
 
 
 @statsd.timed(metric=ORIGIN_DURATION_METRIC, tags={"method": "proceed_origin"})

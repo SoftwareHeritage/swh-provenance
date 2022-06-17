@@ -73,6 +73,8 @@ class Client(multiprocessing.Process):
 if __name__ == "__main__":
 
     logging.basicConfig(level=logging.WARN, format=LOG_FORMAT)
+    logging.getLogger("swh.provenance").setLevel("INFO")
+    logging.getLogger("swh.provenance.multiplexer.archive").setLevel("ERROR")
 
     # Check parameters
     if len(sys.argv) != 2:

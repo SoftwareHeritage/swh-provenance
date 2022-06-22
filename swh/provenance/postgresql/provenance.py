@@ -54,6 +54,7 @@ class ProvenanceStoragePostgreSql:
     def __init__(
         self, page_size: Optional[int] = None, raise_on_commit: bool = False, **kwargs
     ) -> None:
+        self.conn: Optional[psycopg2.extensions.connection] = None
         self.conn_args = kwargs
         self._flavor: Optional[str] = None
         self.page_size = page_size
@@ -75,6 +76,9 @@ class ProvenanceStoragePostgreSql:
     def transaction(
         self, readonly: bool = False
     ) -> Generator[psycopg2.extras.RealDictCursor, None, None]:
+        if self.conn is None:  # somehow, "implicit" __enter__ call did not happen
+            self.open()
+        assert self.conn is not None
         self.conn.set_session(readonly=readonly)
         with self.conn:
             with self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -95,6 +99,7 @@ class ProvenanceStoragePostgreSql:
 
     @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "close"})
     def close(self) -> None:
+        assert self.conn is not None
         self.conn.close()
 
     @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "content_add"})

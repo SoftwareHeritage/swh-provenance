@@ -1,4 +1,4 @@
-# Copyright (C) 2021  The Software Heritage developers
+# Copyright (C) 2021-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -6,10 +6,12 @@
 # WARNING: do not import unnecessary things here to keep cli startup time under
 # control
 from datetime import datetime, timezone
+from functools import partial
 import os
 from typing import Any, Dict, Generator, Optional, Tuple
 
 import click
+from deprecated import deprecated
 import iso8601
 import yaml
 
@@ -137,6 +139,78 @@ def cli(ctx: click.core.Context, config_file: Optional[str], profile: str) -> No
             pr.dump_stats(profile)
 
         atexit.register(exit)
+
+
+@cli.group(name="origin")
+@click.pass_context
+def origin(ctx: click.core.Context):
+    from . import get_archive, get_provenance
+
+    archive = get_archive(**ctx.obj["config"]["provenance"]["archive"])
+    provenance = get_provenance(**ctx.obj["config"]["provenance"]["storage"])
+
+    ctx.obj["provenance"] = provenance
+    ctx.obj["archive"] = archive
+
+
+@origin.command(name="from-csv")
+@click.argument("filename", type=click.Path(exists=True))
+@click.option(
+    "-l",
+    "--limit",
+    type=int,
+    help="""Limit the amount of entries (origins) to read from the input file.""",
+)
+@click.pass_context
+def origin_from_csv(ctx: click.core.Context, filename: str, limit: Optional[int]):
+    from .origin import CSVOriginIterator, origin_add
+
+    provenance = ctx.obj["provenance"]
+    archive = ctx.obj["archive"]
+
+    origins_provider = generate_origin_tuples(filename)
+    origins = CSVOriginIterator(origins_provider, limit=limit)
+
+    with provenance:
+        for origin in origins:
+            origin_add(provenance, archive, [origin])
+
+
+@origin.command(name="from-journal")
+@click.pass_context
+def origin_from_journal(ctx: click.core.Context):
+    from swh.journal.client import get_journal_client
+
+    from .journal_client import process_journal_objects
+
+    provenance = ctx.obj["provenance"]
+    archive = ctx.obj["archive"]
+
+    journal_cfg = ctx.obj["config"].get("journal_client", {})
+
+    worker_fn = partial(
+        process_journal_objects,
+        archive=archive,
+        provenance=provenance,
+    )
+
+    cls = journal_cfg.pop("cls", None) or "kafka"
+    client = get_journal_client(
+        cls,
+        **{
+            **journal_cfg,
+            "object_types": ["origin_visit_status"],
+        },
+    )
+
+    try:
+        client.process(worker_fn)
+    except KeyboardInterrupt:
+        ctx.exit(0)
+    else:
+        print("Done.")
+    finally:
+        client.close()
 
 
 @cli.command(name="iter-frontiers")
@@ -289,6 +363,7 @@ def generate_revision_tuples(
     help="""Limit the amount of entries (origins) to read from the input file.""",
 )
 @click.pass_context
+@deprecated(version="0.0.1", reason="Use `swh provenance origin from-csv` instead")
 def iter_origins(ctx: click.core.Context, filename: str, limit: Optional[int]) -> None:
     """Process a provided list of origins."""
     from . import get_archive, get_provenance

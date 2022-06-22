@@ -1,9 +1,9 @@
-# Copyright (C) 2021  The Software Heritage developers
+# Copyright (C) 2021-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Set
+from typing import Dict, List, Set
 
 from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
@@ -14,7 +14,13 @@ from swh.core.cli import swh as swhmain
 import swh.core.cli.db  # noqa ; ensure cli is loaded
 from swh.core.db import BaseDb
 from swh.core.db.db_utils import init_admin_extensions
+from swh.model.hashutil import MultiHash
 import swh.provenance.cli  # noqa ; ensure cli is loaded
+from swh.provenance.tests.conftest import fill_storage, load_repo_data
+from swh.storage.interface import StorageInterface
+
+from .conftest import get_datafile
+from .test_utils import invoke, write_configuration_path
 
 
 def test_cli_swh_db_help() -> None:
@@ -107,3 +113,52 @@ def test_cli_init_db_default_flavor(postgresql: psycopg2.extensions.connection) 
     with postgresql.cursor() as cur:
         cur.execute("select swh_get_dbflavor()")
         assert cur.fetchone() == ("with-path",)
+
+
+@pytest.mark.parametrize(
+    "subcommand",
+    (["origin", "from-csv"], ["iter-origins"]),
+)
+def test_cli_origin_from_csv(
+    swh_storage: StorageInterface,
+    subcommand: List[str],
+    swh_storage_backend_config: Dict,
+    provenance,
+    tmp_path,
+):
+    repo = "cmdbts2"
+    origin_url = f"https://{repo}"
+    data = load_repo_data(repo)
+    fill_storage(swh_storage, data)
+
+    assert len(data["origin"]) == 1
+    assert {"url": origin_url} in data["origin"]
+
+    cfg = {
+        "provenance": {
+            "archive": {
+                "cls": "api",
+                "storage": swh_storage_backend_config,
+            },
+            "storage": {
+                "cls": "postgresql",
+                # "db": provenance.storage.conn.dsn,
+                "db": provenance.storage.conn.get_dsn_parameters(),
+            },
+        },
+    }
+
+    config_path = write_configuration_path(cfg, tmp_path)
+
+    csv_filepath = get_datafile("origins.csv")
+    subcommand = subcommand + [csv_filepath]
+
+    result = invoke(subcommand, config_path)
+    assert result.exit_code == 0, f"Unexpected result: {result.output}"
+
+    origin_sha1 = MultiHash.from_data(
+        origin_url.encode(), hash_names=["sha1"]
+    ).digest()["sha1"]
+    actual_result = provenance.storage.origin_get([origin_sha1])
+
+    assert actual_result == {origin_sha1: origin_url}

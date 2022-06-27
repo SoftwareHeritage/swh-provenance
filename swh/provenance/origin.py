@@ -1,4 +1,4 @@
-# Copyright (C) 2021  The Software Heritage developers
+# Copyright (C) 2021-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -104,6 +104,12 @@ def proceed_origin(
 
         LOGGER.debug("Adding revision to origin")
         provenance.revision_add_to_origin(origin, revision)
+
+        cache_flush_start = datetime.now()
+        if provenance.flush_if_necessary():
+            LOGGER.info(
+                "Intermediate cache flush in %s", (datetime.now() - cache_flush_start)
+            )
 
     end = datetime.now()
     LOGGER.info("Processed origin %s in %s", origin.url, (end - start))

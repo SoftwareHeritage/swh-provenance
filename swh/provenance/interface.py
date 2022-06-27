@@ -1,4 +1,4 @@
-# Copyright (C) 2021  The Software Heritage developers
+# Copyright (C) 2021-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -247,6 +247,13 @@ class ProvenanceInterface(Protocol):
 
     def flush(self) -> None:
         """Flush internal cache to the underlying `storage`."""
+        ...
+
+    def flush_if_necessary(self) -> bool:
+        """Flush internal cache to the underlying `storage`, if the cache reached
+        a threshold (MAX_CACHE_ELEMENTS).
+        Return True if the cache is flushed, false otherwise.
+        """
         ...
 
     def content_add_to_directory(

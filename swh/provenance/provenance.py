@@ -1,4 +1,4 @@
-# Copyright (C) 2021  The Software Heritage developers
+# Copyright (C) 2021-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -80,6 +80,8 @@ def new_cache() -> ProvenanceCache:
 
 
 class Provenance:
+    MAX_CACHE_ELEMENTS = 100000
+
     def __init__(self, storage: ProvenanceStorageInterface) -> None:
         self.storage = storage
         self.cache = new_cache()
@@ -96,6 +98,17 @@ class Provenance:
     ) -> None:
         self.close()
 
+    def _flush_limit_reached(self) -> bool:
+        return max(self._get_cache_stats().values()) > self.MAX_CACHE_ELEMENTS
+
+    def _get_cache_stats(self) -> Dict[str, int]:
+        return {
+            k: len(v["data"])
+            if (isinstance(v, dict) and v.get("data") is not None)
+            else len(v)  # type: ignore
+            for (k, v) in self.cache.items()
+        }
+
     def clear_caches(self) -> None:
         self.cache = new_cache()
 
@@ -107,6 +120,15 @@ class Provenance:
         self.flush_revision_content_layer()
         self.flush_origin_revision_layer()
         self.clear_caches()
+
+    def flush_if_necessary(self) -> bool:
+        """Flush if the number of cached information reached a limit."""
+        LOGGER.info("Cache stats: %s", self._get_cache_stats())
+        if self._flush_limit_reached():
+            self.flush()
+            return True
+        else:
+            return False
 
     @statsd.timed(
         metric=BACKEND_DURATION_METRIC, tags={"method": "flush_origin_revision"}

@@ -35,6 +35,7 @@ def test_cli_origin_from_journal_client(
     consumer: Consumer,
     tmp_path: str,
     provenance,
+    provenance_postgresql,
 ) -> None:
     """Test origin journal client cli"""
 
@@ -63,7 +64,7 @@ def test_cli_origin_from_journal_client(
             },
             "storage": {
                 "cls": "postgresql",
-                "db": provenance.storage.conn.get_dsn_parameters(),
+                "db": provenance_postgresql.get_dsn_parameters(),
             },
         },
     }

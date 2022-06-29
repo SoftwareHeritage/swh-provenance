@@ -76,9 +76,10 @@ class ProvenanceStoragePostgreSql:
     def transaction(
         self, readonly: bool = False
     ) -> Generator[psycopg2.extras.RealDictCursor, None, None]:
-        if self.conn is None:  # somehow, "implicit" __enter__ call did not happen
-            self.open()
-        assert self.conn is not None
+        if self.conn is None:
+            raise RuntimeError(
+                "Tried to access ProvenanceStoragePostgreSQL transaction() without opening it"
+            )
         self.conn.set_session(readonly=readonly)
         with self.conn:
             with self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:

@@ -19,4 +19,5 @@ def process_journal_objects(
         for visit in messages["origin_visit_status"]
         if visit["snapshot"] is not None
     ]
-    origin_add(provenance, archive, origin_entries)
+    with provenance:
+        origin_add(provenance, archive, origin_entries)

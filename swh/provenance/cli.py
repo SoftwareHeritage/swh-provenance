@@ -213,6 +213,186 @@ def origin_from_journal(ctx: click.core.Context):
         client.close()
 
 
+@cli.group(name="revision")
+@click.pass_context
+def revision(ctx: click.core.Context):
+    from . import get_archive, get_provenance
+
+    archive = get_archive(**ctx.obj["config"]["provenance"]["archive"])
+    provenance = get_provenance(**ctx.obj["config"]["provenance"]["storage"])
+
+    ctx.obj["provenance"] = provenance
+    ctx.obj["archive"] = archive
+
+
+@revision.command(name="from-csv")
+@click.argument("filename", type=click.Path(exists=True))
+@click.option(
+    "-a",
+    "--track-all",
+    default=True,
+    type=bool,
+    help="""Index all occurrences of files in the development history.""",
+)
+@click.option(
+    "-f",
+    "--flatten",
+    default=True,
+    type=bool,
+    help="""Create flat models for directories in the isochrone frontier.""",
+)
+@click.option(
+    "-l",
+    "--limit",
+    type=int,
+    help="""Limit the amount of entries (revisions) to read from the input file.""",
+)
+@click.option(
+    "-m",
+    "--min-depth",
+    default=1,
+    type=int,
+    help="""Set minimum depth (in the directory tree) at which an isochrone """
+    """frontier can be defined.""",
+)
+@click.option(
+    "-r",
+    "--reuse",
+    default=True,
+    type=bool,
+    help="""Prioritize the usage of previously defined isochrone frontiers """
+    """whenever possible.""",
+)
+@click.option(
+    "-s",
+    "--min-size",
+    default=0,
+    type=int,
+    help="""Set the minimum size (in bytes) of files to be indexed. """
+    """Any smaller file will be ignored.""",
+)
+@click.pass_context
+def revision_from_csv(
+    ctx: click.core.Context,
+    filename: str,
+    track_all: bool,
+    flatten: bool,
+    limit: Optional[int],
+    min_depth: int,
+    reuse: bool,
+    min_size: int,
+) -> None:
+    from .revision import CSVRevisionIterator, revision_add
+
+    provenance = ctx.obj["provenance"]
+    archive = ctx.obj["archive"]
+
+    revisions_provider = generate_revision_tuples(filename)
+    revisions = CSVRevisionIterator(revisions_provider, limit=limit)
+
+    with provenance:
+        for revision in revisions:
+            revision_add(
+                provenance,
+                archive,
+                [revision],
+                trackall=track_all,
+                flatten=flatten,
+                lower=reuse,
+                mindepth=min_depth,
+                minsize=min_size,
+            )
+
+
+@revision.command(name="from-journal")
+@click.option(
+    "-a",
+    "--track-all",
+    default=True,
+    type=bool,
+    help="""Index all occurrences of files in the development history.""",
+)
+@click.option(
+    "-f",
+    "--flatten",
+    default=True,
+    type=bool,
+    help="""Create flat models for directories in the isochrone frontier.""",
+)
+@click.option(
+    "-l",
+    "--limit",
+    type=int,
+    help="""Limit the amount of entries (revisions) to read from the input file.""",
+)
+@click.option(
+    "-m",
+    "--min-depth",
+    default=1,
+    type=int,
+    help="""Set minimum depth (in the directory tree) at which an isochrone """
+    """frontier can be defined.""",
+)
+@click.option(
+    "-r",
+    "--reuse",
+    default=True,
+    type=bool,
+    help="""Prioritize the usage of previously defined isochrone frontiers """
+    """whenever possible.""",
+)
+@click.option(
+    "-s",
+    "--min-size",
+    default=0,
+    type=int,
+    help="""Set the minimum size (in bytes) of files to be indexed. """
+    """Any smaller file will be ignored.""",
+)
+@click.pass_context
+def revision_from_journal(
+    ctx: click.core.Context,
+    track_all: bool,
+    flatten: bool,
+    limit: Optional[int],
+    min_depth: int,
+    reuse: bool,
+    min_size: int,
+) -> None:
+    from swh.journal.client import get_journal_client
+
+    from .journal_client import process_journal_revisions
+
+    provenance = ctx.obj["provenance"]
+    archive = ctx.obj["archive"]
+
+    journal_cfg = ctx.obj["config"].get("journal_client", {})
+
+    worker_fn = partial(
+        process_journal_revisions,
+        archive=archive,
+        provenance=provenance,
+    )
+
+    cls = journal_cfg.pop("cls", None) or "kafka"
+    client = get_journal_client(
+        cls,
+        **{
+            **journal_cfg,
+            "object_types": ["revision"],
+        },
+    )
+
+    try:
+        client.process(worker_fn)
+    except KeyboardInterrupt:
+        ctx.exit(0)
+    else:
+        print("Done.")
+    finally:
+        client.close()
+
+
 @cli.command(name="iter-frontiers")
 @click.argument("filename")
 @click.option(

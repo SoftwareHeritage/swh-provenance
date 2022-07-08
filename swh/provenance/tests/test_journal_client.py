@@ -54,7 +54,6 @@ def test_cli_origin_from_journal_client(
             "brokers": [kafka_server],
             "group_id": "toto",
             "prefix": kafka_prefix,
-            "object_types": ["origin_visit_status"],
             "stop_on_eof": True,
         },
         "provenance": {
@@ -80,3 +79,57 @@ def test_cli_origin_from_journal_client(
     actual_result = provenance.storage.origin_get([origin_sha1])
 
     assert actual_result == {origin_sha1: origin_url}
+
+
+def test_cli_revision_from_journal_client(
+    swh_storage: StorageInterface,
+    swh_storage_backend_config: Dict,
+    kafka_prefix: str,
+    kafka_server: str,
+    consumer: Consumer,
+    tmp_path: str,
+    provenance,
+    provenance_postgresql,
+) -> None:
+    """Test revision journal client cli"""
+
+    # Prepare storage data
+    data = load_repo_data("cmdbts2")
+    assert len(data["origin"]) == 1
+    fill_storage(swh_storage, data)
+
+    # Prepare configuration for cli call
+    swh_storage_backend_config.pop("journal_writer", None)  # no need for that config
+    storage_config_dict = swh_storage_backend_config
+    cfg = {
+        "journal_client": {
+            "cls": "kafka",
+            "brokers": [kafka_server],
+            "group_id": "toto",
+            "prefix": kafka_prefix,
+            "stop_on_eof": True,
+        },
+        "provenance": {
+            "archive": {
+                "cls": "api",
+                "storage": storage_config_dict,
+            },
+            "storage": {
+                "cls": "postgresql",
+                "db": provenance_postgresql.get_dsn_parameters(),
+            },
+        },
+    }
+    config_path = write_configuration_path(cfg, tmp_path)
+
+    revisions = [rev["id"] for rev in data["revision"]]
+    result = provenance.storage.revision_get(revisions)
+    assert not result
+
+    # call the cli 'swh provenance revision from-journal'
+    cli_result = invoke(["revision", "from-journal"], config_path)
+    assert cli_result.exit_code == 0, f"Unexpected result: {result.output}"
+
+    result = provenance.storage.revision_get(revisions)
+
+    assert set(result.keys()) == set(revisions)

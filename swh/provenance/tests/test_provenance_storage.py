@@ -22,7 +22,6 @@ from swh.provenance.interface import (
     RevisionData,
 )
 from swh.provenance.model import OriginEntry, RevisionEntry
-from swh.provenance.mongo.backend import ProvenanceStorageMongoDb
 from swh.provenance.origin import origin_add
 from swh.provenance.provenance import Provenance
 from swh.provenance.revision import revision_add
@@ -96,10 +95,6 @@ def test_provenance_storage_location(
     # to the storage. Then check that the returned results when querying are the same.
     paths = {entry["name"] for dir in data["directory"] for entry in dir["entries"]}
     assert provenance_storage.location_add(paths)
-
-    if isinstance(provenance_storage, ProvenanceStorageMongoDb):
-        # TODO: remove this when `location_add` is properly implemented for MongoDb.
-        return
 
     if provenance_storage.with_path():
         assert provenance_storage.location_get_all() == paths

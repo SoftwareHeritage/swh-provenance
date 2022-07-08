@@ -108,12 +108,6 @@ def get_provenance_storage(cls: str, **kwargs) -> ProvenanceStorageInterface:
             raise_on_commit=raise_on_commit, **kwargs["db"]
         )
 
-    elif cls == "mongodb":
-        from .mongo.backend import ProvenanceStorageMongoDb
-
-        engine = kwargs.get("engine", "pymongo")
-        return ProvenanceStorageMongoDb(engine=engine, **kwargs["db"])
-
     elif cls == "rabbitmq":
         from .api.client import ProvenanceStorageRabbitMQClient
 

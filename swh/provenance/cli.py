@@ -52,11 +52,6 @@ DEFAULT_CONFIG: Dict[str, Any] = {
             #     "password": "postgres",
             #     "dbname": "provenance",
             # },
-            # Local MongoDB Storage
-            # "cls": "mongodb",
-            # "db": {
-            #     "dbname": "provenance",
-            # },
             # Remote RabbitMQ/PostgreSQL Storage
             "cls": "rabbitmq",
             "url": "amqp://localhost:5672/%2f",

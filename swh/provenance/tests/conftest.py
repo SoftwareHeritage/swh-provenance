@@ -8,7 +8,6 @@ from os import path
 from typing import Any, Dict, Generator, List
 
 from _pytest.fixtures import SubRequest
-import mongomock.database
 import msgpack
 import psycopg2.extensions
 import pytest
@@ -49,26 +48,14 @@ def provenance_postgresqldb(
     return postgresql.get_dsn_parameters()
 
 
-@pytest.fixture(params=["mongodb", "postgresql", "rabbitmq"])
+@pytest.fixture(params=["postgresql", "rabbitmq"])
 def provenance_storage(
     request: SubRequest,
     provenance_postgresqldb: Dict[str, str],
-    mongodb: mongomock.database.Database,
 ) -> Generator[ProvenanceStorageInterface, None, None]:
     """Return a working and initialized ProvenanceStorageInterface object"""
 
-    if request.param == "mongodb":
-        mongodb_params = {
-            "host": mongodb.client.address[0],
-            "port": mongodb.client.address[1],
-            "dbname": mongodb.name,
-        }
-        with get_provenance_storage(
-            cls=request.param, db=mongodb_params, engine="mongomock"
-        ) as storage:
-            yield storage
-
-    elif request.param == "rabbitmq":
+    if request.param == "rabbitmq":
         from swh.provenance.api.server import ProvenanceStorageRabbitMQServer
 
         rabbitmq = request.getfixturevalue("rabbitmq")
@@ -77,7 +64,7 @@ def provenance_storage(
         rabbitmq_params: Dict[str, Any] = {
             "url": f"amqp://guest:guest@{host}:{port}/%2f",
             "storage_config": {
-                "cls": "postgresql",  # TODO: also test with underlying mongodb storage
+                "cls": "postgresql",
                 "db": provenance_postgresqldb,
                 "raise_on_commit": True,
             },

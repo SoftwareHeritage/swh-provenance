@@ -9,8 +9,8 @@ from swh.provenance.origin import origin_add
 from swh.storage.interface import StorageInterface
 
 
-def process_journal_objects(
-    messages, *, provenance: ProvenanceInterface, archive: StorageInterface
+def process_journal_origins(
+    messages, *, provenance: ProvenanceInterface, archive: StorageInterface, **cfg
 ) -> None:
     """Worker function for `JournalClient.process(worker_fn)`."""
     assert set(messages) == {"origin_visit_status"}, set(messages)
@@ -19,5 +19,6 @@ def process_journal_objects(
         for visit in messages["origin_visit_status"]
         if visit["snapshot"] is not None
     ]
-    with provenance:
-        origin_add(provenance, archive, origin_entries)
+    if origin_entries:
+        with provenance:
+            origin_add(provenance, archive, origin_entries, **cfg)

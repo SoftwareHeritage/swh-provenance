@@ -181,7 +181,7 @@ def origin_from_csv(ctx: click.core.Context, filename: str, limit: Optional[int]
 def origin_from_journal(ctx: click.core.Context):
     from swh.journal.client import get_journal_client
 
-    from .journal_client import process_journal_objects
+    from .journal_client import process_journal_origins
 
     provenance = ctx.obj["provenance"]
     archive = ctx.obj["archive"]
@@ -189,7 +189,7 @@ def origin_from_journal(ctx: click.core.Context):
     journal_cfg = ctx.obj["config"].get("journal_client", {})
 
     worker_fn = partial(
-        process_journal_objects,
+        process_journal_origins,
         archive=archive,
         provenance=provenance,
     )

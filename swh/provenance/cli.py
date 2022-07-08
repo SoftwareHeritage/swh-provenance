@@ -388,6 +388,50 @@ def revision_from_journal(
         client.close()
 
 
+@cli.group(name="directory")
+@click.pass_context
+def directory(ctx: click.core.Context):
+    from . import get_archive, get_provenance
+
+    archive = get_archive(**ctx.obj["config"]["provenance"]["archive"])
+    provenance = get_provenance(**ctx.obj["config"]["provenance"]["storage"])
+
+    ctx.obj["provenance"] = provenance
+    ctx.obj["archive"] = archive
+
+
+@directory.command(name="flatten")
+@click.option(
+    "--range-from", type=str, help="start ID of the range of directories to flatten"
+)
+@click.option(
+    "--range-to", type=str, help="stop ID of the range of directories to flatten"
+)
+@click.option(
+    "-s",
+    "--min-size",
+    default=0,
+    type=int,
+    help="""Set the minimum size (in bytes) of files to be indexed.
+    Any smaller file will be ignored.""",
+)
+@click.pass_context
+def directory_flatten(ctx: click.core.Context, range_from, range_to, min_size):
+    from swh.provenance.directory import directory_flatten_range
+
+    provenance = ctx.obj["provenance"]
+    archive = ctx.obj["archive"]
+
+    directory_flatten_range(
+        provenance,
+        archive,
+        hash_to_bytes(range_from),
+        hash_to_bytes(range_to),
+        min_size,
+    )
+
+
+# old (deprecated) commands
 @cli.command(name="iter-frontiers")
 @click.argument("filename")
 @click.option(

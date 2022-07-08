@@ -5,10 +5,11 @@
 
 
 from datetime import datetime, timezone
+from typing import Tuple
 
 from swh.model.hashutil import hash_to_bytes
 from swh.provenance.archive import ArchiveInterface
-from swh.provenance.directory import directory_add
+from swh.provenance.directory import directory_add, directory_flatten_range
 from swh.provenance.interface import (
     DirectoryData,
     ProvenanceInterface,
@@ -19,10 +20,10 @@ from swh.provenance.model import DirectoryEntry, FileEntry
 from swh.provenance.tests.conftest import fill_storage, load_repo_data
 
 
-def test_directory_add(
-    provenance: ProvenanceInterface,
-    archive: ArchiveInterface,
-) -> None:
+def prepare(
+    provenance: ProvenanceInterface, archive: ArchiveInterface
+) -> Tuple[datetime, DirectoryEntry, FileEntry, FileEntry]:
+    """Prepare the provenance database with some content suitable for flattening tests"""
     # read data/README.md for more details on how these datasets are generated
     data = load_repo_data("cmdbts2")
     fill_storage(archive.storage, data)
@@ -58,8 +59,40 @@ def test_directory_add(
     flattenned = provenance.directory_already_flattenned(directory)
     assert flattenned is not None and not flattenned
 
+    return date, directory, content1, content2
+
+
+def test_directory_add(
+    provenance: ProvenanceInterface,
+    archive: ArchiveInterface,
+) -> None:
+
+    date, directory, content1, content2 = prepare(provenance, archive)
+
     # flatten the directory and check the expected result
     directory_add(provenance, archive, [directory])
+    assert provenance.storage.directory_get([directory.id]) == {
+        directory.id: DirectoryData(date=date, flat=True)
+    }
+    assert provenance.storage.relation_get_all(RelationType.CNT_IN_DIR) == {
+        content1.id: {
+            RelationData(dst=directory.id, path=b"a"),
+            RelationData(dst=directory.id, path=b"C/a"),
+        },
+        content2.id: {RelationData(dst=directory.id, path=b"C/b")},
+    }
+
+
+def test_directory_flatten_range(
+    provenance: ProvenanceInterface,
+    archive: ArchiveInterface,
+) -> None:
+
+    date, directory, content1, content2 = prepare(provenance, archive)
+
+    # flatten the directory and check the expected result
+    directory_flatten_range(provenance, archive, directory.id[:-1], directory.id)
+
     assert provenance.storage.directory_get([directory.id]) == {
         directory.id: DirectoryData(date=date, flat=True)
     }

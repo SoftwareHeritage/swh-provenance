@@ -40,7 +40,29 @@ class CSVDirectoryIterator:
             yield DirectoryEntry(id)
 
 
-@statsd.timed(metric=REVISION_DURATION_METRIC, tags={"method": "main"})
+def directory_flatten_range(
+    provenance: ProvenanceInterface,
+    archive: ArchiveInterface,
+    start_id: Sha1Git,
+    end_id: Sha1Git,
+    minsize: int = 0,
+    commit: bool = True,
+) -> None:
+    """Flatten the known directories from ``start_id`` to ``end_id``."""
+    current = start_id
+    while current < end_id:
+        dirs = provenance.storage.directory_iter_not_flattenned(
+            limit=100, start_id=current
+        )
+        if not dirs:
+            break
+        directory_add(
+            provenance, archive, [DirectoryEntry(id=d) for d in dirs], minsize, commit
+        )
+        current = dirs[-1]
+
+
+@statsd.timed(metric=REVISION_DURATION_METRIC, tags={"method": "add"})
 def directory_add(
     provenance: ProvenanceInterface,
     archive: ArchiveInterface,

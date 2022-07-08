@@ -14,6 +14,7 @@ create unique index on content_in_directory(content);
 \endif
 
 create unique index on location(digest(path, 'sha1'));
+create index on directory(sha1) where flat=false;
 
 alter table revision_in_origin add primary key (revision, origin);
 alter table revision_before_revision add primary key (prev, next);

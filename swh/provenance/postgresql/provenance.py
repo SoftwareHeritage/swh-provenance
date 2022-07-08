@@ -194,6 +194,20 @@ class ProvenanceStoragePostgreSql:
                 )
         return result
 
+    @statsd.timed(
+        metric=STORAGE_DURATION_METRIC, tags={"method": "directory_iter_not_flattenned"}
+    )
+    def directory_iter_not_flattenned(
+        self, limit: int, start_id: Sha1Git
+    ) -> List[Sha1Git]:
+        sql = """
+        SELECT sha1 FROM directory
+        WHERE flat=false AND sha1>%s ORDER BY sha1 LIMIT %s
+        """
+        with self.transaction(readonly=True) as cursor:
+            cursor.execute(query=sql, vars=(start_id, limit))
+            return [row["sha1"] for row in cursor]
+
     @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "entity_get_all"})
     def entity_get_all(self, entity: EntityType) -> Set[Sha1Git]:
         with self.transaction(readonly=True) as cursor:

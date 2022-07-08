@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime
 import enum
 from types import TracebackType
-from typing import Dict, Generator, Iterable, Optional, Set, Type, Union
+from typing import Dict, Generator, Iterable, List, Optional, Set, Type, Union
 
 from typing_extensions import Protocol, runtime_checkable
 
@@ -136,6 +136,13 @@ class ProvenanceStorageInterface(Protocol):
         sha1 in `ids`. If some directories has no associated date, it is not present in
         the resulting dictionary.
         """
+        ...
+
+    @remote_api_endpoint("directory_iter_not_flattenned")
+    def directory_iter_not_flattenned(
+        self, limit: int, start_id: Sha1Git
+    ) -> List[Sha1Git]:
+        """Retrieve the unflattenned directories after ``start_id`` up to ``limit`` entries."""
         ...
 
     @remote_api_endpoint("entity_get_all")

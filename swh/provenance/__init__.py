@@ -59,7 +59,11 @@ def get_archive(cls: str, **kwargs) -> ArchiveInterface:
 
         from .multiplexer.archive import ArchiveMultiplexed
 
-        archives = list((get_archive(**archive) for archive in kwargs["archives"]))
+        archives = []
+        for ctr, archive in enumerate(kwargs["archives"]):
+            name = archive.pop("name", f"backend_{ctr}")
+            archives.append((name, get_archive(**archive)))
+
         return ArchiveMultiplexed(archives)
     else:
         raise ValueError

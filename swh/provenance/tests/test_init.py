@@ -24,5 +24,7 @@ def test_multiplexer_configuration():
     archive = get_archive(cls="multiplexer", **config)
     assert isinstance(archive, ArchiveMultiplexed)
     assert len(archive.archives) == 2
-    assert isinstance(archive.archives[0], ArchiveGraph)
-    assert isinstance(archive.archives[1], ArchiveStorage)
+    assert isinstance(archive.archives[0][0], str)
+    assert isinstance(archive.archives[0][1], ArchiveGraph)
+    assert isinstance(archive.archives[1][0], str)
+    assert isinstance(archive.archives[1][1], ArchiveStorage)

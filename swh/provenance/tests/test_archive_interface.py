@@ -233,7 +233,7 @@ def test_archive_interface(repo: str, archive: ArchiveInterface) -> None:
 
     # test against ArchiveMultiplexer
     archive_multiplexed = ArchiveMultiplexed(
-        [ArchiveNoop(), archive_graph, archive_api]
+        [("noop", ArchiveNoop()), ("graph", archive_graph), ("api", archive_api)]
     )
     check_directory_ls(archive, archive_multiplexed, data)
     check_revision_get_parents(archive, archive_multiplexed, data)
@@ -241,7 +241,7 @@ def test_archive_interface(repo: str, archive: ArchiveInterface) -> None:
 
 
 def test_noop_multiplexer():
-    archive = ArchiveMultiplexed([ArchiveNoop()])
+    archive = ArchiveMultiplexed([("noop", ArchiveNoop())])
 
     assert not archive.directory_ls(Sha1Git(b"abcd"))
     assert not archive.revision_get_parents(Sha1Git(b"abcd"))

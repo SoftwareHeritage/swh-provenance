@@ -32,11 +32,12 @@ class ArchiveGraph:
         src = CoreSWHID(object_type=ObjectType.REVISION, object_id=revision_id)
         request = self.graph.visit_edges(str(src), edges="rev:rev")
 
-        for rev_swhid, parent_rev_swhid in request:
-            yield (
-                CoreSWHID.from_string(rev_swhid).object_id,
-                CoreSWHID.from_string(parent_rev_swhid).object_id,
-            )
+        for edge in request:
+            if edge:
+                yield (
+                    CoreSWHID.from_string(edge[0]).object_id,
+                    CoreSWHID.from_string(edge[1]).object_id,
+                )
 
     @statsd.timed(metric=ARCHIVE_DURATION_METRIC, tags={"method": "snapshot_get_heads"})
     def snapshot_get_heads(self, id: Sha1Git) -> Iterable[Sha1Git]:

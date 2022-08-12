@@ -13,17 +13,17 @@ except ImportError:
 import sentry_sdk
 
 from swh.model.model import TimestampWithTimezone
+from swh.provenance.archive import ArchiveInterface
 from swh.provenance.interface import ProvenanceInterface
 from swh.provenance.model import OriginEntry, RevisionEntry
 from swh.provenance.origin import origin_add
 from swh.provenance.revision import revision_add
-from swh.storage.interface import StorageInterface
 
 EPOCH = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
 
 
 def process_journal_origins(
-    messages, *, provenance: ProvenanceInterface, archive: StorageInterface, **cfg
+    messages, *, provenance: ProvenanceInterface, archive: ArchiveInterface, **cfg
 ) -> None:
     """Worker function for `JournalClient.process(worker_fn)`."""
     assert set(messages) == {"origin_visit_status"}, set(messages)
@@ -39,7 +39,7 @@ def process_journal_origins(
 
 
 def process_journal_revisions(
-    messages, *, provenance: ProvenanceInterface, archive: StorageInterface, **cfg
+    messages, *, provenance: ProvenanceInterface, archive: ArchiveInterface, **cfg
 ) -> None:
     """Worker function for `JournalClient.process(worker_fn)`."""
     assert set(messages) == {"revision"}, set(messages)

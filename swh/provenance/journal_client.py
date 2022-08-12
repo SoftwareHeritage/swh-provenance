@@ -3,6 +3,11 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+try:
+    from systemd.daemon import notify
+except ImportError:
+    notify = None
+
 from swh.model.model import TimestampWithTimezone
 from swh.provenance.interface import ProvenanceInterface
 from swh.provenance.model import OriginEntry, RevisionEntry
@@ -24,6 +29,8 @@ def process_journal_origins(
     if origin_entries:
         with provenance:
             origin_add(provenance, archive, origin_entries, **cfg)
+    if notify:
+        notify("WATCHDOG=1")
 
 
 def process_journal_revisions(
@@ -44,3 +51,5 @@ def process_journal_revisions(
     if revisions:
         with provenance:
             revision_add(provenance, archive, revisions, **cfg)
+    if notify:
+        notify("WATCHDOG=1")

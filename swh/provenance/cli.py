@@ -15,6 +15,11 @@ from deprecated import deprecated
 import iso8601
 import yaml
 
+try:
+    from systemd.daemon import notify
+except ImportError:
+    notify = None
+
 from swh.core import config
 from swh.core.cli import CONTEXT_SETTINGS
 from swh.core.cli import swh as swh_cli_group
@@ -198,6 +203,9 @@ def origin_from_journal(ctx: click.core.Context):
         },
     )
 
+    if notify:
+        notify("READY=1")
+
     try:
         client.process(worker_fn)
     except KeyboardInterrupt:
@@ -205,6 +213,8 @@ def origin_from_journal(ctx: click.core.Context):
     else:
         print("Done.")
     finally:
+        if notify:
+            notify("STOPPING=1")
         client.close()
 
 
@@ -378,6 +388,9 @@ def revision_from_journal(
         },
     )
 
+    if notify:
+        notify("READY=1")
+
     try:
         client.process(worker_fn)
     except KeyboardInterrupt:
@@ -385,6 +398,8 @@ def revision_from_journal(
     else:
         print("Done.")
     finally:
+        if notify:
+            notify("STOPPING=1")
         client.close()
 
 

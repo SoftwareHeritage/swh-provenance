@@ -33,8 +33,7 @@ def process_journal_origins(
         if visit["snapshot"] is not None
     ]
     if origin_entries:
-        with provenance:
-            origin_add(provenance, archive, origin_entries, **cfg)
+        origin_add(provenance, archive, origin_entries, **cfg)
     if notify:
         notify("WATCHDOG=1")
 
@@ -66,7 +65,6 @@ def process_journal_revisions(
             )
         )
     if revisions:
-        with provenance:
-            revision_add(provenance, archive, revisions, **cfg)
+        revision_add(provenance, archive, revisions, **cfg)
     if notify:
         notify("WATCHDOG=1")

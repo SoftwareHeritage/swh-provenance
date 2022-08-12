@@ -207,7 +207,8 @@ def origin_from_journal(ctx: click.core.Context):
         notify("READY=1")
 
     try:
-        client.process(worker_fn)
+        with provenance:
+            client.process(worker_fn)
     except KeyboardInterrupt:
         ctx.exit(0)
     else:
@@ -392,7 +393,8 @@ def revision_from_journal(
         notify("READY=1")
 
     try:
-        client.process(worker_fn)
+        with provenance:
+            client.process(worker_fn)
     except KeyboardInterrupt:
         ctx.exit(0)
     else:

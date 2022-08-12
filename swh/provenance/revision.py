@@ -70,6 +70,7 @@ def revision_add(
 ) -> None:
     revs_processed = 0
     batch_size = len(revisions)
+    revs_to_commit = False
     for batch_pos, revision in enumerate(
         sorted(revisions, key=lambda r: r.date or EPOCH)
     ):
@@ -105,16 +106,18 @@ def revision_add(
                 minsize=minsize,
             )
             revs_processed += 1
-            if commit:
+            revs_to_commit = True
+            if revs_to_commit and commit:
                 flushed = provenance.flush_if_necessary()
                 if flushed:
+                    revs_to_commit = False
                     logger.debug(
                         "flushed (rev %s/%s, processed %s)",
                         batch_pos + 1,
                         batch_size,
                         revs_processed,
                     )
-    if commit:
+    if revs_to_commit and commit:
         logger.debug("flushing batch")
         provenance.flush()
 

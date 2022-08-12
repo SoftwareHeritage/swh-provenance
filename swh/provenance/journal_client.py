@@ -38,16 +38,23 @@ def process_journal_revisions(
 ) -> None:
     """Worker function for `JournalClient.process(worker_fn)`."""
     assert set(messages) == {"revision"}, set(messages)
-    revisions = [
-        RevisionEntry(
-            id=rev["id"],
-            date=TimestampWithTimezone.from_dict(rev["date"]).to_datetime(),
-            root=rev["directory"],
-            parents=rev["parents"],
+    revisions = []
+    for rev in messages["revision"]:
+        if rev["date"] is None:
+            continue
+        try:
+            date = TimestampWithTimezone.from_dict(rev["date"]).to_datetime()
+        except Exception:
+            continue
+
+        revisions.append(
+            RevisionEntry(
+                id=rev["id"],
+                root=rev["directory"],
+                date=date,
+                parents=rev["parents"],
+            )
         )
-        for rev in messages["revision"]
-        if rev["date"] is not None
-    ]
     if revisions:
         with provenance:
             revision_add(provenance, archive, revisions, **cfg)

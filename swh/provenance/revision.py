@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 from datetime import datetime, timezone
+import logging
 from typing import Generator, Iterable, Iterator, List, Optional, Tuple
 
 from swh.core.statsd import statsd
@@ -16,6 +17,8 @@ from .interface import ProvenanceInterface
 from .model import DirectoryEntry, RevisionEntry
 
 REVISION_DURATION_METRIC = "swh_provenance_revision_content_layer_duration_seconds"
+
+logger = logging.getLogger(__name__)
 
 
 class CSVRevisionIterator:
@@ -69,6 +72,13 @@ def revision_add(
         # Processed content starting from the revision's root directory.
         date = provenance.revision_get_date(revision)
         if date is None or revision.date < date:
+            logger.debug(
+                "Processing revision %s on %s (root %s)",
+                revision.id.hex(),
+                revision.date,
+                revision.root.hex(),
+            )
+            logger.debug("provenance date: %s, building isochrone graph", date)
             graph = build_isochrone_graph(
                 provenance,
                 archive,
@@ -76,6 +86,7 @@ def revision_add(
                 DirectoryEntry(revision.root),
                 minsize=minsize,
             )
+            logger.debug("isochrone graph built, processing content")
             revision_process_content(
                 provenance,
                 archive,
@@ -88,6 +99,7 @@ def revision_add(
                 minsize=minsize,
             )
     if commit:
+        logger.debug("flushing batch")
         provenance.flush()
 
 

@@ -123,7 +123,7 @@ class Provenance:
 
     def flush_if_necessary(self) -> bool:
         """Flush if the number of cached information reached a limit."""
-        LOGGER.info("Cache stats: %s", self._get_cache_stats())
+        LOGGER.debug("Cache stats: %s", self._get_cache_stats())
         if self._flush_limit_reached():
             self.flush()
             return True

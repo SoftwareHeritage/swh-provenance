@@ -30,7 +30,6 @@ from swh.core.api.serializers import msgpack_loads as decode_data
 from swh.model.hashutil import hash_to_hex
 from swh.model.model import Sha1Git
 
-from .. import get_provenance_storage
 from ..interface import (
     DirectoryData,
     EntityType,
@@ -402,6 +401,8 @@ class ProvenanceStorageRabbitMQWorker(multiprocessing.Process):
     def run_request_thread(
         self, binding_key: str, meth_name: str, relation: Optional[RelationType]
     ) -> None:
+        from swh.provenance import get_provenance_storage
+
         with get_provenance_storage(**self._storage_config) as storage:
             request_queue = self._request_queues[binding_key]
             merge_items = ProvenanceStorageRabbitMQWorker.get_conflicts_func(meth_name)

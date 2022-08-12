@@ -94,7 +94,7 @@ def get_provenance_storage(cls: str, **kwargs) -> ProvenanceStorageInterface:
         :cls:`ValueError` if passed an unknown archive class.
     """
     if cls in ["local", "postgresql"]:
-        from .postgresql.provenance import ProvenanceStoragePostgreSql
+        from swh.provenance.postgresql.provenance import ProvenanceStoragePostgreSql
 
         if cls == "local":
             warnings.warn(

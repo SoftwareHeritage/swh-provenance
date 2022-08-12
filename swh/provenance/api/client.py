@@ -133,29 +133,33 @@ class MetaRabbitMQClient(type):
                     exchange = ProvenanceStorageRabbitMQServer.get_exchange(
                         meth_name, relation
                     )
-                    for routing_key, items in ranges.items():
-                        items_list = list(items)
-                        batches = (
-                            items_list[idx : idx + self._batch_size]
-                            for idx in range(0, len(items_list), self._batch_size)
-                        )
-                        for batch in batches:
-                            # FIXME: this is running in a different thread! Hence, if
-                            # self._connection drops, there is no guarantee that the
-                            # request can be sent for the current elements. This
-                            # situation should be handled properly.
-                            self._connection.ioloop.add_callback_threadsafe(
-                                functools.partial(
-                                    ProvenanceStorageRabbitMQClient.request,
-                                    channel=self._channel,
-                                    reply_to=self._callback_queue,
-                                    exchange=exchange,
-                                    routing_key=routing_key,
-                                    correlation_id=self._correlation_id,
-                                    data=batch,
-                                )
+                    try:
+                        self._delay_close = True
+                        for routing_key, items in ranges.items():
+                            items_list = list(items)
+                            batches = (
+                                items_list[idx : idx + self._batch_size]
+                                for idx in range(0, len(items_list), self._batch_size)
                             )
-                    return self.wait_for_acks(meth_name, acks_expected)
+                            for batch in batches:
+                                # FIXME: this is running in a different thread! Hence, if
+                                # self._connection drops, there is no guarantee that the
+                                # request can be sent for the current elements. This
+                                # situation should be handled properly.
+                                self._connection.ioloop.add_callback_threadsafe(
+                                    functools.partial(
+                                        ProvenanceStorageRabbitMQClient.request,
+                                        channel=self._channel,
+                                        reply_to=self._callback_queue,
+                                        exchange=exchange,
+                                        routing_key=routing_key,
+                                        correlation_id=self._correlation_id,
+                                        data=batch,
+                                    )
+                                )
+                        return self.wait_for_acks(meth_name, acks_expected)
+                    finally:
+                        self._delay_close = False
                 except BaseException as ex:
                     self.request_termination(str(ex))
                     return False
@@ -218,6 +222,8 @@ class ProvenanceStorageRabbitMQClient(threading.Thread, metaclass=MetaRabbitMQCl
 
         self._wait_min = wait_min
         self._wait_per_batch = wait_per_batch
+
+        self._delay_close = False
 
     def __enter__(self) -> ProvenanceStorageInterface:
         self.open()
@@ -410,6 +416,19 @@ class ProvenanceStorageRabbitMQClient(threading.Thread, metaclass=MetaRabbitMQCl
     def stop(self) -> None:
         assert self._connection is not None
         if not self._closing:
+            if self._delay_close:
+                LOGGER.info("Delaying termination: waiting for a pending request")
+                delay_start = time.monotonic()
+                wait = 1
+                while self._delay_close:
+                    if wait >= 32:
+                        LOGGER.warning(
+                            "Still waiting for pending request (for %2f seconds)...",
+                            time.monotonic() - delay_start,
+                        )
+                    time.sleep(wait)
+                    wait = min(wait * 2, 60)
+
             self._closing = True
             LOGGER.info("Stopping")
             if self._consuming:

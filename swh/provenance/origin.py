@@ -62,7 +62,7 @@ def origin_add(
     commit: bool = True,
 ) -> None:
     for origin in origins:
-        proceed_origin(provenance, archive, origin)
+        process_origin(provenance, archive, origin)
     if commit:
         start = datetime.now()
         LOGGER.debug("Flushing cache")
@@ -70,8 +70,8 @@ def origin_add(
         LOGGER.info("Cache flushed in %s", (datetime.now() - start))
 
 
-@statsd.timed(metric=ORIGIN_DURATION_METRIC, tags={"method": "proceed_origin"})
-def proceed_origin(
+@statsd.timed(metric=ORIGIN_DURATION_METRIC, tags={"method": "process_origin"})
+def process_origin(
     provenance: ProvenanceInterface, archive: ArchiveInterface, origin: OriginEntry
 ) -> None:
     LOGGER.info("Processing origin=%s", origin)

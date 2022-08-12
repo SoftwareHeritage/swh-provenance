@@ -80,9 +80,15 @@ class ArchivePostgreSQL:
                     """,
                     (id,),
                 )
-            return [
-                {"type": row[0], "target": row[1], "name": row[2]} for row in cursor
-            ]
+
+            entries = []
+            for entry_type, target, name in cursor:
+                if target is None or name is None:
+                    # LEFT JOIN returned a NULL on the right hand side:
+                    # directory_entry_{dir,file} are not up to date.
+                    return []
+                entries.append({"type": entry_type, "target": target, "name": name})
+            return entries
 
     def revision_get_parents(self, id: Sha1Git) -> Iterable[Sha1Git]:
         yield from self._revision_get_parents(id)

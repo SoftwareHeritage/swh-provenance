@@ -486,10 +486,17 @@ class ProvenanceStorageRabbitMQClient(threading.Thread, metaclass=MetaRabbitMQCl
                 return False
         return acks_received == acks_expected
 
-    def wait_for_response(self, timeout: float = 60.0) -> Any:
+    def wait_for_response(self, timeout: float = 120.0) -> Any:
+        start = time.monotonic()
+        end = start + timeout
         while True:
             try:
-                correlation_id, response = self._response_queue.get(timeout=timeout)
+                local_timeout = end - time.monotonic()
+                if local_timeout < 1.0:
+                    local_timeout = 1.0
+                correlation_id, response = self._response_queue.get(
+                    timeout=local_timeout
+                )
                 if correlation_id == self._correlation_id:
                     return response
             except queue.Empty:

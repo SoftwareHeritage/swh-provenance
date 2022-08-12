@@ -80,7 +80,7 @@ def new_cache() -> ProvenanceCache:
 
 
 class Provenance:
-    MAX_CACHE_ELEMENTS = 100000
+    MAX_CACHE_ELEMENTS = 40000
 
     def __init__(self, storage: ProvenanceStorageInterface) -> None:
         self.storage = storage
@@ -99,7 +99,7 @@ class Provenance:
         self.close()
 
     def _flush_limit_reached(self) -> bool:
-        return max(self._get_cache_stats().values()) > self.MAX_CACHE_ELEMENTS
+        return sum(self._get_cache_stats().values()) > self.MAX_CACHE_ELEMENTS
 
     def _get_cache_stats(self) -> Dict[str, int]:
         return {

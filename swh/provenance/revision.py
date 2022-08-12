@@ -20,6 +20,8 @@ REVISION_DURATION_METRIC = "swh_provenance_revision_content_layer_duration_secon
 
 logger = logging.getLogger(__name__)
 
+EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
 
 class CSVRevisionIterator:
     """Iterator over revisions typically present in the given CSV file.
@@ -66,7 +68,11 @@ def revision_add(
     minsize: int = 0,
     commit: bool = True,
 ) -> None:
-    for revision in revisions:
+    revs_processed = 0
+    batch_size = len(revisions)
+    for batch_pos, revision in enumerate(
+        sorted(revisions, key=lambda r: r.date or EPOCH)
+    ):
         assert revision.date is not None
         assert revision.root is not None
         # Processed content starting from the revision's root directory.
@@ -98,6 +104,16 @@ def revision_add(
                 mindepth=mindepth,
                 minsize=minsize,
             )
+            revs_processed += 1
+            if commit:
+                flushed = provenance.flush_if_necessary()
+                if flushed:
+                    logger.debug(
+                        "flushed (rev %s/%s, processed %s)",
+                        batch_pos + 1,
+                        batch_size,
+                        revs_processed,
+                    )
     if commit:
         logger.debug("flushing batch")
         provenance.flush()

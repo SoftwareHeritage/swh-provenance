@@ -188,6 +188,8 @@ def get_graph_data(
                 target_type = ExtendedObjectType.DIRECTORY
             elif entry.type == "rev":
                 target_type = ExtendedObjectType.REVISION
+            else:
+                assert False, "unknown directory entry type"
             add_link(edges, directory, entry.target, target_type)
 
     for content in model["content"]:

@@ -5,7 +5,6 @@
 
 from typing import Any, Dict, Iterable, List
 
-from methodtools import lru_cache
 import psycopg2.extensions
 
 from swh.core.statsd import statsd
@@ -25,7 +24,6 @@ class ArchivePostgreSQL:
     def directory_ls(self, id: Sha1Git, minsize: int = 0) -> Iterable[Dict[str, Any]]:
         yield from self._directory_ls(id, minsize=minsize)
 
-    @lru_cache(maxsize=100000)
     @statsd.timed(metric=ARCHIVE_DURATION_METRIC, tags={"method": "directory_ls"})
     def _directory_ls(self, id: Sha1Git, minsize: int = 0) -> List[Dict[str, Any]]:
         with self.conn.cursor() as cursor:
@@ -89,7 +87,6 @@ class ArchivePostgreSQL:
     def revision_get_parents(self, id: Sha1Git) -> Iterable[Sha1Git]:
         yield from self._revision_get_parents(id)
 
-    @lru_cache(maxsize=100000)
     @statsd.timed(
         metric=ARCHIVE_DURATION_METRIC, tags={"method": "revision_get_parents"}
     )

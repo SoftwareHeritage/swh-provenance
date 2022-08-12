@@ -4,7 +4,6 @@
 click
 deprecated
 iso8601
-methodtools
 pika
 PyYAML
 types-click

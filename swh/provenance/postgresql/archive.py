@@ -35,12 +35,12 @@ class ArchivePostgreSQL:
                               FROM directory WHERE id=%s),
                     ls_d AS (SELECT DISTINCT UNNEST(dir_entries) AS entry_id FROM dir),
                     ls_f AS (SELECT DISTINCT UNNEST(file_entries) AS entry_id FROM dir)
-                    (SELECT 'dir'::directory_entry_type AS type, e.target, e.name
+                    (SELECT 'dir' AS type, e.target, e.name
                        FROM ls_d
                        LEFT JOIN directory_entry_dir e ON ls_d.entry_id=e.id)
                     UNION ALL
                     (WITH known_contents AS
-                       (SELECT 'file'::directory_entry_type AS type, e.target, e.name
+                       (SELECT 'file' AS type, e.target, e.name
                           FROM ls_f
                           LEFT JOIN directory_entry_file e ON ls_f.entry_id=e.id
                           INNER JOIN content c ON e.target=c.sha1_git
@@ -48,7 +48,7 @@ class ArchivePostgreSQL:
                        )
                        SELECT * FROM known_contents
                        UNION ALL
-                       (SELECT 'file'::directory_entry_type AS type, e.target, e.name
+                       (SELECT 'file' AS type, e.target, e.name
                           FROM ls_f
                           LEFT JOIN directory_entry_file e ON ls_f.entry_id=e.id
                           LEFT JOIN skipped_content c ON e.target=c.sha1_git
@@ -70,11 +70,11 @@ class ArchivePostgreSQL:
                               FROM directory WHERE id=%s),
                     ls_d AS (SELECT DISTINCT UNNEST(dir_entries) AS entry_id FROM dir),
                     ls_f AS (SELECT DISTINCT UNNEST(file_entries) AS entry_id FROM dir)
-                    (SELECT 'dir'::directory_entry_type AS type, e.target, e.name
+                    (SELECT 'dir' AS type, e.target, e.name
                        FROM ls_d
                        LEFT JOIN directory_entry_dir e ON ls_d.entry_id=e.id)
                     UNION ALL
-                    (SELECT 'file'::directory_entry_type AS type, e.target, e.name
+                    (SELECT 'file' AS type, e.target, e.name
                        FROM ls_f
                        LEFT JOIN directory_entry_file e ON ls_f.entry_id=e.id)
                     """,

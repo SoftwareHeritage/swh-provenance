@@ -3,6 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import datetime
+
 try:
     from systemd.daemon import notify
 except ImportError:
@@ -14,6 +16,8 @@ from swh.provenance.model import OriginEntry, RevisionEntry
 from swh.provenance.origin import origin_add
 from swh.provenance.revision import revision_add
 from swh.storage.interface import StorageInterface
+
+EPOCH = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
 
 
 def process_journal_origins(
@@ -45,6 +49,9 @@ def process_journal_revisions(
         try:
             date = TimestampWithTimezone.from_dict(rev["date"]).to_datetime()
         except Exception:
+            continue
+
+        if date <= EPOCH:
             continue
 
         revisions.append(

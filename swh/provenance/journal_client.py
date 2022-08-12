@@ -10,6 +10,8 @@ try:
 except ImportError:
     notify = None
 
+import sentry_sdk
+
 from swh.model.model import TimestampWithTimezone
 from swh.provenance.interface import ProvenanceInterface
 from swh.provenance.model import OriginEntry, RevisionEntry
@@ -49,6 +51,7 @@ def process_journal_revisions(
         try:
             date = TimestampWithTimezone.from_dict(rev["date"]).to_datetime()
         except Exception:
+            sentry_sdk.capture_exception()
             continue
 
         if date <= EPOCH:

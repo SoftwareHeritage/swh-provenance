@@ -14,7 +14,7 @@ from swh.model.model import Sha1Git
 from .archive import ArchiveInterface
 from .graph import HistoryGraph
 from .interface import ProvenanceInterface
-from .model import OriginEntry, RevisionEntry
+from .model import OriginEntry
 
 ORIGIN_DURATION_METRIC = "swh_provenance_origin_revision_layer_duration_seconds"
 
@@ -100,7 +100,7 @@ def process_origin(
 
         # head is treated separately
         LOGGER.debug("Checking preferred origin")
-        check_preferred_origin(provenance, origin, revision)
+        check_preferred_origin(provenance, origin, revision.id)
 
         LOGGER.debug("Adding revision to origin")
         provenance.revision_add_to_origin(origin, revision)
@@ -121,29 +121,23 @@ def origin_add_revision(
     origin: OriginEntry,
     graph: HistoryGraph,
 ) -> None:
-    visited = {graph.head}
-    # head's history should be recursively iterated starting from its parents
-    stack = list(graph.parents[graph.head])
-    while stack:
-        current = stack.pop()
-        check_preferred_origin(provenance, origin, current)
+    for parent_id in graph.parent_ids():
+        check_preferred_origin(provenance, origin, parent_id)
 
         # create a link between it and the head, and recursively walk its history
-        provenance.revision_add_before_revision(graph.head, current)
-        visited.add(current)
-        for parent in graph.parents[current]:
-            if parent not in visited:
-                stack.append(parent)
+        provenance.revision_add_before_revision(
+            head_id=graph.head_id, revision_id=parent_id
+        )
 
 
 @statsd.timed(metric=ORIGIN_DURATION_METRIC, tags={"method": "check_preferred_origin"})
 def check_preferred_origin(
     provenance: ProvenanceInterface,
     origin: OriginEntry,
-    revision: RevisionEntry,
+    revision_id: Sha1Git,
 ) -> None:
     # if the revision has no preferred origin just set the given origin as the
     # preferred one. TODO: this should be improved in the future!
-    preferred = provenance.revision_get_preferred_origin(revision)
+    preferred = provenance.revision_get_preferred_origin(revision_id)
     if preferred is None:
-        provenance.revision_set_preferred_origin(origin, revision)
+        provenance.revision_set_preferred_origin(origin, revision_id)

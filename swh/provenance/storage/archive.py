@@ -30,12 +30,16 @@ class ArchiveStorage:
                 }
 
     @statsd.timed(
-        metric=ARCHIVE_DURATION_METRIC, tags={"method": "revision_get_parents"}
+        metric=ARCHIVE_DURATION_METRIC,
+        tags={"method": "revision_get_some_outbound_edges"},
     )
-    def revision_get_parents(self, id: Sha1Git) -> Iterable[Sha1Git]:
-        rev = self.storage.revision_get([id])[0]
+    def revision_get_some_outbound_edges(
+        self, revision_id: Sha1Git
+    ) -> Iterable[Tuple[Sha1Git, Sha1Git]]:
+        rev = self.storage.revision_get([revision_id])[0]
         if rev is not None:
-            yield from rev.parents
+            for parent_id in rev.parents:
+                yield (revision_id, parent_id)
 
     @statsd.timed(metric=ARCHIVE_DURATION_METRIC, tags={"method": "snapshot_get_heads"})
     def snapshot_get_heads(self, id: Sha1Git) -> Iterable[Sha1Git]:

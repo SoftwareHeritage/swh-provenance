@@ -10,7 +10,6 @@ import os
 from typing import Any, Dict, Optional, Set
 
 from swh.core.statsd import statsd
-from swh.model.hashutil import hash_to_hex
 from swh.model.model import Sha1Git
 
 from .archive import ArchiveInterface
@@ -30,39 +29,39 @@ class HistoryGraph:
         archive: ArchiveInterface,
         revision: RevisionEntry,
     ) -> None:
-        self._head = revision
-        self._graph: Dict[RevisionEntry, Set[RevisionEntry]] = {}
+        self.head_id = revision.id
+        self._nodes: Set[Sha1Git] = set()
+        # rev -> set(parents)
+        self._edges: Dict[Sha1Git, Set[Sha1Git]] = {}
 
-        stack = [self._head]
+        stack = {self.head_id}
         while stack:
             current = stack.pop()
 
-            if current not in self._graph:
-                self._graph[current] = set()
-                current.retrieve_parents(archive)
-                for parent in current.parents:
-                    self._graph[current].add(parent)
-                    stack.append(parent)
+            if current not in self._nodes:
+                self._nodes.add(current)
+                self._edges.setdefault(current, set())
+                for rev, parent in archive.revision_get_some_outbound_edges(current):
+                    self._nodes.add(rev)
+                    self._edges.setdefault(rev, set()).add(parent)
+                    stack.add(parent)
 
-    @property
-    def head(self) -> RevisionEntry:
-        return self._head
+            # don't process nodes for which we've already retrieved outbound edges
+            stack -= self._nodes
 
-    @property
-    def parents(self) -> Dict[RevisionEntry, Set[RevisionEntry]]:
-        return self._graph
+    def parent_ids(self) -> Set[Sha1Git]:
+        """Get all the known parent ids in the current graph"""
+        return self._nodes - {self.head_id}
 
     def __str__(self) -> str:
-        return f"<HistoryGraph: head={self._head}, graph={self._graph}"
+        return f"<HistoryGraph: head={self.head_id.hex()}, edges={self._edges}"
 
     def as_dict(self) -> Dict[str, Any]:
         return {
-            "head": hash_to_hex(self.head.id),
+            "head": self.head_id.hex(),
             "graph": {
-                hash_to_hex(node.id): sorted(
-                    [hash_to_hex(parent.id) for parent in parents]
-                )
-                for node, parents in self._graph.items()
+                node.hex(): sorted(parent.hex() for parent in parents)
+                for node, parents in self._edges.items()
             },
         }
 

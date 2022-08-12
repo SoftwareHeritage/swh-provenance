@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Any, Dict, Iterable
+from typing import Any, Dict, Iterable, Tuple
 
 from swh.core.statsd import statsd
 from swh.model.model import Sha1Git
@@ -23,15 +23,20 @@ class ArchiveGraph:
         raise NotImplementedError
 
     @statsd.timed(
-        metric=ARCHIVE_DURATION_METRIC, tags={"method": "revision_get_parents"}
+        metric=ARCHIVE_DURATION_METRIC,
+        tags={"method": "revision_get_some_outbound_edges"},
     )
-    def revision_get_parents(self, id: Sha1Git) -> Iterable[Sha1Git]:
-        src = CoreSWHID(object_type=ObjectType.REVISION, object_id=id)
-        request = self.graph.neighbors(str(src), edges="rev:rev", return_types="rev")
+    def revision_get_some_outbound_edges(
+        self, revision_id: Sha1Git
+    ) -> Iterable[Tuple[Sha1Git, Sha1Git]]:
+        src = CoreSWHID(object_type=ObjectType.REVISION, object_id=revision_id)
+        request = self.graph.visit_edges(str(src), edges="rev:rev")
 
-        yield from (
-            CoreSWHID.from_string(swhid).object_id for swhid in request if swhid
-        )
+        for rev_swhid, parent_rev_swhid in request:
+            yield (
+                CoreSWHID.from_string(rev_swhid).object_id,
+                CoreSWHID.from_string(parent_rev_swhid).object_id,
+            )
 
     @statsd.timed(metric=ARCHIVE_DURATION_METRIC, tags={"method": "snapshot_get_heads"})
     def snapshot_get_heads(self, id: Sha1Git) -> Iterable[Sha1Git]:

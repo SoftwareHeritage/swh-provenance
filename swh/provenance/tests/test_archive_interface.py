@@ -44,7 +44,9 @@ class ArchiveNoop:
     def directory_ls(self, id: Sha1Git, minsize: int = 0) -> Iterable[Dict[str, Any]]:
         return []
 
-    def revision_get_parents(self, id: Sha1Git) -> Iterable[Sha1Git]:
+    def revision_get_some_outbound_edges(
+        self, revision_id: Sha1Git
+    ) -> Iterable[Tuple[Sha1Git, Sha1Git]]:
         return []
 
     def snapshot_get_heads(self, id: Sha1Git) -> Iterable[Sha1Git]:
@@ -62,17 +64,20 @@ def check_directory_ls(
         assert entries_ref == entries
 
 
-def check_revision_get_parents(
+def check_revision_get_some_outbound_edges(
     reference: ArchiveInterface, archive: ArchiveInterface, data: Dict[str, List[dict]]
 ) -> None:
     for revision in data["revision"]:
-        parents_ref: TCounter[Sha1Git] = Counter(
-            reference.revision_get_parents(revision["id"])
+        parents_ref: TCounter[Tuple[Sha1Git, Sha1Git]] = Counter(
+            reference.revision_get_some_outbound_edges(revision["id"])
         )
-        parents: TCounter[Sha1Git] = Counter(
-            archive.revision_get_parents(revision["id"])
+        parents: TCounter[Tuple[Sha1Git, Sha1Git]] = Counter(
+            archive.revision_get_some_outbound_edges(revision["id"])
         )
-        assert parents_ref == parents
+
+        # Check that all the reference outbound edges are included in the other
+        # archives's outbound edges
+        assert set(parents_ref.items()) <= set(parents.items())
 
 
 def check_snapshot_get_heads(
@@ -211,7 +216,7 @@ def test_archive_interface(repo: str, archive: ArchiveInterface) -> None:
     # test against ArchiveStorage
     archive_api = ArchiveStorage(archive.storage)
     check_directory_ls(archive, archive_api, data)
-    check_revision_get_parents(archive, archive_api, data)
+    check_revision_get_some_outbound_edges(archive, archive_api, data)
     check_snapshot_get_heads(archive, archive_api, data)
 
     # test against ArchivePostgreSQL
@@ -221,7 +226,7 @@ def test_archive_interface(repo: str, archive: ArchiveInterface) -> None:
         BaseDb.adapt_conn(conn)
         archive_direct = ArchivePostgreSQL(conn)
         check_directory_ls(archive, archive_direct, data)
-        check_revision_get_parents(archive, archive_direct, data)
+        check_revision_get_some_outbound_edges(archive, archive_direct, data)
         check_snapshot_get_heads(archive, archive_direct, data)
 
     # test against ArchiveGraph
@@ -230,7 +235,7 @@ def test_archive_interface(repo: str, archive: ArchiveInterface) -> None:
     archive_graph = ArchiveGraph(graph, archive.storage)
     with pytest.raises(NotImplementedError):
         check_directory_ls(archive, archive_graph, data)
-    check_revision_get_parents(archive, archive_graph, data)
+    check_revision_get_some_outbound_edges(archive, archive_graph, data)
     check_snapshot_get_heads(archive, archive_graph, data)
 
     # test against ArchiveMultiplexer
@@ -238,7 +243,7 @@ def test_archive_interface(repo: str, archive: ArchiveInterface) -> None:
         [("noop", ArchiveNoop()), ("graph", archive_graph), ("api", archive_api)]
     )
     check_directory_ls(archive, archive_multiplexed, data)
-    check_revision_get_parents(archive, archive_multiplexed, data)
+    check_revision_get_some_outbound_edges(archive, archive_multiplexed, data)
     check_snapshot_get_heads(archive, archive_multiplexed, data)
 
 
@@ -246,5 +251,5 @@ def test_noop_multiplexer():
     archive = ArchiveMultiplexed([("noop", ArchiveNoop())])
 
     assert not archive.directory_ls(Sha1Git(b"abcd"))
-    assert not archive.revision_get_parents(Sha1Git(b"abcd"))
+    assert not archive.revision_get_some_outbound_edges(Sha1Git(b"abcd"))
     assert not archive.snapshot_get_heads(Sha1Git(b"abcd"))

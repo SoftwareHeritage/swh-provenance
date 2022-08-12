@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Tuple
 
 import psycopg2.extensions
 
@@ -90,24 +90,29 @@ class ArchivePostgreSQL:
                 entries.append({"type": entry_type, "target": target, "name": name})
             return entries
 
-    def revision_get_parents(self, id: Sha1Git) -> Iterable[Sha1Git]:
-        yield from self._revision_get_parents(id)
+    def revision_get_some_outbound_edges(
+        self, revision_id: Sha1Git
+    ) -> Iterable[Tuple[Sha1Git, Sha1Git]]:
+        yield from self._revision_get_some_outbound_edges(revision_id)
 
     @statsd.timed(
-        metric=ARCHIVE_DURATION_METRIC, tags={"method": "revision_get_parents"}
+        metric=ARCHIVE_DURATION_METRIC,
+        tags={"method": "revision_get_some_outbound_edges"},
     )
-    def _revision_get_parents(self, id: Sha1Git) -> List[Sha1Git]:
+    def _revision_get_some_outbound_edges(
+        self, revision_id: Sha1Git
+    ) -> List[Tuple[Sha1Git, Sha1Git]]:
         with self.conn.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT RH.parent_id::bytea
-                    FROM revision_history AS RH
-                    WHERE RH.id=%s
-                    ORDER BY RH.parent_rank
+                select
+                  id, unnest(parents) as parent_id
+                from
+                  swh_revision_list(ARRAY[%s::bytea], 1000);
                 """,
-                (id,),
+                (revision_id,),
             )
-            return [row[0] for row in cursor]
+            return cursor.fetchall()
 
     @statsd.timed(metric=ARCHIVE_DURATION_METRIC, tags={"method": "snapshot_get_heads"})
     def snapshot_get_heads(self, id: Sha1Git) -> Iterable[Sha1Git]:

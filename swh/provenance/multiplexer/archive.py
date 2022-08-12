@@ -52,35 +52,41 @@ class ArchiveMultiplexed:
         return []
 
     @statsd.timed(
-        metric=ARCHIVE_DURATION_METRIC, tags={"method": "revision_get_parents"}
+        metric=ARCHIVE_DURATION_METRIC,
+        tags={"method": "revision_get_some_outbound_edges"},
     )
-    def revision_get_parents(self, id: Sha1Git) -> Iterable[Sha1Git]:
+    def revision_get_some_outbound_edges(
+        self, revision_id: Sha1Git
+    ) -> Iterable[Tuple[Sha1Git, Sha1Git]]:
         # TODO: what if the revision doesn't exist in the archive?
         for backend, archive in self.archives:
             try:
-                parents = list(archive.revision_get_parents(id))
-                if parents:
+                edges = list(archive.revision_get_some_outbound_edges(revision_id))
+                if edges:
                     statsd.increment(
                         ARCHIVE_OPS_METRIC,
-                        tags={"method": "revision_get_parents", "backend": backend},
+                        tags={
+                            "method": "revision_get_some_outbound_edges",
+                            "backend": backend,
+                        },
                     )
-                    return parents
+                    return edges
                 LOGGER.debug(
-                    "No parents found for revision %s via %s",
-                    id.hex(),
+                    "No outbound edges found for revision %s via %s",
+                    revision_id.hex(),
                     archive.__class__,
                 )
             except Exception as e:
                 LOGGER.warn(
-                    "Error retrieving parents of revision %s via %s: %s",
-                    id.hex(),
+                    "Error retrieving outbound edges of revision %s via %s: %s",
+                    revision_id.hex(),
                     archive.__class__,
                     e,
                 )
         statsd.increment(
             ARCHIVE_OPS_METRIC,
             tags={
-                "method": "revision_get_parents",
+                "method": "revision_get_some_outbound_edges",
                 "backend": "no_parents_or_not_found",
             },
         )

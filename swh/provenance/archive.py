@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Any, Dict, Iterable
+from typing import Any, Dict, Iterable, Tuple
 
 from typing_extensions import Protocol, runtime_checkable
 
@@ -28,14 +28,17 @@ class ArchiveInterface(Protocol):
         """
         ...
 
-    def revision_get_parents(self, id: Sha1Git) -> Iterable[Sha1Git]:
-        """List parents of one revision.
+    def revision_get_some_outbound_edges(
+        self, id: Sha1Git
+    ) -> Iterable[Tuple[Sha1Git, Sha1Git]]:
+        """List some outbound edges from one revision. For each revision listed,
+        all of its outbound edges must be returned.
 
         Args:
-            revisions: sha1 id of the revision to list parents from.
+            id: sha1 id of the revision to list parents from.
 
-        Yields:
-            sha1 ids for the parents of such revision.
+        Returns:
+            list of edges (revision_id, parent_revision_id)
 
         """
         ...

@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Iterable, Iterator, List, Optional
+from typing import Iterator, List, Optional
 
 from swh.model.model import Origin, Sha1Git
 
@@ -55,29 +55,11 @@ class RevisionEntry:
         id: Sha1Git,
         date: Optional[datetime] = None,
         root: Optional[Sha1Git] = None,
-        parents: Optional[Iterable[Sha1Git]] = None,
     ) -> None:
         self.id = id
         self.date = date
         assert self.date is None or self.date.tzinfo is not None
         self.root = root
-        self._parents_ids = parents
-        self._parents_entries: Optional[List[RevisionEntry]] = None
-
-    def retrieve_parents(self, archive: ArchiveInterface) -> None:
-        if self._parents_entries is None:
-            if self._parents_ids is None:
-                self._parents_ids = archive.revision_get_parents(self.id)
-            self._parents_entries = [RevisionEntry(id) for id in self._parents_ids]
-
-    @property
-    def parents(self) -> Iterator[RevisionEntry]:
-        if self._parents_entries is None:
-            raise RuntimeError(
-                "Parents of this node has not yet been retrieved. "
-                "Please call retrieve_parents() before using this property."
-            )
-        return (x for x in self._parents_entries)
 
     def __str__(self) -> str:
         return f"<MRevision[{self.id.hex()}]>"

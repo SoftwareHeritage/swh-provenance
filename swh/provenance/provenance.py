@@ -483,10 +483,10 @@ class Provenance:
         self.cache["revision"]["added"].add(revision.id)
 
     def revision_add_before_revision(
-        self, head: RevisionEntry, revision: RevisionEntry
+        self, head_id: Sha1Git, revision_id: Sha1Git
     ) -> None:
-        self.cache["revision_before_revision"].setdefault(revision.id, set()).add(
-            head.id
+        self.cache["revision_before_revision"].setdefault(revision_id, set()).add(
+            head_id
         )
 
     def revision_add_to_origin(
@@ -500,20 +500,18 @@ class Provenance:
     def revision_get_date(self, revision: RevisionEntry) -> Optional[datetime]:
         return self.get_dates("revision", [revision.id]).get(revision.id)
 
-    def revision_get_preferred_origin(
-        self, revision: RevisionEntry
-    ) -> Optional[Sha1Git]:
+    def revision_get_preferred_origin(self, revision_id: Sha1Git) -> Optional[Sha1Git]:
         cache = self.cache["revision_origin"]["data"]
-        if revision.id not in cache:
-            ret = self.storage.revision_get([revision.id])
-            if revision.id in ret:
-                origin = ret[revision.id].origin
+        if revision_id not in cache:
+            ret = self.storage.revision_get([revision_id])
+            if revision_id in ret:
+                origin = ret[revision_id].origin
                 if origin is not None:
-                    cache[revision.id] = origin
-        return cache.get(revision.id)
+                    cache[revision_id] = origin
+        return cache.get(revision_id)
 
     def revision_set_preferred_origin(
-        self, origin: OriginEntry, revision: RevisionEntry
+        self, origin: OriginEntry, revision_id: Sha1Git
     ) -> None:
-        self.cache["revision_origin"]["data"][revision.id] = origin.id
-        self.cache["revision_origin"]["added"].add(revision.id)
+        self.cache["revision_origin"]["data"][revision_id] = origin.id
+        self.cache["revision_origin"]["added"].add(revision_id)

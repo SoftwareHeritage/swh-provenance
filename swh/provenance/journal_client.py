@@ -61,7 +61,6 @@ def process_journal_revisions(
                 id=rev["id"],
                 root=rev["directory"],
                 date=date,
-                parents=rev["parents"],
             )
         )
     if revisions:

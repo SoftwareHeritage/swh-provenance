@@ -369,9 +369,9 @@ class ProvenanceInterface(Protocol):
         ...
 
     def revision_add_before_revision(
-        self, head: RevisionEntry, revision: RevisionEntry
+        self, head_id: Sha1Git, revision_id: Sha1Git
     ) -> None:
-        """Associate `revision` to `head` as an ancestor of the latter."""
+        """Associate `revision_id` to `head_id` as an ancestor of the latter."""
         ...
 
     def revision_add_to_origin(
@@ -389,14 +389,12 @@ class ProvenanceInterface(Protocol):
         """Retrieve the date associated to `revision`."""
         ...
 
-    def revision_get_preferred_origin(
-        self, revision: RevisionEntry
-    ) -> Optional[Sha1Git]:
+    def revision_get_preferred_origin(self, revision_id: Sha1Git) -> Optional[Sha1Git]:
         """Retrieve the preferred origin associated to `revision`."""
         ...
 
     def revision_set_preferred_origin(
-        self, origin: OriginEntry, revision: RevisionEntry
+        self, origin: OriginEntry, revision_id: Sha1Git
     ) -> None:
         """Associate `origin` as the preferred origin for `revision`."""
         ...

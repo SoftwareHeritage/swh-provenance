@@ -1,0 +1,8 @@
+dir:cnt 4
+dir:dir 10
+ori:snp 7
+rel:rev 3
+rev:dir 9
+rev:rev 10
+snp:rel 3
+snp:rev 17

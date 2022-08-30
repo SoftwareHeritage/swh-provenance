@@ -19,7 +19,10 @@ Each dataset `xxx` consist in several parts:
 - a set of synthetic files, named `synthetic_xxx_(lower|upper)_<mindepth>.txt`,
   describing the expected result in the provenance database if ingested with
   the flag `lower` set or not set, and the `mindepth` value (integer, most
-  often `1` or `2`).
+  often `1` or `2`),
+- a swh-graph compressed dataset (in the `swhgraph/` directory), used for testing
+  the ArchiveGraph backend.
+
 ### Generate datasets files
 
 For each dataset `xxx`, execute a number of commands:
@@ -29,6 +32,7 @@ for dataset in cmdbts2 out-of-order with-merges; do
   python generate_repo.py -C ${dataset}_repo.yaml $dataset > synthetic_${dataset}_template.txt
   # you may want to edit/update synthetic files from this template, see below
   python generate_storage_from_git.py $dataset
+  python generate_graph_dataset.py --compress $dataset
 done
 ```
 

@@ -43,13 +43,11 @@ def get_archive(cls: str, **kwargs) -> ArchiveInterface:
 
     elif cls == "graph":
         try:
-            from swh.graph.client import RemoteGraphClient
             from swh.storage import get_storage
 
             from .swhgraph.archive import ArchiveGraph
 
-            graph = RemoteGraphClient(kwargs.get("url"))
-            return ArchiveGraph(graph, get_storage(**kwargs["storage"]))
+            return ArchiveGraph(kwargs.get("url"), get_storage(**kwargs["storage"]))
 
         except ModuleNotFoundError:
             raise EnvironmentError(

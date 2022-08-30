@@ -12,7 +12,6 @@ from typing import Dict, Iterable, List, Set, Tuple, Type, Union
 import pytest
 
 from swh.core.db import BaseDb
-from swh.graph.naive_client import NaiveClient
 from swh.model.model import (
     SWH_MODEL_OBJECT_TYPES,
     BaseModel,
@@ -35,7 +34,7 @@ from swh.provenance.multiplexer.archive import ArchiveMultiplexed
 from swh.provenance.postgresql.archive import ArchivePostgreSQL
 from swh.provenance.storage.archive import ArchiveStorage
 from swh.provenance.swhgraph.archive import ArchiveGraph
-from swh.provenance.tests.conftest import fill_storage, load_repo_data
+from swh.provenance.tests.conftest import fill_storage, grpc_server, load_repo_data
 from swh.storage.interface import StorageInterface
 from swh.storage.postgresql.storage import Storage
 
@@ -228,22 +227,43 @@ def test_archive_interface(repo: str, archive: ArchiveInterface) -> None:
         check_revision_get_some_outbound_edges(archive, archive_direct, data)
         check_snapshot_get_heads(archive, archive_direct, data)
 
-    # test against ArchiveGraph
-    nodes, edges = get_graph_data(data)
-    graph = NaiveClient(nodes=nodes, edges=edges)
-    archive_graph = ArchiveGraph(graph, archive.storage)
-    with pytest.raises(NotImplementedError):
-        check_directory_ls(archive, archive_graph, data)
-    check_revision_get_some_outbound_edges(archive, archive_graph, data)
-    check_snapshot_get_heads(archive, archive_graph, data)
+
+@pytest.mark.parametrize(
+    "repo",
+    ("cmdbts2", "out-of-order", "with-merges"),
+)
+def test_archive_graph(repo: str, archive: ArchiveInterface) -> None:
+    data = load_repo_data(repo)
+    fill_storage(archive.storage, data)
+
+    with grpc_server(repo) as url:
+        # test against ArchiveGraph
+        archive_graph = ArchiveGraph(url, archive.storage)
+        with pytest.raises(NotImplementedError):
+            check_directory_ls(archive, archive_graph, data)
+        check_revision_get_some_outbound_edges(archive, archive_graph, data)
+        check_snapshot_get_heads(archive, archive_graph, data)
+
+
+@pytest.mark.parametrize(
+    "repo",
+    ("cmdbts2", "out-of-order", "with-merges"),
+)
+def test_archive_multiplexed(repo: str, archive: ArchiveInterface) -> None:
+    # read data/README.md for more details on how these datasets are generated
+    data = load_repo_data(repo)
+    fill_storage(archive.storage, data)
 
     # test against ArchiveMultiplexer
-    archive_multiplexed = ArchiveMultiplexed(
-        [("noop", ArchiveNoop()), ("graph", archive_graph), ("api", archive_api)]
-    )
-    check_directory_ls(archive, archive_multiplexed, data)
-    check_revision_get_some_outbound_edges(archive, archive_multiplexed, data)
-    check_snapshot_get_heads(archive, archive_multiplexed, data)
+    with grpc_server(repo) as url:
+        archive_api = ArchiveStorage(archive.storage)
+        archive_graph = ArchiveGraph(url, archive.storage)
+        archive_multiplexed = ArchiveMultiplexed(
+            [("noop", ArchiveNoop()), ("graph", archive_graph), ("api", archive_api)]
+        )
+        check_directory_ls(archive, archive_multiplexed, data)
+        check_revision_get_some_outbound_edges(archive, archive_multiplexed, data)
+        check_snapshot_get_heads(archive, archive_multiplexed, data)
 
 
 def test_noop_multiplexer():

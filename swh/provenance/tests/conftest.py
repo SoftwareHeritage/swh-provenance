@@ -3,16 +3,21 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from contextlib import contextmanager
 from datetime import datetime
+import multiprocessing
 from os import path
+from pathlib import Path
 from typing import Any, Dict, Generator, List
 
 from _pytest.fixtures import SubRequest
+from aiohttp.test_utils import TestClient, TestServer, loop_context
 import msgpack
 import psycopg2.extensions
 import pytest
 from pytest_postgresql.factories import postgresql
 
+from swh.graph.http_server import make_app
 from swh.journal.serializers import msgpack_ext_hook
 from swh.model.model import BaseModel, TimestampWithTimezone
 from swh.provenance import get_provenance, get_provenance_storage
@@ -160,3 +165,37 @@ def objs_from_dict(object_type: str, dict_repr: dict) -> BaseModel:
 
 def ts2dt(ts: Dict[str, Any]) -> datetime:
     return TimestampWithTimezone.from_dict(ts).to_datetime()
+
+
+def run_grpc_server(queue, dataset_path):
+    try:
+        config = {"graph": {"path": dataset_path}}
+        with loop_context() as loop:
+            app = make_app(config=config, debug=True, spawn_rpc_port=None)
+            client = TestClient(TestServer(app), loop=loop)
+            loop.run_until_complete(client.start_server())
+            url = client.make_url("/graph/")
+            queue.put((url, app["rpc_url"]))
+            loop.run_forever()
+    except Exception as e:
+        queue.put(e)
+
+
+@contextmanager
+def grpc_server(dataset):
+    dataset_path = (
+        Path(__file__).parents[0] / "data/swhgraph" / dataset / "compressed/example"
+    )
+    queue = multiprocessing.Queue()
+    server = multiprocessing.Process(
+        target=run_grpc_server, kwargs={"queue": queue, "dataset_path": dataset_path}
+    )
+    server.start()
+    res = queue.get()
+    if isinstance(res, Exception):
+        raise res
+    grpc_url = res[1]
+    try:
+        yield grpc_url
+    finally:
+        server.terminate()

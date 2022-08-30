@@ -1,0 +1,6 @@
+cnt 3
+dir 12
+ori 1
+rel 1
+rev 7
+snp 1

@@ -1,7 +1,8 @@
+grpcio
 pytest
 pytest-rabbitmq
 swh.loader.git >= 0.8
 swh.journal >= 0.8
 swh.storage >= 0.40
-swh.graph >= 0.3.2
+swh.graph[testing] >= 1.0.1
 types-Deprecated

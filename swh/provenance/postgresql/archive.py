@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, Tuple, cast
 
 import psycopg2.extensions
 
@@ -112,7 +112,7 @@ class ArchivePostgreSQL:
                 """,
                 (revision_id,),
             )
-            return cursor.fetchall()
+            return cast(List[Tuple[Sha1Git, Sha1Git]], cursor.fetchall())
 
     @statsd.timed(metric=ARCHIVE_DURATION_METRIC, tags={"method": "snapshot_get_heads"})
     def snapshot_get_heads(self, id: Sha1Git) -> Iterable[Sha1Git]:

@@ -90,7 +90,9 @@ class ProvenanceStoragePostgreSql:
         if self._flavor is None:
             with self.transaction(readonly=True) as cursor:
                 cursor.execute("SELECT swh_get_dbflavor() AS flavor")
-                self._flavor = cursor.fetchone()["flavor"]
+                flavor = cursor.fetchone()
+                assert flavor  # please mypy
+                self._flavor = flavor["flavor"]
         assert self._flavor is not None
         return self._flavor
 

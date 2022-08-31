@@ -1,4 +1,4 @@
-# Copyright (C) 2021  The Software Heritage developers
+# Copyright (C) 2021-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -39,4 +39,8 @@ def test_origin_iterator(swh_storage: StorageInterface, repo: str) -> None:
     origins = list(CSVOriginIterator(origins_csv))
 
     assert origins
-    assert len(origins) == len(data["origin"])
+    # there can be more origins, depending on the additional extra visits.yaml
+    # file used during dataset generation (see data/generate_storage_from_git)
+    assert len(origins) >= len(data["origin"])
+    # but we can check it's a subset
+    assert set(o.url for o in origins) <= set(o["url"] for o in data["origin"])

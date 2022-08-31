@@ -131,8 +131,8 @@ def test_cli_origin_from_csv(
     data = load_repo_data(repo)
     fill_storage(swh_storage, data)
 
-    assert len(data["origin"]) == 1
-    assert {"url": origin_url} in data["origin"]
+    assert len(data["origin"]) >= 1
+    assert origin_url in [o["url"] for o in data["origin"]]
 
     cfg = {
         "provenance": {

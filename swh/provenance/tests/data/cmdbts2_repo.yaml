@@ -44,6 +44,7 @@
     F/E/D/d: "content d"
     F/E/D/e: "content d"  # /!\ same content as d
     F/a: "content a"
+  tag: "0.1"
 - msg: R09
   date: 1000000090
   content:
@@ -78,3 +79,4 @@
     G/D/f: "content f"
     G/D/g: "content f"
     G/k: "content k"
+  tag: "1.0"

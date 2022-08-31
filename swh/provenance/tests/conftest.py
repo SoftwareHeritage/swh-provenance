@@ -1,9 +1,9 @@
-# Copyright (C) 2021  The Software Heritage developers
+# Copyright (C) 2021-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from os import path
 from typing import Any, Dict, Generator, List
 
@@ -14,7 +14,7 @@ import pytest
 from pytest_postgresql.factories import postgresql
 
 from swh.journal.serializers import msgpack_ext_hook
-from swh.model.model import BaseModel
+from swh.model.model import BaseModel, TimestampWithTimezone
 from swh.provenance import get_provenance, get_provenance_storage
 from swh.provenance.archive import ArchiveInterface
 from swh.provenance.interface import ProvenanceInterface, ProvenanceStorageInterface
@@ -142,7 +142,11 @@ def load_repo_data(repo: str) -> Dict[str, List[dict]]:
             strict_map_key=False,
             timestamp=3,  # convert Timestamp in datetime objects (tz UTC)
         )
-        for objtype, objd in unpacker:
+        for msg in unpacker:
+            if len(msg) == 2:  # old format
+                objtype, objd = msg
+            else:  # now we should have a triplet (type, key, value)
+                objtype, _, objd = msg
             data.setdefault(objtype, []).append(objd)
     return data
 
@@ -154,10 +158,5 @@ def objs_from_dict(object_type: str, dict_repr: dict) -> BaseModel:
     return obj
 
 
-# TODO: remove this function in favour of TimestampWithTimezone.to_datetime
-#       from swh.model.model
 def ts2dt(ts: Dict[str, Any]) -> datetime:
-    timestamp = datetime.fromtimestamp(
-        ts["timestamp"]["seconds"], timezone(timedelta(minutes=ts["offset"]))
-    )
-    return timestamp.replace(microsecond=ts["timestamp"]["microseconds"])
+    return TimestampWithTimezone.from_dict(ts).to_datetime()

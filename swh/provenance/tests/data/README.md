@@ -3,6 +3,14 @@
 This directory contains datasets used by `test_provenance_heurstics` tests of
 the provenance index database.
 
+## Datasets
+
+There are currently 3 dataset:
+
+- cmdbts2: original dataset
+- out-of-order: with unsorted revisions
+- with-merge: with merge revisions
+
 Each dataset `xxx` consist in several parts:
 
 - a description of a git repository as a yaml file named `xxx_repo.yaml`,
@@ -12,7 +20,17 @@ Each dataset `xxx` consist in several parts:
   describing the expected result in the provenance database if ingested with
   the flag `lower` set or not set, and the `mindepth` value (integer, most
   often `1` or `2`).
+### Generate datasets files
 
+For each dataset `xxx`, execute a number of commands:
+
+```
+for dataset in cmdbts2 out-of-order with-merges; do
+  python generate_repo.py -C ${dataset}_repo.yaml $dataset > synthetic_${dataset}_template.txt
+  # you may want to edit/update synthetic files from this template, see below
+  python generate_storage_from_git.py $dataset
+done
+```
 
 ## Git repos description file
 

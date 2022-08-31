@@ -1,4 +1,4 @@
-# Copyright (C) 2021  The Software Heritage developers
+# Copyright (C) 2021-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -106,7 +106,9 @@ def main(output: Optional[str], visits: bytes, git_repo: str) -> None:
                 status = OriginVisitStatus(
                     origin=visit["origin"],
                     visit=visit_id,
-                    date=datetime.fromtimestamp(visit["date"], tz=timezone.utc),
+                    # +1 required otherwise this second visit status is ignored
+                    # (storage sql query with ON CONFLICT DO NOTHING)
+                    date=datetime.fromtimestamp(visit["date"] + 1, tz=timezone.utc),
                     status="full",
                     snapshot=snap.id,
                 )

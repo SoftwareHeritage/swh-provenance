@@ -98,6 +98,12 @@ def generate_repo(repo_desc: List[Dict[str, Any]], output_dir: str) -> None:
             ],
             stdout=PIPE,
         )
+        if rev_d.get("tag"):
+            check_call(
+                ["git", "tag", "-a", str(rev_d["tag"]), "-m", "tag message"],
+                stdout=PIPE,
+            )
+
         print_ids()
 
 

@@ -1,0 +1,39 @@
+# a visit pattern scenario for the 'cmdbts2' repo
+
+- origin: https://cmdbts2
+  date: 1000000150
+  branches:
+    - R13
+
+- origin: http://cmdbts2/1
+  date: 1000000015
+  branches:
+    - R01
+
+- origin: http://cmdbts2/1
+  date: 1000000025
+  branches:
+    - R03
+    - R06
+
+- origin: http://cmdbts2/2
+  date: 1000000035
+  branches:
+    - R05
+    - R06
+
+- origin: http://cmdbts2/1
+  date: 1000000045
+  branches:
+    - R06
+    - R07
+
+- origin: http://cmdbts2/1
+  date: 1000000055
+  branches:
+    - R08
+
+- origin: http://cmdbts2/2
+  date: 1000000065
+  branches:
+    - R08

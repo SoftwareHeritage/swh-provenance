@@ -14,13 +14,15 @@ import pytest
 from swh.core.db import BaseDb
 from swh.graph.naive_client import NaiveClient
 from swh.model.model import (
+    SWH_MODEL_OBJECT_TYPES,
     BaseModel,
     Content,
     Directory,
     DirectoryEntry,
+    ObjectType,
     Origin,
-    OriginVisit,
     OriginVisitStatus,
+    Release,
     Revision,
     Sha1Git,
     Snapshot,
@@ -92,21 +94,7 @@ def check_snapshot_get_heads(
 
 
 def get_object_class(object_type: str) -> Type[BaseModel]:
-    if object_type == "origin":
-        return Origin
-    elif object_type == "origin_visit":
-        return OriginVisit
-    elif object_type == "origin_visit_status":
-        return OriginVisitStatus
-    elif object_type == "content":
-        return Content
-    elif object_type == "directory":
-        return Directory
-    elif object_type == "revision":
-        return Revision
-    elif object_type == "snapshot":
-        return Snapshot
-    raise ValueError
+    return SWH_MODEL_OBJECT_TYPES[object_type]
 
 
 def data_to_model(data: Dict[str, List[dict]]) -> Dict[str, List[BaseModel]]:
@@ -125,7 +113,7 @@ def add_link(
             Union[CoreSWHID, ExtendedSWHID, str], Union[CoreSWHID, ExtendedSWHID, str]
         ]
     ],
-    src_obj: Union[Origin, Snapshot, Revision, Directory, Content],
+    src_obj: Union[Content, Directory, Origin, Release, Revision, Snapshot],
     dst_id: bytes,
     dst_type: ExtendedObjectType,
 ) -> None:
@@ -182,24 +170,35 @@ def get_graph_data(
         for parent in revision.parents:
             add_link(edges, revision, parent, ExtendedObjectType.REVISION)
 
+    dir_entry_types = {
+        "file": ExtendedObjectType.CONTENT,
+        "dir": ExtendedObjectType.DIRECTORY,
+        "rev": ExtendedObjectType.REVISION,
+    }
     for directory in model["directory"]:
         assert isinstance(directory, Directory)
         nodes.add(directory.swhid())
         for entry in directory.entries:
             assert isinstance(entry, DirectoryEntry)
-            if entry.type == "file":
-                target_type = ExtendedObjectType.CONTENT
-            elif entry.type == "dir":
-                target_type = ExtendedObjectType.DIRECTORY
-            elif entry.type == "rev":
-                target_type = ExtendedObjectType.REVISION
-            else:
-                assert False, "unknown directory entry type"
-            add_link(edges, directory, entry.target, target_type)
+            add_link(edges, directory, entry.target, dir_entry_types[entry.type])
 
     for content in model["content"]:
         assert isinstance(content, Content)
         nodes.add(content.swhid())
+
+    object_type = {
+        ObjectType.CONTENT: ExtendedObjectType.CONTENT,
+        ObjectType.DIRECTORY: ExtendedObjectType.DIRECTORY,
+        ObjectType.REVISION: ExtendedObjectType.REVISION,
+        ObjectType.RELEASE: ExtendedObjectType.RELEASE,
+        ObjectType.SNAPSHOT: ExtendedObjectType.SNAPSHOT,
+    }
+    for release in model["release"]:
+        assert isinstance(release, Release)
+        nodes.add(release.swhid())
+
+        if release.target is not None:
+            add_link(edges, release, release.target, object_type[release.target_type])
 
     return list(nodes), list(edges)
 

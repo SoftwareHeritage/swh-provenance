@@ -41,7 +41,7 @@ def test_cli_origin_from_journal_client(
 
     # Prepare storage data
     data = load_repo_data("cmdbts2")
-    assert len(data["origin"]) == 1
+    assert len(data["origin"]) >= 1
     origin_url = data["origin"][0]["url"]
     fill_storage(swh_storage, data)
 
@@ -95,7 +95,7 @@ def test_cli_revision_from_journal_client(
 
     # Prepare storage data
     data = load_repo_data("cmdbts2")
-    assert len(data["origin"]) == 1
+    assert len(data["origin"]) >= 1
     fill_storage(swh_storage, data)
 
     # Prepare configuration for cli call

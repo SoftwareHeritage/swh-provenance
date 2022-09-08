@@ -277,6 +277,13 @@ def revision(ctx: click.core.Context):
     help="""Set the minimum size (in bytes) of files to be indexed. """
     """Any smaller file will be ignored.""",
 )
+@click.option(
+    "-d",
+    "--max-directory-size",
+    default=0,
+    type=int,
+    help="""Set the maximum recursive directory size of revisions to be indexed.""",
+)
 @click.pass_context
 def revision_from_csv(
     ctx: click.core.Context,
@@ -287,6 +294,7 @@ def revision_from_csv(
     min_depth: int,
     reuse: bool,
     min_size: int,
+    max_directory_size: int,
 ) -> None:
     from .revision import CSVRevisionIterator, revision_add
 
@@ -307,6 +315,7 @@ def revision_from_csv(
                 lower=reuse,
                 mindepth=min_depth,
                 minsize=min_size,
+                max_directory_size=max_directory_size,
             )
 
 
@@ -355,6 +364,13 @@ def revision_from_csv(
     help="""Set the minimum size (in bytes) of files to be indexed. """
     """Any smaller file will be ignored.""",
 )
+@click.option(
+    "-d",
+    "--max-directory-size",
+    default=0,
+    type=int,
+    help="""Set the maximum recursive directory size of revisions to be indexed.""",
+)
 @click.pass_context
 def revision_from_journal(
     ctx: click.core.Context,
@@ -364,6 +380,7 @@ def revision_from_journal(
     min_depth: int,
     reuse: bool,
     min_size: int,
+    max_directory_size: int,
 ) -> None:
     from swh.journal.client import get_journal_client
 
@@ -378,6 +395,8 @@ def revision_from_journal(
         process_journal_revisions,
         archive=archive,
         provenance=provenance,
+        minsize=min_size,
+        max_directory_size=max_directory_size,
     )
 
     cls = journal_cfg.pop("cls", None) or "kafka"

@@ -12,7 +12,7 @@ from swh.model.model import Sha1Git
 
 from .archive import ArchiveInterface
 from .directory import directory_flatten
-from .graph import IsochroneNode, build_isochrone_graph
+from .graph import DirectoryTooLarge, IsochroneNode, build_isochrone_graph
 from .interface import ProvenanceInterface
 from .model import DirectoryEntry, RevisionEntry
 
@@ -67,6 +67,7 @@ def revision_add(
     mindepth: int = 1,
     minsize: int = 0,
     commit: bool = True,
+    max_directory_size: int = 0,
 ) -> None:
     revs_processed = 0
     batch_size = len(revisions)
@@ -86,13 +87,22 @@ def revision_add(
                 revision.root.hex(),
             )
             logger.debug("provenance date: %s, building isochrone graph", date)
-            graph = build_isochrone_graph(
-                provenance,
-                archive,
-                revision,
-                DirectoryEntry(revision.root),
-                minsize=minsize,
-            )
+            try:
+                graph = build_isochrone_graph(
+                    provenance,
+                    archive,
+                    revision,
+                    DirectoryEntry(revision.root),
+                    minsize=minsize,
+                    max_directory_size=max_directory_size,
+                )
+            except DirectoryTooLarge:
+                logger.warn(
+                    "Ignoring revision %s: root directory %s too large",
+                    revision.id.hex(),
+                    revision.root.hex(),
+                )
+                continue
             logger.debug("isochrone graph built, processing content")
             revision_process_content(
                 provenance,

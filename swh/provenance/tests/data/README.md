@@ -5,11 +5,13 @@ the provenance index database.
 
 ## Datasets
 
-There are currently 3 dataset:
+There are currently 4 datasets:
 
 - cmdbts2: original dataset
 - out-of-order: with unsorted revisions
 - with-merge: with merge revisions
+- git-bomb: a clone of https://github.com/Katee/git-bomb dedicated to testing a
+  repo with very large expanded directory structure.
 
 Each dataset `xxx` consist in several parts:
 

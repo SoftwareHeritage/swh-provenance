@@ -22,6 +22,10 @@ GRAPH_OPERATIONS_METRIC = "swh_provenance_graph_operations_total"
 UTCMIN = datetime.min.replace(tzinfo=timezone.utc)
 
 
+class DirectoryTooLarge(ValueError):
+    pass
+
+
 class HistoryGraph:
     @statsd.timed(metric=GRAPH_DURATION_METRIC, tags={"method": "build_history_graph"})
     def __init__(
@@ -132,6 +136,7 @@ def build_isochrone_graph(
     revision: RevisionEntry,
     directory: DirectoryEntry,
     minsize: int = 0,
+    max_directory_size: int = 0,
 ) -> IsochroneNode:
     assert revision.date is not None
     assert revision.root == directory.id
@@ -152,7 +157,13 @@ def build_isochrone_graph(
     root = IsochroneNode(directory, dbdate=root_date)
     stack = [root]
     fdates: Dict[Sha1Git, datetime] = {}  # map {file_id: date}
+    counter = 0
     while stack:
+        counter += 1
+        if max_directory_size and counter > max_directory_size:
+            raise DirectoryTooLarge(
+                f"Max directory size exceeded ({counter}): {directory.id.hex()}"
+            )
         current = stack.pop()
         if current.dbdate is None or current.dbdate >= revision.date:
             # If current directory has an associated date in the isochrone frontier that

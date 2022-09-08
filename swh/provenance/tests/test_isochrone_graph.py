@@ -12,7 +12,7 @@ import yaml
 
 from swh.model.hashutil import hash_to_bytes
 from swh.provenance.archive import ArchiveInterface
-from swh.provenance.graph import IsochroneNode, build_isochrone_graph
+from swh.provenance.graph import DirectoryTooLarge, IsochroneNode, build_isochrone_graph
 from swh.provenance.interface import ProvenanceInterface
 from swh.provenance.model import DirectoryEntry, RevisionEntry
 from swh.provenance.revision import revision_add
@@ -111,3 +111,38 @@ def test_isochrone_graph(
                 mindepth=mindepth,
                 commit=not batch,
             )
+
+
+def test_isochrone_graph_max_dir_size(
+    provenance: ProvenanceInterface,
+    archive: ArchiveInterface,
+):
+    data = load_repo_data("git-bomb")
+    fill_storage(archive.storage, data)
+
+    rev = archive.storage.revision_get(
+        [hash_to_bytes("7af99c9e7d4768fa681f4fe4ff61259794cf719b")]
+    )[0]
+    assert rev is not None
+    assert rev.date is not None
+
+    with pytest.raises(DirectoryTooLarge, match="Max directory size exceeded"):
+        build_isochrone_graph(
+            provenance,
+            archive,
+            RevisionEntry(id=rev.id, date=rev.date.to_datetime(), root=rev.directory),
+            DirectoryEntry(rev.directory),
+            max_directory_size=1000,
+        )
+        pass
+
+    # from this directory, there should be only ~1k recursive entries, so the
+    # call to build_isochrone_graph with max_directory_size=1200 should succeed
+    dir_id = hash_to_bytes("3e50041e82b225ca9e9b2641548b0c1b81eb971b")
+    build_isochrone_graph(
+        provenance,
+        archive,
+        RevisionEntry(id=rev.id, date=rev.date.to_datetime(), root=dir_id),
+        DirectoryEntry(dir_id),
+        max_directory_size=1200,
+    )

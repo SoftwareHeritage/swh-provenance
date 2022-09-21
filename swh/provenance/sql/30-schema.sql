@@ -2,22 +2,6 @@
 select position('denormalized' in swh_get_dbflavor()::text) = 0 as dbflavor_norm \gset
 select position('without-path' in swh_get_dbflavor()::text) = 0 as dbflavor_with_path \gset
 
-create table dbversion
-(
-    version     int primary key,
-    release     timestamptz,
-    description text
-);
-
-comment on table dbversion is 'Details of current db version';
-comment on column dbversion.version is 'SQL schema version';
-comment on column dbversion.release is 'Version deployment timestamp';
-comment on column dbversion.description is 'Release description';
-
--- latest schema version
-insert into dbversion(version, release, description)
-    values(3, now(), 'Work In Progress');
-
 -- a Git object ID, i.e., a Git-style salted SHA1 checksum
 create domain sha1_git as bytea check (length(value) = 20);
 

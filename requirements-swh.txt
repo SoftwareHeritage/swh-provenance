@@ -1,5 +1,5 @@
 # Add here internal Software Heritage dependencies, one per line.
-swh.core[db,http] >= 0.14
+swh.core[db,http] >= 2
 swh.model >= 2.6.1
 swh.storage
 swh.graph >= 2.0.0

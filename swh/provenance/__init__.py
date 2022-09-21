@@ -119,3 +119,6 @@ def get_provenance_storage(cls: str, **kwargs) -> ProvenanceStorageInterface:
         return rmq_storage
 
     raise ValueError
+
+
+get_datastore = get_provenance_storage

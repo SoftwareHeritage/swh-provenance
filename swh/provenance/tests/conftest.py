@@ -5,6 +5,7 @@
 
 from contextlib import contextmanager
 from datetime import datetime
+from functools import partial
 import multiprocessing
 from os import path
 from pathlib import Path
@@ -15,87 +16,56 @@ from aiohttp.test_utils import TestClient, TestServer, loop_context
 import msgpack
 import psycopg2.extensions
 import pytest
-from pytest_postgresql.factories import postgresql
+from pytest_postgresql import factories
 
+from swh.core.db.db_utils import initialize_database_for_module
 from swh.graph.http_rpc_server import make_app
 from swh.journal.serializers import msgpack_ext_hook
 from swh.model.model import BaseModel, TimestampWithTimezone
 from swh.provenance import get_provenance, get_provenance_storage
 from swh.provenance.archive import ArchiveInterface
 from swh.provenance.interface import ProvenanceInterface, ProvenanceStorageInterface
+from swh.provenance.postgresql.provenance import ProvenanceStoragePostgreSql
 from swh.provenance.storage.archive import ArchiveStorage
 from swh.storage.interface import StorageInterface
 from swh.storage.replay import OBJECT_CONVERTERS, OBJECT_FIXERS, process_replay_objects
 
-
-@pytest.fixture(
-    params=[
-        "with-path",
-        "without-path",
-        "with-path-denormalized",
-        "without-path-denormalized",
-    ]
+provenance_postgresql_proc = factories.postgresql_proc(
+    load=[
+        partial(
+            initialize_database_for_module,
+            modname="provenance",
+            flavor="with-path",
+            version=ProvenanceStoragePostgreSql.current_version,
+        )
+    ],
 )
-def provenance_postgresqldb(
-    request: SubRequest,
-    postgresql: psycopg2.extensions.connection,
-) -> Dict[str, str]:
-    """return a working and initialized provenance db"""
-    from swh.core.db.db_utils import (
-        init_admin_extensions,
-        populate_database_for_package,
-    )
 
-    init_admin_extensions("swh.provenance", postgresql.dsn)
-    populate_database_for_package(
-        "swh.provenance", postgresql.dsn, flavor=request.param
-    )
-    return postgresql.get_dsn_parameters()
+postgres_provenance = factories.postgresql("provenance_postgresql_proc")
 
 
-@pytest.fixture(params=["postgresql", "rabbitmq"])
+@pytest.fixture()
+def provenance_postgresqldb(request, postgres_provenance):
+    return postgres_provenance.get_dsn_parameters()
+
+
+@pytest.fixture()
 def provenance_storage(
     request: SubRequest,
     provenance_postgresqldb: Dict[str, str],
 ) -> Generator[ProvenanceStorageInterface, None, None]:
     """Return a working and initialized ProvenanceStorageInterface object"""
 
-    if request.param == "rabbitmq":
-        from swh.provenance.api.server import ProvenanceStorageRabbitMQServer
-
-        rabbitmq = request.getfixturevalue("rabbitmq")
-        host = rabbitmq.args["host"]
-        port = rabbitmq.args["port"]
-        rabbitmq_params: Dict[str, Any] = {
-            "url": f"amqp://guest:guest@{host}:{port}/%2f",
-            "storage_config": {
-                "cls": "postgresql",
-                "db": provenance_postgresqldb,
-                "raise_on_commit": True,
-            },
-        }
-        server = ProvenanceStorageRabbitMQServer(
-            url=rabbitmq_params["url"], storage_config=rabbitmq_params["storage_config"]
-        )
-        server.start()
-        with get_provenance_storage(cls=request.param, **rabbitmq_params) as storage:
-            yield storage
-        server.stop()
-
-    else:
-        # in test sessions, we DO want to raise any exception occurring at commit time
-        with get_provenance_storage(
-            cls=request.param, db=provenance_postgresqldb, raise_on_commit=True
-        ) as storage:
-            yield storage
-
-
-provenance_postgresql = postgresql("postgresql_proc", dbname="provenance_tests")
+    # in test sessions, we DO want to raise any exception occurring at commit time
+    with get_provenance_storage(
+        cls="postgresql", db=provenance_postgresqldb, raise_on_commit=True
+    ) as storage:
+        yield storage
 
 
 @pytest.fixture
 def provenance(
-    provenance_postgresql: psycopg2.extensions.connection,
+    postgres_provenance: psycopg2.extensions.connection,
 ) -> Generator[ProvenanceInterface, None, None]:
     """Return a working and initialized ProvenanceInterface object"""
 
@@ -104,14 +74,14 @@ def provenance(
         populate_database_for_package,
     )
 
-    init_admin_extensions("swh.provenance", provenance_postgresql.dsn)
+    init_admin_extensions("swh.provenance", postgres_provenance.dsn)
     populate_database_for_package(
-        "swh.provenance", provenance_postgresql.dsn, flavor="with-path"
+        "swh.provenance", postgres_provenance.dsn, flavor="with-path"
     )
     # in test sessions, we DO want to raise any exception occurring at commit time
     with get_provenance(
         cls="postgresql",
-        db=provenance_postgresql.get_dsn_parameters(),
+        db=postgres_provenance.get_dsn_parameters(),
         raise_on_commit=True,
     ) as provenance:
         yield provenance

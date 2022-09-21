@@ -51,6 +51,8 @@ def handle_raise_on_commit(f):
 
 
 class ProvenanceStoragePostgreSql:
+    current_version = 3
+
     def __init__(
         self, page_size: Optional[int] = None, raise_on_commit: bool = False, **kwargs
     ) -> None:

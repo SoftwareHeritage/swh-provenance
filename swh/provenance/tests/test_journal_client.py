@@ -35,7 +35,7 @@ def test_cli_origin_from_journal_client(
     consumer: Consumer,
     tmp_path: str,
     provenance,
-    provenance_postgresql,
+    postgres_provenance,
 ) -> None:
     """Test origin journal client cli"""
 
@@ -63,7 +63,7 @@ def test_cli_origin_from_journal_client(
             },
             "storage": {
                 "cls": "postgresql",
-                "db": provenance_postgresql.get_dsn_parameters(),
+                "db": postgres_provenance.get_dsn_parameters(),
             },
         },
     }
@@ -89,7 +89,7 @@ def test_cli_revision_from_journal_client(
     consumer: Consumer,
     tmp_path: str,
     provenance,
-    provenance_postgresql,
+    postgres_provenance,
 ) -> None:
     """Test revision journal client cli"""
 
@@ -116,7 +116,7 @@ def test_cli_revision_from_journal_client(
             },
             "storage": {
                 "cls": "postgresql",
-                "db": provenance_postgresql.get_dsn_parameters(),
+                "db": postgres_provenance.get_dsn_parameters(),
             },
         },
     }

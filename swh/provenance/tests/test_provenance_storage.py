@@ -8,6 +8,8 @@ import inspect
 import os
 from typing import Any, Dict, Iterable, Optional, Set, Tuple
 
+import pytest
+
 from swh.model.hashutil import hash_to_bytes
 from swh.model.model import Origin, Sha1Git
 from swh.provenance.archive import ArchiveInterface
@@ -105,6 +107,7 @@ class TestProvenanceStorage:
         else:
             assert provenance_storage.location_get_all() == set()
 
+    @pytest.mark.origin_layer
     def test_provenance_storage_origin(
         self,
         provenance_storage: ProvenanceStorageInterface,
@@ -157,7 +160,7 @@ class TestProvenanceStorage:
             rev_data.keys()
         )
 
-    def test_provenance_storage_relation(
+    def test_provenance_storage_relation_revision_layer(
         self,
         provenance_storage: ProvenanceStorageInterface,
     ) -> None:
@@ -202,6 +205,16 @@ class TestProvenanceStorage:
             provenance_storage, RelationType.DIR_IN_REV, dir_in_rev
         )
 
+    @pytest.mark.origin_layer
+    def test_provenance_storage_relation_orign_layer(
+        self,
+        provenance_storage: ProvenanceStorageInterface,
+    ) -> None:
+        """Tests relation methods for every `ProvenanceStorageInterface` implementation."""
+
+        # Read data/README.md for more details on how these datasets are generated.
+        data = load_repo_data("cmdbts2")
+
         # Test revision-in-origin relation.
         # Origins must be inserted in advance (cannot be done by `entity_add` inside
         # `relation_add_and_compare_result`).
@@ -238,7 +251,7 @@ class TestProvenanceStorage:
             provenance_storage, RelationType.REV_BEFORE_REV, rev_before_rev
         )
 
-    def test_provenance_storage_find(
+    def test_provenance_storage_find_revision_layer(
         self,
         provenance: ProvenanceInterface,
         provenance_storage: ProvenanceStorageInterface,
@@ -297,6 +310,44 @@ class TestProvenanceStorage:
                 adapt_result(occur, provenance_storage.with_path())
                 for occur in provenance.storage.content_find_all(cnt)
             } == set(provenance_storage.content_find_all(cnt))
+
+    @pytest.mark.origin_layer
+    def test_provenance_storage_find_origin_layer(
+        self,
+        provenance: ProvenanceInterface,
+        provenance_storage: ProvenanceStorageInterface,
+        archive: ArchiveInterface,
+    ) -> None:
+        """Tests `content_find_first` and `content_find_all` methods for every
+        `ProvenanceStorageInterface` implementation.
+        """
+
+        # Read data/README.md for more details on how these datasets are generated.
+        data = load_repo_data("cmdbts2")
+        fill_storage(archive.storage, data)
+
+        # Execute the revision-content algorithm on both storages.
+        revisions = [
+            RevisionEntry(id=rev["id"], date=ts2dt(rev["date"]), root=rev["directory"])
+            for rev in data["revision"]
+        ]
+        revision_add(provenance, archive, revisions)
+        revision_add(Provenance(provenance_storage), archive, revisions)
+
+        # Test content_find_first and content_find_all, first only executing the
+        # revision-content algorithm, then adding the origin-revision layer.
+        def adapt_result(
+            result: Optional[ProvenanceResult], with_path: bool
+        ) -> Optional[ProvenanceResult]:
+            if result is not None:
+                return ProvenanceResult(
+                    result.content,
+                    result.revision,
+                    result.date,
+                    result.origin,
+                    result.path if with_path else b"",
+                )
+            return result
 
         # Execute the origin-revision algorithm on both storages.
         origins = [

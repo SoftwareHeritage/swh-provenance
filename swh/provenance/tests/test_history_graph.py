@@ -15,6 +15,7 @@ from swh.provenance.origin import origin_add_revision
 from swh.provenance.tests.conftest import fill_storage, get_datafile, load_repo_data
 
 
+@pytest.mark.origin_layer
 @pytest.mark.parametrize(
     "repo, visit",
     (("with-merges", "visits-01"),),

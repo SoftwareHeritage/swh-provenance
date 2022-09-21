@@ -115,6 +115,7 @@ def test_cli_init_db_default_flavor(postgresql: psycopg2.extensions.connection) 
         assert cur.fetchone() == ("with-path",)
 
 
+@pytest.mark.origin_layer
 @pytest.mark.parametrize(
     "subcommand",
     (["origin", "from-csv"], ["iter-origins"]),

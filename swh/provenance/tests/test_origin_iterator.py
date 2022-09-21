@@ -15,6 +15,7 @@ from swh.storage.algos.origin import (
 from swh.storage.interface import StorageInterface
 
 
+@pytest.mark.origin_layer
 @pytest.mark.parametrize(
     "repo",
     (

@@ -27,6 +27,7 @@ def swh_storage_backend_config(swh_storage_backend_config, kafka_server, kafka_p
     yield {**swh_storage_backend_config, "journal_writer": writer_config}
 
 
+@pytest.mark.origin_layer
 def test_cli_origin_from_journal_client(
     swh_storage: StorageInterface,
     swh_storage_backend_config: Dict,

@@ -112,6 +112,7 @@ def _mk_synth_org(synth_org: List[Dict[str, str]]) -> SynthOrigin:
     return org
 
 
+@pytest.mark.origin_layer
 @pytest.mark.parametrize(
     "repo, visit",
     (("with-merges", "visits-01"),),

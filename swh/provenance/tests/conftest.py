@@ -17,7 +17,7 @@ import psycopg2.extensions
 import pytest
 from pytest_postgresql.factories import postgresql
 
-from swh.graph.http_server import make_app
+from swh.graph.http_rpc_server import make_app
 from swh.journal.serializers import msgpack_ext_hook
 from swh.model.model import BaseModel, TimestampWithTimezone
 from swh.provenance import get_provenance, get_provenance_storage
@@ -169,9 +169,15 @@ def ts2dt(ts: Dict[str, Any]) -> datetime:
 
 def run_grpc_server(queue, dataset_path):
     try:
-        config = {"graph": {"path": dataset_path}}
+        config = {
+            "graph": {
+                "cls": "local",
+                "grpc_server": {"path": dataset_path},
+                "http_rpc_server": {"debug": True},
+            }
+        }
         with loop_context() as loop:
-            app = make_app(config=config, debug=True, spawn_rpc_port=None)
+            app = make_app(config=config)
             client = TestClient(TestServer(app), loop=loop)
             loop.run_until_complete(client.start_server())
             url = client.make_url("/graph/")

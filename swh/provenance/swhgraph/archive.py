@@ -9,7 +9,7 @@ from google.protobuf.field_mask_pb2 import FieldMask
 import grpc
 
 from swh.core.statsd import statsd
-from swh.graph.rpc import swhgraph_pb2, swhgraph_pb2_grpc
+from swh.graph.grpc import swhgraph_pb2, swhgraph_pb2_grpc
 from swh.model.model import Sha1Git
 from swh.model.swhids import CoreSWHID, ObjectType
 from swh.storage.interface import StorageInterface

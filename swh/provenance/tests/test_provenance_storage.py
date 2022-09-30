@@ -1,4 +1,4 @@
-# Copyright (C) 2021  The Software Heritage developers
+# Copyright (C) 2021-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -13,20 +13,20 @@ import pytest
 from swh.model.hashutil import hash_to_bytes
 from swh.model.model import Origin, Sha1Git
 from swh.provenance.archive import ArchiveInterface
-from swh.provenance.interface import (
+from swh.provenance.interface import ProvenanceInterface
+from swh.provenance.model import OriginEntry, RevisionEntry
+from swh.provenance.origin import origin_add
+from swh.provenance.provenance import Provenance
+from swh.provenance.revision import revision_add
+from swh.provenance.storage.interface import (
     DirectoryData,
     EntityType,
-    ProvenanceInterface,
     ProvenanceResult,
     ProvenanceStorageInterface,
     RelationData,
     RelationType,
     RevisionData,
 )
-from swh.provenance.model import OriginEntry, RevisionEntry
-from swh.provenance.origin import origin_add
-from swh.provenance.provenance import Provenance
-from swh.provenance.revision import revision_add
 from swh.provenance.tests.conftest import fill_storage, load_repo_data, ts2dt
 
 

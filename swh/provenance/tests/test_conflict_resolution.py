@@ -1,4 +1,4 @@
-# Copyright (C) 2021  The Software Heritage developers
+# Copyright (C) 2021-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -8,13 +8,13 @@ from typing import List, Tuple, Union
 
 from swh.model.hashutil import hash_to_bytes
 from swh.model.model import Sha1Git
-from swh.provenance.api.server import (
+from swh.provenance.storage.interface import DirectoryData, RelationData, RevisionData
+from swh.provenance.storage.rabbitmq.server import (
     resolve_dates,
     resolve_directory,
     resolve_relation,
     resolve_revision,
 )
-from swh.provenance.interface import DirectoryData, RelationData, RevisionData
 
 
 def test_resolve_dates() -> None:

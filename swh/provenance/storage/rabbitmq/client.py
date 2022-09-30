@@ -24,9 +24,13 @@ import pika.spec
 from swh.core.api.serializers import encode_data_client as encode_data
 from swh.core.api.serializers import msgpack_loads as decode_data
 from swh.core.statsd import statsd
+from swh.provenance.storage import get_provenance_storage
+from swh.provenance.storage.interface import (
+    ProvenanceStorageInterface,
+    RelationData,
+    RelationType,
+)
 
-from .. import get_provenance_storage
-from ..interface import ProvenanceStorageInterface, RelationData, RelationType
 from .serializers import DECODERS, ENCODERS
 from .server import ProvenanceStorageRabbitMQServer
 

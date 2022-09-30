@@ -19,8 +19,7 @@ import psycopg2.extras
 from swh.core.db import BaseDb
 from swh.core.statsd import statsd
 from swh.model.model import Sha1Git
-
-from ..interface import (
+from swh.provenance.storage.interface import (
     DirectoryData,
     EntityType,
     ProvenanceResult,

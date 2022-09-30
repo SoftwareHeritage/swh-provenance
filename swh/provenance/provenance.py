@@ -14,16 +14,16 @@ from typing_extensions import Literal, TypedDict
 from swh.core.statsd import statsd
 from swh.model.model import Sha1Git
 
-from .interface import (
+from .interface import ProvenanceInterface
+from .model import DirectoryEntry, FileEntry, OriginEntry, RevisionEntry
+from .storage.interface import (
     DirectoryData,
-    ProvenanceInterface,
     ProvenanceResult,
     ProvenanceStorageInterface,
     RelationData,
     RelationType,
     RevisionData,
 )
-from .model import DirectoryEntry, FileEntry, OriginEntry, RevisionEntry
 from .util import path_normalize
 
 LOGGER = logging.getLogger(__name__)

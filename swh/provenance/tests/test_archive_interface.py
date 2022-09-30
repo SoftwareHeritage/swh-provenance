@@ -30,10 +30,10 @@ from swh.model.model import (
 )
 from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID
 from swh.provenance.archive import ArchiveInterface
-from swh.provenance.multiplexer.archive import ArchiveMultiplexed
-from swh.provenance.postgresql.archive import ArchivePostgreSQL
-from swh.provenance.storage.archive import ArchiveStorage
-from swh.provenance.swhgraph.archive import ArchiveGraph
+from swh.provenance.archive.multiplexer import ArchiveMultiplexed
+from swh.provenance.archive.postgresql import ArchivePostgreSQL
+from swh.provenance.archive.storage import ArchiveStorage
+from swh.provenance.archive.swhgraph import ArchiveGraph
 from swh.provenance.tests.conftest import fill_storage, grpc_server, load_repo_data
 from swh.storage.interface import StorageInterface
 from swh.storage.postgresql.storage import Storage

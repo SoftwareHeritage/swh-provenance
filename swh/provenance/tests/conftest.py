@@ -22,11 +22,13 @@ from swh.core.db.db_utils import initialize_database_for_module
 from swh.graph.http_rpc_server import make_app
 from swh.journal.serializers import msgpack_ext_hook
 from swh.model.model import BaseModel, TimestampWithTimezone
-from swh.provenance import get_provenance, get_provenance_storage
-from swh.provenance.archive import ArchiveInterface
-from swh.provenance.interface import ProvenanceInterface, ProvenanceStorageInterface
-from swh.provenance.postgresql.provenance import ProvenanceStoragePostgreSql
-from swh.provenance.storage.archive import ArchiveStorage
+from swh.provenance import get_provenance
+from swh.provenance.archive.interface import ArchiveInterface
+from swh.provenance.archive.storage import ArchiveStorage
+from swh.provenance.interface import ProvenanceInterface
+from swh.provenance.storage import get_provenance_storage
+from swh.provenance.storage.interface import ProvenanceStorageInterface
+from swh.provenance.storage.postgresql import ProvenanceStoragePostgreSql
 from swh.storage.interface import StorageInterface
 from swh.storage.replay import OBJECT_CONVERTERS, OBJECT_FIXERS, process_replay_objects
 

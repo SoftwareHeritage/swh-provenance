@@ -3,10 +3,10 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from swh.provenance import get_archive
-from swh.provenance.multiplexer.archive import ArchiveMultiplexed
-from swh.provenance.storage.archive import ArchiveStorage
-from swh.provenance.swhgraph.archive import ArchiveGraph
+from swh.provenance.archive import get_archive
+from swh.provenance.archive.multiplexer import ArchiveMultiplexed
+from swh.provenance.archive.storage import ArchiveStorage
+from swh.provenance.archive.swhgraph import ArchiveGraph
 
 
 def test_multiplexer_configuration():

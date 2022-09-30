@@ -14,7 +14,7 @@ import queue
 import threading
 from typing import Any, Callable
 from typing import Counter as TCounter
-from typing import Dict, Generator, Iterable, List, Optional, Set, Tuple, Union, cast
+from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple, Union, cast
 
 import pika
 import pika.channel
@@ -29,15 +29,15 @@ from swh.core.api.serializers import encode_data_client as encode_data
 from swh.core.api.serializers import msgpack_loads as decode_data
 from swh.model.hashutil import hash_to_hex
 from swh.model.model import Sha1Git
-
-from ..interface import (
+from swh.provenance.storage.interface import (
     DirectoryData,
     EntityType,
     RelationData,
     RelationType,
     RevisionData,
 )
-from ..util import path_id
+from swh.provenance.util import path_id
+
 from .serializers import DECODERS, ENCODERS
 
 LOG_FORMAT = (
@@ -540,6 +540,7 @@ class ProvenanceStorageRabbitMQServer:
         :param int prefetch_count: Prefetch value for the RabbitMQ connection when
             receiving messaged
 
+
         """
         self._workers: List[ProvenanceStorageRabbitMQWorker] = []
         for exchange in ProvenanceStorageRabbitMQServer.get_exchanges():
@@ -582,7 +583,7 @@ class ProvenanceStorageRabbitMQServer:
             self._running = False
 
     @staticmethod
-    def get_binding_keys(exchange: str, range: int) -> Generator[str, None, None]:
+    def get_binding_keys(exchange: str, range: int) -> Iterator[str]:
         for meth_name, relation in ProvenanceStorageRabbitMQServer.get_meth_names(
             exchange
         ):
@@ -611,7 +612,7 @@ class ProvenanceStorageRabbitMQServer:
         return exchange
 
     @staticmethod
-    def get_exchanges() -> Generator[str, None, None]:
+    def get_exchanges() -> Iterator[str]:
         yield from [entity.value for entity in EntityType] + ["location"]
 
     @staticmethod
@@ -624,7 +625,7 @@ class ProvenanceStorageRabbitMQServer:
     @staticmethod
     def get_meth_names(
         exchange: str,
-    ) -> Generator[Tuple[str, Optional[RelationType]], None, None]:
+    ) -> Iterator[Tuple[str, Optional[RelationType]]]:
         if exchange == EntityType.CONTENT.value:
             yield from [
                 ("content_add", None),
@@ -648,7 +649,7 @@ class ProvenanceStorageRabbitMQServer:
             yield "location_add", None
 
     @staticmethod
-    def get_ranges(unused_exchange: str) -> Generator[int, None, None]:
+    def get_ranges(unused_exchange: str) -> Iterator[int]:
         # XXX: we might want to have a different range per exchange
         yield from range(ProvenanceStorageRabbitMQServer.queue_count)
 

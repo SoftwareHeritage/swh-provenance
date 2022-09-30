@@ -144,7 +144,8 @@ def cli(ctx: click.core.Context, config_file: Optional[str], profile: str) -> No
 @cli.group(name="origin")
 @click.pass_context
 def origin(ctx: click.core.Context):
-    from . import get_archive, get_provenance
+    from . import get_provenance
+    from .archive import get_archive
 
     archive = get_archive(**ctx.obj["config"]["provenance"]["archive"])
     provenance = get_provenance(**ctx.obj["config"]["provenance"]["storage"])
@@ -222,7 +223,8 @@ def origin_from_journal(ctx: click.core.Context):
 @cli.group(name="revision")
 @click.pass_context
 def revision(ctx: click.core.Context):
-    from . import get_archive, get_provenance
+    from . import get_provenance
+    from .archive import get_archive
 
     archive = get_archive(**ctx.obj["config"]["provenance"]["archive"])
     provenance = get_provenance(**ctx.obj["config"]["provenance"]["storage"])
@@ -427,7 +429,8 @@ def revision_from_journal(
 @cli.group(name="directory")
 @click.pass_context
 def directory(ctx: click.core.Context):
-    from . import get_archive, get_provenance
+    from . import get_provenance
+    from .archive import get_archive
 
     archive = get_archive(**ctx.obj["config"]["provenance"]["archive"])
     provenance = get_provenance(**ctx.obj["config"]["provenance"]["storage"])
@@ -492,7 +495,8 @@ def iter_frontiers(
     min_size: int,
 ) -> None:
     """Process a provided list of directories in the isochrone frontier."""
-    from . import get_archive, get_provenance
+    from . import get_provenance
+    from .archive import get_archive
     from .directory import CSVDirectoryIterator, directory_add
 
     archive = get_archive(**ctx.obj["config"]["provenance"]["archive"])
@@ -575,7 +579,8 @@ def iter_revisions(
     min_size: int,
 ) -> None:
     """Process a provided list of revisions."""
-    from . import get_archive, get_provenance
+    from . import get_provenance
+    from .archive import get_archive
     from .revision import CSVRevisionIterator, revision_add
 
     archive = get_archive(**ctx.obj["config"]["provenance"]["archive"])
@@ -621,7 +626,8 @@ def generate_revision_tuples(
 @deprecated(version="0.0.1", reason="Use `swh provenance origin from-csv` instead")
 def iter_origins(ctx: click.core.Context, filename: str, limit: Optional[int]) -> None:
     """Process a provided list of origins."""
-    from . import get_archive, get_provenance
+    from . import get_provenance
+    from .archive import get_archive
     from .origin import CSVOriginIterator, origin_add
 
     archive = get_archive(**ctx.obj["config"]["provenance"]["archive"])

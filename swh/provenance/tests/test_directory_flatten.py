@@ -1,4 +1,4 @@
-# Copyright (C) 2021  The Software Heritage developers
+# Copyright (C) 2021-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -10,13 +10,9 @@ from typing import Tuple
 from swh.model.hashutil import hash_to_bytes
 from swh.provenance.archive import ArchiveInterface
 from swh.provenance.directory import directory_add, directory_flatten_range
-from swh.provenance.interface import (
-    DirectoryData,
-    ProvenanceInterface,
-    RelationData,
-    RelationType,
-)
+from swh.provenance.interface import ProvenanceInterface
 from swh.provenance.model import DirectoryEntry, FileEntry
+from swh.provenance.storage.interface import DirectoryData, RelationData, RelationType
 from swh.provenance.tests.conftest import fill_storage, load_repo_data
 
 

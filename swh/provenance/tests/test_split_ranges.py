@@ -1,4 +1,4 @@
-# Copyright (C) 2021  The Software Heritage developers
+# Copyright (C) 2021-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -8,8 +8,8 @@ from datetime import datetime
 import pytest
 
 from swh.model.hashutil import hash_to_bytes
-from swh.provenance.api.client import split_ranges
-from swh.provenance.interface import RelationData, RelationType
+from swh.provenance.storage.interface import RelationData, RelationType
+from swh.provenance.storage.rabbitmq.client import split_ranges
 
 
 def test_split_ranges_for_relation() -> None:

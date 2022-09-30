@@ -5,7 +5,7 @@
 
 import pytest
 
-from swh.provenance.origin import CSVOriginIterator
+from swh.provenance.algos.origin import CSVOriginIterator
 from swh.provenance.tests.conftest import fill_storage, load_repo_data
 from swh.storage.algos.origin import (
     iter_origin_visit_statuses,

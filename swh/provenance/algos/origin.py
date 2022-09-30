@@ -6,17 +6,15 @@
 from datetime import datetime
 from itertools import islice
 import logging
-from typing import Generator, Iterable, Iterator, List, Optional, Tuple
+from typing import Any, Dict, Generator, Iterable, Iterator, List, Optional, Set, Tuple
 
 from swh.core.statsd import statsd
 from swh.model.model import Sha1Git
+from swh.provenance.archive import ArchiveInterface
+from swh.provenance.interface import ProvenanceInterface
+from swh.provenance.model import OriginEntry, RevisionEntry
 
-from .archive import ArchiveInterface
-from .graph import HistoryGraph
-from .interface import ProvenanceInterface
-from .model import OriginEntry
-
-ORIGIN_DURATION_METRIC = "swh_provenance_origin_revision_layer_duration_seconds"
+ORIGIN_DURATION_METRIC = "swh_provenance_origin_duration_seconds"
 
 LOG_FORMAT = (
     "%(levelname) -10s %(asctime)s %(name) -30s %(funcName) "
@@ -24,6 +22,50 @@ LOG_FORMAT = (
 )
 
 LOGGER = logging.getLogger(__name__)
+
+
+class HistoryGraph:
+    @statsd.timed(metric=ORIGIN_DURATION_METRIC, tags={"method": "HistoryGraph"})
+    def __init__(
+        self,
+        archive: ArchiveInterface,
+        revision: RevisionEntry,
+    ) -> None:
+        self.head_id = revision.id
+        self._nodes: Set[Sha1Git] = set()
+        # rev -> set(parents)
+        self._edges: Dict[Sha1Git, Set[Sha1Git]] = {}
+
+        stack = {self.head_id}
+        while stack:
+            current = stack.pop()
+
+            if current not in self._nodes:
+                self._nodes.add(current)
+                self._edges.setdefault(current, set())
+                for rev, parent in archive.revision_get_some_outbound_edges(current):
+                    self._nodes.add(rev)
+                    self._edges.setdefault(rev, set()).add(parent)
+                    stack.add(parent)
+
+            # don't process nodes for which we've already retrieved outbound edges
+            stack -= self._nodes
+
+    def parent_ids(self) -> Set[Sha1Git]:
+        """Get all the known parent ids in the current graph"""
+        return self._nodes - {self.head_id}
+
+    def __str__(self) -> str:
+        return f"<HistoryGraph: head={self.head_id.hex()}, edges={self._edges}"
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {
+            "head": self.head_id.hex(),
+            "graph": {
+                node.hex(): sorted(parent.hex() for parent in parents)
+                for node, parents in self._edges.items()
+            },
+        }
 
 
 class CSVOriginIterator:

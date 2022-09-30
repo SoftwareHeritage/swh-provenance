@@ -4,10 +4,10 @@
 # See top-level LICENSE file for more information
 
 from swh.model.hashutil import hash_to_bytes
+from swh.provenance.algos.revision import revision_add
 from swh.provenance.archive import ArchiveInterface
 from swh.provenance.interface import ProvenanceInterface
 from swh.provenance.model import RevisionEntry
-from swh.provenance.revision import revision_add
 from swh.provenance.storage.interface import DirectoryData, ProvenanceResult
 from swh.provenance.tests.conftest import fill_storage, load_repo_data, ts2dt
 

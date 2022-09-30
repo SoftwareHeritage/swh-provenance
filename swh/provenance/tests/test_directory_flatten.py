@@ -8,8 +8,8 @@ from datetime import datetime, timezone
 from typing import Tuple
 
 from swh.model.hashutil import hash_to_bytes
+from swh.provenance.algos.directory import directory_add, directory_flatten_range
 from swh.provenance.archive import ArchiveInterface
-from swh.provenance.directory import directory_add, directory_flatten_range
 from swh.provenance.interface import ProvenanceInterface
 from swh.provenance.model import DirectoryEntry, FileEntry
 from swh.provenance.storage.interface import DirectoryData, RelationData, RelationType

@@ -1,4 +1,4 @@
-# Copyright (C) 2021  The Software Heritage developers
+# Copyright (C) 2021-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -11,10 +11,9 @@ from typing import Any, Dict, Optional, Set
 
 from swh.core.statsd import statsd
 from swh.model.model import Sha1Git
-
-from .archive import ArchiveInterface
-from .interface import ProvenanceInterface
-from .model import DirectoryEntry, RevisionEntry
+from swh.provenance.archive import ArchiveInterface
+from swh.provenance.interface import ProvenanceInterface
+from swh.provenance.model import DirectoryEntry, RevisionEntry
 
 GRAPH_DURATION_METRIC = "swh_provenance_graph_duration_seconds"
 GRAPH_OPERATIONS_METRIC = "swh_provenance_graph_operations_total"
@@ -24,50 +23,6 @@ UTCMIN = datetime.min.replace(tzinfo=timezone.utc)
 
 class DirectoryTooLarge(ValueError):
     pass
-
-
-class HistoryGraph:
-    @statsd.timed(metric=GRAPH_DURATION_METRIC, tags={"method": "build_history_graph"})
-    def __init__(
-        self,
-        archive: ArchiveInterface,
-        revision: RevisionEntry,
-    ) -> None:
-        self.head_id = revision.id
-        self._nodes: Set[Sha1Git] = set()
-        # rev -> set(parents)
-        self._edges: Dict[Sha1Git, Set[Sha1Git]] = {}
-
-        stack = {self.head_id}
-        while stack:
-            current = stack.pop()
-
-            if current not in self._nodes:
-                self._nodes.add(current)
-                self._edges.setdefault(current, set())
-                for rev, parent in archive.revision_get_some_outbound_edges(current):
-                    self._nodes.add(rev)
-                    self._edges.setdefault(rev, set()).add(parent)
-                    stack.add(parent)
-
-            # don't process nodes for which we've already retrieved outbound edges
-            stack -= self._nodes
-
-    def parent_ids(self) -> Set[Sha1Git]:
-        """Get all the known parent ids in the current graph"""
-        return self._nodes - {self.head_id}
-
-    def __str__(self) -> str:
-        return f"<HistoryGraph: head={self.head_id.hex()}, edges={self._edges}"
-
-    def as_dict(self) -> Dict[str, Any]:
-        return {
-            "head": self.head_id.hex(),
-            "graph": {
-                node.hex(): sorted(parent.hex() for parent in parents)
-                for node, parents in self._edges.items()
-            },
-        }
 
 
 class IsochroneNode:

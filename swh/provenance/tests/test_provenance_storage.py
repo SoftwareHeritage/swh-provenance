@@ -12,12 +12,12 @@ import pytest
 
 from swh.model.hashutil import hash_to_bytes
 from swh.model.model import Origin, Sha1Git
+from swh.provenance.algos.origin import origin_add
+from swh.provenance.algos.revision import revision_add
 from swh.provenance.archive import ArchiveInterface
 from swh.provenance.interface import ProvenanceInterface
 from swh.provenance.model import OriginEntry, RevisionEntry
-from swh.provenance.origin import origin_add
 from swh.provenance.provenance import Provenance
-from swh.provenance.revision import revision_add
 from swh.provenance.storage.interface import (
     DirectoryData,
     EntityType,

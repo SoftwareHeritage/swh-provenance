@@ -11,11 +11,11 @@ from typing_extensions import TypedDict
 
 from swh.model.hashutil import hash_to_bytes
 from swh.model.model import Sha1Git
+from swh.provenance.algos.directory import directory_add
+from swh.provenance.algos.revision import revision_add
 from swh.provenance.archive import ArchiveInterface
-from swh.provenance.directory import directory_add
 from swh.provenance.interface import ProvenanceInterface
 from swh.provenance.model import DirectoryEntry, RevisionEntry
-from swh.provenance.revision import revision_add
 from swh.provenance.storage.interface import EntityType, RelationType
 from swh.provenance.tests.conftest import (
     fill_storage,

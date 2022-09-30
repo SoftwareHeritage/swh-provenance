@@ -11,10 +11,10 @@ from typing_extensions import TypedDict
 
 from swh.model.hashutil import hash_to_bytes
 from swh.model.model import Sha1Git
+from swh.provenance.algos.origin import origin_add
 from swh.provenance.archive import ArchiveInterface
 from swh.provenance.interface import ProvenanceInterface
 from swh.provenance.model import OriginEntry
-from swh.provenance.origin import origin_add
 from swh.provenance.storage.interface import EntityType, RelationType
 from swh.provenance.tests.conftest import fill_storage, get_datafile, load_repo_data
 

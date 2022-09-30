@@ -1,4 +1,4 @@
-# Copyright (C) 2021  The Software Heritage developers
+# Copyright (C) 2021-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -9,14 +9,14 @@ from typing import Generator, Iterable, Iterator, List, Optional, Tuple
 
 from swh.core.statsd import statsd
 from swh.model.model import Sha1Git
+from swh.provenance.archive import ArchiveInterface
+from swh.provenance.interface import ProvenanceInterface
+from swh.provenance.model import DirectoryEntry, RevisionEntry
 
-from .archive import ArchiveInterface
 from .directory import directory_flatten
-from .graph import DirectoryTooLarge, IsochroneNode, build_isochrone_graph
-from .interface import ProvenanceInterface
-from .model import DirectoryEntry, RevisionEntry
+from .isochrone_graph import DirectoryTooLarge, IsochroneNode, build_isochrone_graph
 
-REVISION_DURATION_METRIC = "swh_provenance_revision_content_layer_duration_seconds"
+REVISION_DURATION_METRIC = "swh_provenance_revision_duration_seconds"
 
 logger = logging.getLogger(__name__)
 

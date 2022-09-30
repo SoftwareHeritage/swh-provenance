@@ -11,11 +11,15 @@ import pytest
 import yaml
 
 from swh.model.hashutil import hash_to_bytes
+from swh.provenance.algos.isochrone_graph import (
+    DirectoryTooLarge,
+    IsochroneNode,
+    build_isochrone_graph,
+)
+from swh.provenance.algos.revision import revision_add
 from swh.provenance.archive import ArchiveInterface
-from swh.provenance.graph import DirectoryTooLarge, IsochroneNode, build_isochrone_graph
 from swh.provenance.interface import ProvenanceInterface
 from swh.provenance.model import DirectoryEntry, RevisionEntry
-from swh.provenance.revision import revision_add
 from swh.provenance.tests.conftest import (
     fill_storage,
     get_datafile,

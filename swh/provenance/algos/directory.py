@@ -8,10 +8,9 @@ from typing import Generator, Iterable, Iterator, List, Optional
 
 from swh.core.statsd import statsd
 from swh.model.model import Sha1Git
-
-from .archive import ArchiveInterface
-from .interface import ProvenanceInterface
-from .model import DirectoryEntry
+from swh.provenance.archive import ArchiveInterface
+from swh.provenance.interface import ProvenanceInterface
+from swh.provenance.model import DirectoryEntry
 
 REVISION_DURATION_METRIC = "swh_provenance_directory_duration_seconds"
 

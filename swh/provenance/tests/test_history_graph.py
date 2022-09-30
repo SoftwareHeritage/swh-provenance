@@ -7,11 +7,10 @@ import pytest
 import yaml
 
 from swh.model.hashutil import hash_to_bytes
+from swh.provenance.algos.origin import HistoryGraph, origin_add_revision
 from swh.provenance.archive import ArchiveInterface
-from swh.provenance.graph import HistoryGraph
 from swh.provenance.interface import ProvenanceInterface
 from swh.provenance.model import OriginEntry, RevisionEntry
-from swh.provenance.origin import origin_add_revision
 from swh.provenance.tests.conftest import fill_storage, get_datafile, load_repo_data
 
 

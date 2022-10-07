@@ -48,5 +48,14 @@ def get_provenance_storage(cls: str, **kwargs) -> ProvenanceStorageInterface:
         if TYPE_CHECKING:
             assert isinstance(rmq_storage, ProvenanceStorageInterface)
         return rmq_storage
+    elif cls == "journal":
+        from swh.journal.writer import get_journal_writer
+        from swh.provenance.storage.journal import ProvenanceStorageJournal
+
+        storage = get_provenance_storage(**kwargs["storage"])
+        journal = get_journal_writer(**kwargs["journal_writer"])
+
+        ret = ProvenanceStorageJournal(storage=storage, journal=journal)
+        return ret
 
     raise ValueError

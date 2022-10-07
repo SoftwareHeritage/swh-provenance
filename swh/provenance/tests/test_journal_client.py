@@ -28,6 +28,7 @@ def swh_storage_backend_config(swh_storage_backend_config, kafka_server, kafka_p
 
 
 @pytest.mark.origin_layer
+@pytest.mark.kafka
 def test_cli_origin_from_journal_client(
     swh_storage: StorageInterface,
     swh_storage_backend_config: Dict,
@@ -82,6 +83,7 @@ def test_cli_origin_from_journal_client(
     assert actual_result == {origin_sha1: origin_url}
 
 
+@pytest.mark.kafka
 def test_cli_revision_from_journal_client(
     swh_storage: StorageInterface,
     swh_storage_backend_config: Dict,

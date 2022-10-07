@@ -480,7 +480,7 @@ class ProvenanceStorageRabbitMQWorker(multiprocessing.Process):
         elif meth_name == "directory_add":
             return resolve_directory
         elif meth_name == "location_add":
-            return lambda data: set(data)  # just remove duplicates
+            return lambda data: dict(data)
         elif meth_name == "origin_add":
             return lambda data: dict(data)  # last processed value is good enough
         elif meth_name == "revision_add":

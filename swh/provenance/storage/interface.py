@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime
 import enum
 from types import TracebackType
-from typing import Dict, Generator, Iterable, List, Optional, Set, Type, Union
+from typing import Dict, Generator, Iterable, List, Optional, Set, Type
 
 from typing_extensions import Protocol, runtime_checkable
 
@@ -151,12 +151,12 @@ class ProvenanceStorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("location_add")
-    def location_add(self, paths: Iterable[bytes]) -> bool:
+    def location_add(self, paths: Dict[Sha1Git, bytes]) -> bool:
         """Register the given `paths` in the storage."""
         ...
 
     @remote_api_endpoint("location_get_all")
-    def location_get_all(self) -> Set[bytes]:
+    def location_get_all(self) -> Dict[Sha1Git, bytes]:
         """Retrieve all paths present in the provenance model.
         This method is used only in tests."""
         ...
@@ -180,9 +180,7 @@ class ProvenanceStorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("revision_add")
-    def revision_add(
-        self, revs: Union[Iterable[Sha1Git], Dict[Sha1Git, RevisionData]]
-    ) -> bool:
+    def revision_add(self, revs: Dict[Sha1Git, RevisionData]) -> bool:
         """Add revisions identified by sha1 ids, with optional associated date or origin
         (as paired in `revs`) to the provenance storage. Return a boolean stating if the
         information was successfully stored.

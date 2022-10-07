@@ -71,6 +71,7 @@ def split_ranges(
         if isinstance(data, dict):
             items = set(data.items())
         else:
+            # TODO this is probably not used any more
             items = {(item,) for item in data}
         for id, *rest in items:
             key = ProvenanceStorageRabbitMQServer.get_routing_key(id, meth_name)

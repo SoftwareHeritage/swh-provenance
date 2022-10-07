@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 from datetime import datetime
+import hashlib
 import logging
 import os
 from types import TracebackType
@@ -252,7 +253,7 @@ class Provenance:
                 )
 
         revs = {
-            sha1
+            sha1: RevisionData(date=None, origin=None)
             for sha1, date in self.cache["revision"]["data"].items()
             if sha1 in self.cache["revision"]["added"] and date is not None
         }
@@ -267,7 +268,7 @@ class Provenance:
                 )
 
         paths = {
-            path
+            hashlib.sha1(path).digest(): path
             for _, _, path in self.cache["content_in_revision"]
             | self.cache["content_in_directory"]
             | self.cache["directory_in_revision"]

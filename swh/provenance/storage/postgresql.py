@@ -8,10 +8,11 @@ from __future__ import annotations
 from contextlib import contextmanager
 from datetime import datetime
 from functools import wraps
+from hashlib import sha1
 import itertools
 import logging
 from types import TracebackType
-from typing import Dict, Generator, Iterable, List, Optional, Set, Type, Union
+from typing import Dict, Generator, Iterable, List, Optional, Set, Type
 
 import psycopg2.extensions
 import psycopg2.extras
@@ -219,9 +220,9 @@ class ProvenanceStoragePostgreSql:
 
     @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "location_add"})
     @handle_raise_on_commit
-    def location_add(self, paths: Iterable[bytes]) -> bool:
+    def location_add(self, paths: Dict[Sha1Git, bytes]) -> bool:
         if self.with_path():
-            values = [(path,) for path in paths]
+            values = [(path,) for path in paths.values()]
             if values:
                 sql = """
                     INSERT INTO location(path) VALUES %s
@@ -235,10 +236,10 @@ class ProvenanceStoragePostgreSql:
         return True
 
     @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "location_get_all"})
-    def location_get_all(self) -> Set[bytes]:
+    def location_get_all(self) -> Dict[Sha1Git, bytes]:
         with self.transaction(readonly=True) as cursor:
             cursor.execute("SELECT location.path AS path FROM location")
-            return {row["path"] for row in cursor}
+            return {sha1(row["path"]).digest(): row["path"] for row in cursor}
 
     @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "origin_add"})
     @handle_raise_on_commit
@@ -284,14 +285,9 @@ class ProvenanceStoragePostgreSql:
 
     @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "revision_add"})
     @handle_raise_on_commit
-    def revision_add(
-        self, revs: Union[Iterable[Sha1Git], Dict[Sha1Git, RevisionData]]
-    ) -> bool:
-        if isinstance(revs, dict):
+    def revision_add(self, revs: Dict[Sha1Git, RevisionData]) -> bool:
+        if revs:
             data = [(sha1, rev.date, rev.origin) for sha1, rev in revs.items()]
-        else:
-            data = [(sha1, None, None) for sha1 in revs]
-        if data:
             sql = """
                 INSERT INTO revision(sha1, date, origin)
                   (SELECT V.rev AS sha1, V.date::timestamptz AS date, O.id AS origin

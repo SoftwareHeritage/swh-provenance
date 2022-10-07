@@ -317,9 +317,9 @@ def test_revision_content_result(
             rows["location"] |= set(x["path"].encode() for x in synth_rev["R_C"])
             rows["location"] |= set(x["path"].encode() for x in synth_rev["D_C"])
             rows["location"] |= set(x["path"].encode() for x in synth_rev["R_D"])
-            assert rows["location"] == provenance.storage.location_get_all(), synth_rev[
-                "msg"
-            ]
+            assert rows["location"] == set(
+                provenance.storage.location_get_all().values()
+            ), synth_rev["msg"]
 
 
 @pytest.mark.parametrize(

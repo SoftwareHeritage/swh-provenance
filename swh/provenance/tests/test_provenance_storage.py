@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 from datetime import datetime, timezone
+import hashlib
 import inspect
 import os
 from typing import Any, Dict, Iterable, Optional, Set, Tuple
@@ -99,13 +100,17 @@ class TestProvenanceStorage:
 
         # Add all names of entries present in the directories of the current repo as paths
         # to the storage. Then check that the returned results when querying are the same.
-        paths = {entry["name"] for dir in data["directory"] for entry in dir["entries"]}
+        paths = {
+            hashlib.sha1(entry["name"]).digest(): entry["name"]
+            for dir in data["directory"]
+            for entry in dir["entries"]
+        }
         assert provenance_storage.location_add(paths)
 
         if provenance_storage.with_path():
             assert provenance_storage.location_get_all() == paths
         else:
-            assert provenance_storage.location_get_all() == set()
+            assert not provenance_storage.location_get_all()
 
     @pytest.mark.origin_layer
     def test_provenance_storage_origin(
@@ -143,22 +148,22 @@ class TestProvenanceStorage:
         # Origin must be inserted in advance.
         assert provenance_storage.origin_add({origin.id: origin.url})
 
-        revs = {rev["id"] for idx, rev in enumerate(data["revision"]) if idx % 6 == 0}
+        revs = {rev["id"] for idx, rev in enumerate(data["revision"])}
         rev_data = {
             rev["id"]: RevisionData(
                 date=ts2dt(rev["date"]) if idx % 2 != 0 else None,
                 origin=origin.id if idx % 3 != 0 else None,
             )
             for idx, rev in enumerate(data["revision"])
-            if idx % 6 != 0
         }
         assert revs
-        assert provenance_storage.revision_add(revs)
         assert provenance_storage.revision_add(rev_data)
-        assert provenance_storage.revision_get(set(rev_data.keys())) == rev_data
-        assert provenance_storage.entity_get_all(EntityType.REVISION) == revs | set(
-            rev_data.keys()
-        )
+        assert provenance_storage.revision_get(set(rev_data.keys())) == {
+            k: v
+            for (k, v) in rev_data.items()
+            if v.date is not None or v.origin is not None
+        }
+        assert provenance_storage.entity_get_all(EntityType.REVISION) == set(rev_data)
 
     def test_provenance_storage_relation_revision_layer(
         self,
@@ -476,7 +481,12 @@ def relation_add_and_compare_result(
         assert entity_add(storage, EntityType(dst), dsts)
     if storage.with_path():
         assert storage.location_add(
-            {rel.path for rels in data.values() for rel in rels if rel.path is not None}
+            {
+                hashlib.sha1(rel.path).digest(): rel.path
+                for rels in data.values()
+                for rel in rels
+                if rel.path is not None
+            }
         )
 
     assert data

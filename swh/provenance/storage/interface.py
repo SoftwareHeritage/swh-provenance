@@ -136,11 +136,11 @@ class ProvenanceStorageInterface(Protocol):
         """
         ...
 
-    @remote_api_endpoint("directory_iter_not_flattenned")
-    def directory_iter_not_flattenned(
+    @remote_api_endpoint("directory_iter_not_flattened")
+    def directory_iter_not_flattened(
         self, limit: int, start_id: Sha1Git
     ) -> List[Sha1Git]:
-        """Retrieve the unflattenned directories after ``start_id`` up to ``limit`` entries."""
+        """Retrieve the unflattened directories after ``start_id`` up to ``limit`` entries."""
         ...
 
     @remote_api_endpoint("entity_get_all")

@@ -410,7 +410,7 @@ class Provenance:
             (directory.id, revision.id, path_normalize(path))
         )
 
-    def directory_already_flattenned(self, directory: DirectoryEntry) -> Optional[bool]:
+    def directory_already_flattened(self, directory: DirectoryEntry) -> Optional[bool]:
         cache = self.cache["directory_flatten"]
         if directory.id not in cache:
             cache.setdefault(directory.id, None)
@@ -422,7 +422,7 @@ class Provenance:
                 self.cache["directory"]["data"][directory.id] = dir.date
         return cache.get(directory.id)
 
-    def directory_flag_as_flattenned(self, directory: DirectoryEntry) -> None:
+    def directory_flag_as_flattened(self, directory: DirectoryEntry) -> None:
         self.cache["directory_flatten"][directory.id] = True
 
     def directory_get_date_in_isochrone_frontier(

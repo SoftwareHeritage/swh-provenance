@@ -52,8 +52,8 @@ def prepare(
 
     # this query forces the directory date to be retrieved from the storage and cached
     # (otherwise, the flush below won't update the directory flatten flag)
-    flattenned = provenance.directory_already_flattenned(directory)
-    assert flattenned is not None and not flattenned
+    flattened = provenance.directory_already_flattened(directory)
+    assert flattened is not None and not flattened
 
     return date, directory, content1, content2
 

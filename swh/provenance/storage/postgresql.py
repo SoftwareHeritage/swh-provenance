@@ -199,9 +199,9 @@ class ProvenanceStoragePostgreSql:
         return result
 
     @statsd.timed(
-        metric=STORAGE_DURATION_METRIC, tags={"method": "directory_iter_not_flattenned"}
+        metric=STORAGE_DURATION_METRIC, tags={"method": "directory_iter_not_flattened"}
     )
-    def directory_iter_not_flattenned(
+    def directory_iter_not_flattened(
         self, limit: int, start_id: Sha1Git
     ) -> List[Sha1Git]:
         sql = """

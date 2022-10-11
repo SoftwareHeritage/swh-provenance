@@ -50,7 +50,7 @@ def directory_flatten_range(
     """Flatten the known directories from ``start_id`` to ``end_id``."""
     current = start_id
     while current < end_id:
-        dirs = provenance.storage.directory_iter_not_flattenned(
+        dirs = provenance.storage.directory_iter_not_flattened(
             limit=100, start_id=current
         )
         if not dirs:
@@ -71,9 +71,9 @@ def directory_add(
 ) -> None:
     for directory in directories:
         # Only flatten directories that are present in the provenance model, but not
-        # flattenned yet.
-        flattenned = provenance.directory_already_flattenned(directory)
-        if flattenned is not None and not flattenned:
+        # flattened yet.
+        flattened = provenance.directory_already_flattened(directory)
+        if flattened is not None and not flattened:
             directory_flatten(
                 provenance,
                 archive,
@@ -104,4 +104,4 @@ def directory_flatten(
         for d_child in current.dirs:
             # Recursively walk the child directory.
             stack.append((d_child, os.path.join(prefix, d_child.name)))
-    provenance.directory_flag_as_flattenned(directory)
+    provenance.directory_flag_as_flattened(directory)

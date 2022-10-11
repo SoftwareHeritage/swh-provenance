@@ -99,14 +99,14 @@ class ProvenanceInterface(Protocol):
         """
         ...
 
-    def directory_already_flattenned(self, directory: DirectoryEntry) -> Optional[bool]:
-        """Check if the directory is already flattenned in the provenance model. If the
+    def directory_already_flattened(self, directory: DirectoryEntry) -> Optional[bool]:
+        """Check if the directory is already flattened in the provenance model. If the
         directory is unknown for the model, the methods returns None.
         """
         ...
 
-    def directory_flag_as_flattenned(self, directory: DirectoryEntry) -> None:
-        """Mark the directory as flattenned in the provenance model. If the
+    def directory_flag_as_flattened(self, directory: DirectoryEntry) -> None:
+        """Mark the directory as flattened in the provenance model. If the
         directory is unknown for the model, this method has no effect.
         """
         ...

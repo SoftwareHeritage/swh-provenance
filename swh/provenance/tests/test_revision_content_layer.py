@@ -223,7 +223,7 @@ def test_revision_content_result(
                 ).difference(prev_directories)
             ]
             for directory in directories:
-                assert not provenance.directory_already_flattenned(directory)
+                assert not provenance.directory_already_flattened(directory)
             directory_add(provenance, archive, directories)
 
         # each "entry" in the synth file is one new revision

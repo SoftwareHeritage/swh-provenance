@@ -191,11 +191,6 @@ def test_revision_content_result(
         "revision": set(),
     }
 
-    def maybe_path(path: str) -> Optional[bytes]:
-        if provenance.storage.with_path():
-            return path.encode("utf-8")
-        return None
-
     for synth_rev in synthetic_revision_content_result(syntheticfile):
         revision = revisions[synth_rev["sha1"]]
         entry = RevisionEntry(
@@ -250,7 +245,7 @@ def test_revision_content_result(
         # check for R-C (direct) entries
         # these are added directly in the content_early_in_rev table
         rows["content_in_revision"] |= set(
-            (x["dst"], x["src"], maybe_path(x["path"])) for x in synth_rev["R_C"]
+            (x["dst"], x["src"], x["path"].encode()) for x in synth_rev["R_C"]
         )
         assert rows["content_in_revision"] == {
             (src, rel.dst, rel.path)
@@ -277,7 +272,7 @@ def test_revision_content_result(
         # ... + a number of rows in the "directory_in_rev" table...
         # check for R-D entries
         rows["directory_in_revision"] |= set(
-            (x["dst"], x["src"], maybe_path(x["path"])) for x in synth_rev["R_D"]
+            (x["dst"], x["src"], x["path"].encode()) for x in synth_rev["R_D"]
         )
         assert rows["directory_in_revision"] == {
             (src, rel.dst, rel.path)
@@ -296,7 +291,7 @@ def test_revision_content_result(
         #     for content of the directory.
         # check for D-C entries
         rows["content_in_directory"] |= set(
-            (x["dst"], x["src"], maybe_path(x["path"])) for x in synth_rev["D_C"]
+            (x["dst"], x["src"], x["path"].encode()) for x in synth_rev["D_C"]
         )
         assert rows["content_in_directory"] == {
             (src, rel.dst, rel.path)
@@ -312,14 +307,13 @@ def test_revision_content_result(
                 == provenance.storage.content_get([dc["dst"]])[dc["dst"]].timestamp()
             ), synth_rev["msg"]
 
-        if provenance.storage.with_path():
-            # check for location entries
-            rows["location"] |= set(x["path"].encode() for x in synth_rev["R_C"])
-            rows["location"] |= set(x["path"].encode() for x in synth_rev["D_C"])
-            rows["location"] |= set(x["path"].encode() for x in synth_rev["R_D"])
-            assert rows["location"] == set(
-                provenance.storage.location_get_all().values()
-            ), synth_rev["msg"]
+        # check for location entries
+        rows["location"] |= set(x["path"].encode() for x in synth_rev["R_C"])
+        rows["location"] |= set(x["path"].encode() for x in synth_rev["D_C"])
+        rows["location"] |= set(x["path"].encode() for x in synth_rev["R_D"])
+        assert rows["location"] == set(
+            provenance.storage.location_get_all().values()
+        ), synth_rev["msg"]
 
 
 @pytest.mark.parametrize(
@@ -353,11 +347,6 @@ def test_provenance_heuristics_content_find_all(
         for revision in data["revision"]
     ]
 
-    def maybe_path(path: str) -> str:
-        if provenance.storage.with_path():
-            return path
-        return ""
-
     if batch:
         revision_add(provenance, archive, revisions, lower=lower, mindepth=mindepth)
     else:
@@ -376,12 +365,12 @@ def test_provenance_heuristics_content_find_all(
 
         for rc in synth_rev["R_C"]:
             expected_occurrences.setdefault(rc["dst"].hex(), []).append(
-                (rev_id, rev_ts, None, maybe_path(rc["path"]))
+                (rev_id, rev_ts, None, rc["path"])
             )
         for dc in synth_rev["D_C"]:
             assert dc["prefix"] is not None  # to please mypy
             expected_occurrences.setdefault(dc["dst"].hex(), []).append(
-                (rev_id, rev_ts, None, maybe_path(dc["prefix"] + "/" + dc["path"]))
+                (rev_id, rev_ts, None, dc["prefix"] + "/" + dc["path"])
             )
 
     for content_id, results in expected_occurrences.items():
@@ -396,11 +385,7 @@ def test_provenance_heuristics_content_find_all(
             )
             for occur in provenance.content_find_all(hash_to_bytes(content_id))
         ]
-        if provenance.storage.with_path():
-            # this is not true if the db stores no path, because a same content
-            # that appears several times in a given revision may be reported
-            # only once by content_find_all()
-            assert len(db_occurrences) == len(expected)
+        assert len(db_occurrences) == len(expected)
         assert set(db_occurrences) == set(expected)
 
 
@@ -478,5 +463,4 @@ def test_provenance_heuristics_content_find_first(
         assert occur.revision.hex() == rev_id
         assert occur.date.timestamp() == ts
         assert occur.origin is None
-        if provenance.storage.with_path():
-            assert occur.path.decode() in paths
+        assert occur.path.decode() in paths

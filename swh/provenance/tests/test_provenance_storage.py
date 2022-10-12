@@ -106,11 +106,7 @@ class TestProvenanceStorage:
             for entry in dir["entries"]
         }
         assert provenance_storage.location_add(paths)
-
-        if provenance_storage.with_path():
-            assert provenance_storage.location_get_all() == paths
-        else:
-            assert not provenance_storage.location_get_all()
+        assert provenance_storage.location_get_all() == paths
 
     @pytest.mark.origin_layer
     def test_provenance_storage_origin(
@@ -272,18 +268,6 @@ class TestProvenanceStorage:
 
         # Test content_find_first and content_find_all, first only executing the
         # revision-content algorithm, then adding the origin-revision layer.
-        def adapt_result(
-            result: Optional[ProvenanceResult], with_path: bool
-        ) -> Optional[ProvenanceResult]:
-            if result is not None:
-                return ProvenanceResult(
-                    result.content,
-                    result.revision,
-                    result.date,
-                    result.origin,
-                    result.path if with_path else b"",
-                )
-            return result
 
         # Execute the revision-content algorithm on both storages.
         revisions = [
@@ -293,28 +277,23 @@ class TestProvenanceStorage:
         revision_add(provenance, archive, revisions)
         revision_add(Provenance(provenance_storage), archive, revisions)
 
-        assert adapt_result(
-            ProvenanceResult(
-                content=hash_to_bytes("20329687bb9c1231a7e05afe86160343ad49b494"),
-                revision=hash_to_bytes("c0d8929936631ecbcf9147be6b8aa13b13b014e4"),
-                date=datetime.fromtimestamp(1000000000.0, timezone.utc),
-                origin=None,
-                path=b"A/B/C/a",
-            ),
-            provenance_storage.with_path(),
+        assert ProvenanceResult(
+            content=hash_to_bytes("20329687bb9c1231a7e05afe86160343ad49b494"),
+            revision=hash_to_bytes("c0d8929936631ecbcf9147be6b8aa13b13b014e4"),
+            date=datetime.fromtimestamp(1000000000.0, timezone.utc),
+            origin=None,
+            path=b"A/B/C/a",
         ) == provenance_storage.content_find_first(
             hash_to_bytes("20329687bb9c1231a7e05afe86160343ad49b494")
         )
 
         for cnt in {cnt["sha1_git"] for cnt in data["content"]}:
-            assert adapt_result(
-                provenance.storage.content_find_first(cnt),
-                provenance_storage.with_path(),
+            assert provenance.storage.content_find_first(
+                cnt
             ) == provenance_storage.content_find_first(cnt)
-            assert {
-                adapt_result(occur, provenance_storage.with_path())
-                for occur in provenance.storage.content_find_all(cnt)
-            } == set(provenance_storage.content_find_all(cnt))
+            assert set(provenance.storage.content_find_all(cnt)) == set(
+                provenance_storage.content_find_all(cnt)
+            )
 
     @pytest.mark.origin_layer
     def test_provenance_storage_find_origin_layer(
@@ -341,18 +320,6 @@ class TestProvenanceStorage:
 
         # Test content_find_first and content_find_all, first only executing the
         # revision-content algorithm, then adding the origin-revision layer.
-        def adapt_result(
-            result: Optional[ProvenanceResult], with_path: bool
-        ) -> Optional[ProvenanceResult]:
-            if result is not None:
-                return ProvenanceResult(
-                    result.content,
-                    result.revision,
-                    result.date,
-                    result.origin,
-                    result.path if with_path else b"",
-                )
-            return result
 
         # Execute the origin-revision algorithm on both storages.
         origins = [
@@ -363,28 +330,23 @@ class TestProvenanceStorage:
         origin_add(provenance, archive, origins)
         origin_add(Provenance(provenance_storage), archive, origins)
 
-        assert adapt_result(
-            ProvenanceResult(
-                content=hash_to_bytes("20329687bb9c1231a7e05afe86160343ad49b494"),
-                revision=hash_to_bytes("c0d8929936631ecbcf9147be6b8aa13b13b014e4"),
-                date=datetime.fromtimestamp(1000000000.0, timezone.utc),
-                origin="https://cmdbts2",
-                path=b"A/B/C/a",
-            ),
-            provenance_storage.with_path(),
+        assert ProvenanceResult(
+            content=hash_to_bytes("20329687bb9c1231a7e05afe86160343ad49b494"),
+            revision=hash_to_bytes("c0d8929936631ecbcf9147be6b8aa13b13b014e4"),
+            date=datetime.fromtimestamp(1000000000.0, timezone.utc),
+            origin="https://cmdbts2",
+            path=b"A/B/C/a",
         ) == provenance_storage.content_find_first(
             hash_to_bytes("20329687bb9c1231a7e05afe86160343ad49b494")
         )
 
         for cnt in {cnt["sha1_git"] for cnt in data["content"]}:
-            assert adapt_result(
-                provenance.storage.content_find_first(cnt),
-                provenance_storage.with_path(),
+            assert provenance.storage.content_find_first(
+                cnt
             ) == provenance_storage.content_find_first(cnt)
-            assert {
-                adapt_result(occur, provenance_storage.with_path())
-                for occur in provenance.storage.content_find_all(cnt)
-            } == set(provenance_storage.content_find_all(cnt))
+            assert set(provenance.storage.content_find_all(cnt)) == set(
+                provenance_storage.content_find_all(cnt)
+            )
 
     def test_types(self, provenance_storage: ProvenanceStorageInterface) -> None:
         """Checks all methods of ProvenanceStorageInterface are implemented by this
@@ -479,15 +441,14 @@ def relation_add_and_compare_result(
     dsts = {rel.dst for rels in data.values() for rel in rels}
     if dst != "origin":
         assert entity_add(storage, EntityType(dst), dsts)
-    if storage.with_path():
-        assert storage.location_add(
-            {
-                hashlib.sha1(rel.path).digest(): rel.path
-                for rels in data.values()
-                for rel in rels
-                if rel.path is not None
-            }
-        )
+    assert storage.location_add(
+        {
+            hashlib.sha1(rel.path).digest(): rel.path
+            for rels in data.values()
+            for rel in rels
+            if rel.path is not None
+        }
+    )
 
     assert data
     assert storage.relation_add(relation, data)
@@ -496,7 +457,6 @@ def relation_add_and_compare_result(
         relation_compare_result(
             storage.relation_get(relation, [src_sha1]),
             {src_sha1: data[src_sha1]},
-            storage.with_path(),
         )
     for dst_sha1 in dsts:
         relation_compare_result(
@@ -510,22 +470,18 @@ def relation_add_and_compare_result(
                 for src_sha1, rels in data.items()
                 if dst_sha1 in {rel.dst for rel in rels}
             },
-            storage.with_path(),
         )
     relation_compare_result(
-        storage.relation_get_all(relation), data, storage.with_path()
+        storage.relation_get_all(relation),
+        data,
     )
 
 
 def relation_compare_result(
     computed: Dict[Sha1Git, Set[RelationData]],
     expected: Dict[Sha1Git, Set[RelationData]],
-    with_path: bool,
 ) -> None:
     assert {
-        src_sha1: {
-            RelationData(dst=rel.dst, path=rel.path if with_path else None)
-            for rel in rels
-        }
+        src_sha1: {RelationData(dst=rel.dst, path=rel.path) for rel in rels}
         for src_sha1, rels in expected.items()
     } == computed

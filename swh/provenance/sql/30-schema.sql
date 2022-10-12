@@ -1,6 +1,5 @@
 -- psql variables to get the current database flavor
 select position('denormalized' in swh_get_dbflavor()::text) = 0 as dbflavor_norm \gset
-select position('without-path' in swh_get_dbflavor()::text) = 0 as dbflavor_with_path \gset
 
 -- a Git object ID, i.e., a Git-style salted SHA1 checksum
 create domain sha1_git as bytea check (length(value) = 20);

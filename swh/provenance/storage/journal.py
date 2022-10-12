@@ -147,6 +147,3 @@ class ProvenanceStorageJournal:
         self, relation: RelationType
     ) -> Dict[Sha1Git, Set[RelationData]]:
         return self.storage.relation_get_all(relation)
-
-    def with_path(self) -> bool:
-        return self.storage.with_path()

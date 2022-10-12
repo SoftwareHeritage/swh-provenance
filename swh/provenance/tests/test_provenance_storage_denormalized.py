@@ -17,7 +17,7 @@ provenance_postgresql_proc = factories.postgresql_proc(
         partial(
             initialize_database_for_module,
             modname="provenance",
-            flavor="without-path-denormalized",
+            flavor="denormalized",
             version=ProvenanceStoragePostgreSql.current_version,
         )
     ],

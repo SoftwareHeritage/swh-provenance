@@ -10,8 +10,6 @@ from swh.provenance.storage.postgresql import ProvenanceStoragePostgreSql
 def test_provenance_flavor(provenance: ProvenanceInterface) -> None:
     if isinstance(provenance.storage, ProvenanceStoragePostgreSql):
         assert provenance.storage.flavor in (
-            "with-path",
-            "without-path",
-            "with-path-denormalized",
-            "without-path-denormalized",
+            "normalized",
+            "denormalized",
         )

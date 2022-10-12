@@ -10,7 +10,7 @@ import pytest
 from swh.provenance import get_provenance_storage
 from swh.provenance.storage.interface import ProvenanceStorageInterface
 
-from .test_provenance_storage import TestProvenanceStorage  # noqa: F401
+from .test_provenance_storage import TestProvenanceStorage as _TestProvenanceStorage
 
 
 @pytest.fixture()
@@ -41,3 +41,8 @@ def provenance_storage(
             yield storage
     finally:
         server.stop()
+
+
+@pytest.mark.rabbitmq
+class TestProvenanceStorageRabbitMQ(_TestProvenanceStorage):
+    pass

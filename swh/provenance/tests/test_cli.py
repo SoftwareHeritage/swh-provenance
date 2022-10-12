@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Dict, List, Set
+from typing import Dict, List
 
 from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
@@ -56,18 +56,13 @@ TABLES = {
 }
 
 
-@pytest.mark.parametrize(
-    "flavor, dbtables", (("with-path", TABLES), ("without-path", TABLES))
-)
+@pytest.mark.parametrize("flavor", ("normalized", "denormalized"))
 def test_cli_db_create_and_init_db_with_flavor(
     monkeypatch: MonkeyPatch,
     postgresql: psycopg2.extensions.connection,
     flavor: str,
-    dbtables: Set[str],
 ) -> None:
-    """Test that 'swh db init provenance' works with flavors
-
-    for both with-path and without-path flavors"""
+    """Test that 'swh db init provenance' works with flavors"""
 
     dbname = f"{flavor}-db"
 
@@ -99,11 +94,11 @@ def test_cli_db_create_and_init_db_with_flavor(
             f"and table_catalog = '{dbname}'"
         )
         tables = set(x for (x,) in cur.fetchall())
-        assert tables == dbtables
+        assert tables == TABLES
 
 
 def test_cli_init_db_default_flavor(postgresql: psycopg2.extensions.connection) -> None:
-    "Test that 'swh db init provenance' defaults to a with-path flavored DB"
+    "Test that 'swh db init provenance' defaults to a normalized flavored DB"
 
     dbname = postgresql.dsn
     init_admin_extensions("swh.provenance", dbname)
@@ -112,7 +107,7 @@ def test_cli_init_db_default_flavor(postgresql: psycopg2.extensions.connection) 
 
     with postgresql.cursor() as cur:
         cur.execute("select swh_get_dbflavor()")
-        assert cur.fetchone() == ("with-path",)
+        assert cur.fetchone() == ("normalized",)
 
 
 @pytest.mark.origin_layer

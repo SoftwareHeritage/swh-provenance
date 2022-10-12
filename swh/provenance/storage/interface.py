@@ -223,7 +223,3 @@ class ProvenanceStorageInterface(Protocol):
         provenance model. This method is used only in tests.
         """
         ...
-
-    @remote_api_endpoint("with_path")
-    def with_path(self) -> bool:
-        ...

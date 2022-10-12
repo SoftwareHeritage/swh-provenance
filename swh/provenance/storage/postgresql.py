@@ -51,7 +51,7 @@ def handle_raise_on_commit(f):
 
 
 class ProvenanceStoragePostgreSql:
-    current_version = 3
+    current_version = 4
 
     def __init__(
         self, page_size: Optional[int] = None, raise_on_commit: bool = False, **kwargs
@@ -221,18 +221,17 @@ class ProvenanceStoragePostgreSql:
     @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "location_add"})
     @handle_raise_on_commit
     def location_add(self, paths: Dict[Sha1Git, bytes]) -> bool:
-        if self.with_path():
-            values = [(path,) for path in paths.values()]
-            if values:
-                sql = """
-                    INSERT INTO location(path) VALUES %s
-                      ON CONFLICT DO NOTHING
-                    """
-                page_size = self.page_size or len(values)
-                with self.transaction() as cursor:
-                    psycopg2.extras.execute_values(
-                        cursor, sql, argslist=values, page_size=page_size
-                    )
+        values = [(path,) for path in paths.values()]
+        if values:
+            sql = """
+                INSERT INTO location(path) VALUES %s
+                  ON CONFLICT DO NOTHING
+                """
+            page_size = self.page_size or len(values)
+            with self.transaction() as cursor:
+                psycopg2.extras.execute_values(
+                    cursor, sql, argslist=values, page_size=page_size
+                )
         return True
 
     @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "location_get_all"})
@@ -392,7 +391,3 @@ class ProvenanceStoragePostgreSql:
                     src = row.pop("src")
                     result.setdefault(src, set()).add(RelationData(**row))
         return result
-
-    @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "with_path"})
-    def with_path(self) -> bool:
-        return "with-path" in self.flavor

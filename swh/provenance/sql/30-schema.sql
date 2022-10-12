@@ -20,7 +20,7 @@ create table content
 (
     id      bigserial primary key,          -- internal identifier of the content blob
     sha1    sha1_git unique not null,       -- intrinsic identifier of the content blob
-    date    timestamptz not null            -- timestamp of the revision where the blob appears early
+    date    timestamptz                     -- timestamp of the revision where the blob appears early
 );
 comment on column content.id is 'Content internal identifier';
 comment on column content.sha1 is 'Content intrinsic identifier';
@@ -30,7 +30,7 @@ create table directory
 (
     id      bigserial primary key,          -- internal identifier of the directory appearing in an isochrone inner frontier
     sha1    sha1_git unique not null,       -- intrinsic identifier of the directory
-    date    timestamptz not null,           -- max timestamp among those of the directory children's
+    date    timestamptz,                    -- max timestamp among those of the directory children's
     flat    boolean not null default false  -- flag acknowledging if the directory is flattenned in the model
 );
 comment on column directory.id is 'Directory internal identifier';

@@ -105,6 +105,27 @@ as $$
         end if;
 
         execute format(
+            'insert into %s (sha1)
+              select src
+              from tmp_relation_add
+             on conflict do nothing',
+             src_table);
+
+        execute format(
+            'insert into %s (sha1)
+              select dst
+              from tmp_relation_add
+             on conflict do nothing',
+             dst_table);
+
+        if src_table in ('content'::regclass, 'directory'::regclass) then
+            insert into location(path)
+              select distinct path
+              from tmp_relation_add
+             on conflict do nothing;
+           end if;
+
+        execute format(
             'insert into %s
                select S.id, ' || select_fields || '
                from tmp_relation_add as V
@@ -283,6 +304,29 @@ as $$
         group_entries text;
         on_conflict text;
     begin
+
+        execute format(
+            'insert into %s (sha1)
+              select src
+              from tmp_relation_add
+             on conflict do nothing',
+             src_table);
+
+        execute format(
+            'insert into %s (sha1)
+              select dst
+              from tmp_relation_add
+             on conflict do nothing',
+             dst_table);
+
+        if src_table in ('content'::regclass, 'directory'::regclass) then
+            insert into location(path)
+              select distinct path
+              from tmp_relation_add
+             on conflict do nothing;
+        end if;
+
+
         if src_table in ('content'::regclass, 'directory'::regclass) then
             select_fields := 'array_agg(D.id), array_agg(L.id)';
             join_location := 'inner join location as L on (digest(L.path,''sha1'') = digest(V.path,''sha1''))';

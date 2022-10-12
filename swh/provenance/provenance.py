@@ -251,22 +251,6 @@ class Provenance:
                 LOGGER.warning(
                     "Unable to write directory dates to the storage. Retrying..."
                 )
-
-        revs = {
-            sha1: RevisionData(date=None, origin=None)
-            for sha1, date in self.cache["revision"]["data"].items()
-            if sha1 in self.cache["revision"]["added"] and date is not None
-        }
-        if revs:
-            while not self.storage.revision_add(revs):
-                statsd.increment(
-                    metric=BACKEND_OPERATIONS_METRIC,
-                    tags={"method": "flush_revision_content_retry_revision_none"},
-                )
-                LOGGER.warning(
-                    "Unable to write revision entities to the storage. Retrying..."
-                )
-
         paths = {
             hashlib.sha1(path).digest(): path
             for _, _, path in self.cache["content_in_revision"]

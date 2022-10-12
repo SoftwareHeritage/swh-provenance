@@ -24,3 +24,6 @@ create function swh_get_dbflavor() returns database_flavor language sql stable a
 $$;
 
 drop type database_flavor_old;
+
+alter table content alter column date drop not null;
+alter table directory alter column date drop not null;

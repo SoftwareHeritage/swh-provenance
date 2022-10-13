@@ -49,7 +49,7 @@ class DirectoryData:
     already been created.
     """
 
-    date: datetime
+    date: Optional[datetime]
     flat: bool
 
 

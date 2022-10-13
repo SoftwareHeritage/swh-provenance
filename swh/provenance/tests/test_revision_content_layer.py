@@ -284,6 +284,7 @@ def test_revision_content_result(
         # check timestamps
         for rd in synth_rev["R_D"]:
             dir_data = provenance.storage.directory_get([rd["dst"]])[rd["dst"]]
+            assert dir_data.date is not None
             assert rev_ts + rd["rel_ts"] == dir_data.date.timestamp(), synth_rev["msg"]
             assert dir_data.flat, synth_rev["msg"]
 

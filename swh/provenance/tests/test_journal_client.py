@@ -12,7 +12,7 @@ from swh.model.hashutil import MultiHash
 from swh.provenance.tests.conftest import fill_storage, load_repo_data
 from swh.storage.interface import StorageInterface
 
-from .test_utils import invoke, write_configuration_path
+from .test_utils import invoke
 
 
 @pytest.fixture
@@ -35,7 +35,6 @@ def test_cli_origin_from_journal_client(
     kafka_prefix: str,
     kafka_server: str,
     consumer: Consumer,
-    tmp_path: str,
     provenance,
     postgres_provenance,
 ) -> None:
@@ -69,10 +68,9 @@ def test_cli_origin_from_journal_client(
             },
         },
     }
-    config_path = write_configuration_path(cfg, tmp_path)
 
     # call the cli 'swh provenance origin from-journal'
-    result = invoke(["origin", "from-journal"], config_path)
+    result = invoke(["origin", "from-journal"], config=cfg)
     assert result.exit_code == 0, f"Unexpected result: {result.output}"
 
     origin_sha1 = MultiHash.from_data(
@@ -90,7 +88,6 @@ def test_cli_revision_from_journal_client(
     kafka_prefix: str,
     kafka_server: str,
     consumer: Consumer,
-    tmp_path: str,
     provenance,
     postgres_provenance,
 ) -> None:
@@ -123,14 +120,13 @@ def test_cli_revision_from_journal_client(
             },
         },
     }
-    config_path = write_configuration_path(cfg, tmp_path)
 
     revisions = [rev["id"] for rev in data["revision"]]
     result = provenance.storage.revision_get(revisions)
     assert not result
 
     # call the cli 'swh provenance revision from-journal'
-    cli_result = invoke(["revision", "from-journal"], config_path)
+    cli_result = invoke(["revision", "from-journal"], config=cfg)
     assert cli_result.exit_code == 0, f"Unexpected result: {result.output}"
 
     result = provenance.storage.revision_get(revisions)

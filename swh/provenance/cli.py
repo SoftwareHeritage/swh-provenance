@@ -141,6 +141,113 @@ def cli(ctx: click.core.Context, config_file: Optional[str], profile: str) -> No
         atexit.register(exit)
 
 
+@cli.command(name="replay")
+@click.option(
+    "--stop-after-objects",
+    "-n",
+    default=None,
+    type=int,
+    help="Stop after processing this many objects. Default is to " "run forever.",
+)
+@click.option(
+    "--type",
+    "-t",
+    "object_types",
+    default=[],
+    type=click.Choice(
+        [
+            "content",
+            "directory",
+            "revision",
+            "location",
+            "content_in_revision",
+            "content_in_directory",
+            "directory_in_revision",
+        ]
+    ),
+    help="Object types to replay",
+    multiple=True,
+)
+@click.pass_context
+def replay(ctx: click.core.Context, stop_after_objects, object_types):
+    """Fill a ProvenanceStorage by reading a Journal.
+
+    This is typically used to replicate a Provenance database, reading the
+    Software Heritage kafka journal to retrieve objects of the Software
+    Heritage provenance storage to feed a replicate provenance storage. There
+    can be several 'replayers' filling a ProvenanceStorage as long as they use
+    the same `group-id`.
+
+    The expected configuration file should have one 'provenance' section with 2
+    subsections:
+
+    - storage: the configuration of the provenance storage in which to add
+      objects received from the kafka journal,
+
+    - journal_client: the configuration of access to the kafka journal. See the
+      documentation of `swh.journal` for more details on the possible
+      configuration entries in this section.
+
+      https://docs.softwareheritage.org/devel/apidoc/swh.journal.client.html
+
+    eg.::
+
+      provenance:
+        storage:
+          cls: postgresql
+          db:
+            [...]
+        journal_client:
+          cls: kafka
+          prefix: swh.journal.provenance
+          brokers: [...]
+          [...]
+    """
+    import functools
+
+    from swh.journal.client import get_journal_client
+    from swh.provenance.storage import get_provenance_storage
+    from swh.provenance.storage.replay import (
+        ProvenanceObjectDeserializer,
+        process_replay_objects,
+    )
+
+    conf = ctx.obj["config"]["provenance"]
+    storage = get_provenance_storage(**conf.pop("storage"))
+
+    client_cfg = conf.pop("journal_client")
+
+    deserializer = ProvenanceObjectDeserializer()
+
+    client_cfg["value_deserializer"] = deserializer.convert
+    if object_types:
+        client_cfg["object_types"] = object_types
+    if stop_after_objects:
+        client_cfg["stop_after_objects"] = stop_after_objects
+
+    try:
+        client = get_journal_client(**client_cfg)
+    except ValueError as exc:
+        ctx.fail(str(exc))
+
+    worker_fn = functools.partial(process_replay_objects, storage=storage)
+
+    if notify:
+        notify("READY=1")
+
+    try:
+        with storage:
+            n = client.process(worker_fn)
+    except KeyboardInterrupt:
+        ctx.exit(0)
+    else:
+        print(f"Done, processed {n} messages")
+    finally:
+        if notify:
+            notify("STOPPING=1")
+        client.close()
+
+
 @cli.group(name="origin")
 @click.pass_context
 def origin(ctx: click.core.Context):

@@ -74,6 +74,8 @@ def resolve_directory(
     for sha1, dir in data:
         known = result.setdefault(sha1, dir)
         value = known
+        assert dir.date is not None
+        assert known.date is not None
         if dir.date < known.date:
             value = DirectoryData(date=dir.date, flat=value.flat)
         if dir.flat:

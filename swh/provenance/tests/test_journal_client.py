@@ -70,8 +70,8 @@ def test_cli_origin_from_journal_client(
     }
 
     # call the cli 'swh provenance origin from-journal'
-    result = invoke(["origin", "from-journal"], config=cfg)
-    assert result.exit_code == 0, f"Unexpected result: {result.output}"
+    cli_result = invoke(["origin", "from-journal"], config=cfg)
+    assert cli_result.exit_code == 0, f"Unexpected result: {cli_result.output}"
 
     origin_sha1 = MultiHash.from_data(
         origin_url.encode(), hash_names=["sha1"]
@@ -127,7 +127,7 @@ def test_cli_revision_from_journal_client(
 
     # call the cli 'swh provenance revision from-journal'
     cli_result = invoke(["revision", "from-journal"], config=cfg)
-    assert cli_result.exit_code == 0, f"Unexpected result: {result.output}"
+    assert cli_result.exit_code == 0, f"Unexpected result: {cli_result.output}"
 
     result = provenance.storage.revision_get(revisions)
 

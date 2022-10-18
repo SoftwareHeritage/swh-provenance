@@ -4,8 +4,9 @@
 # See top-level LICENSE file for more information
 
 from swh.provenance.interface import ProvenanceInterface
-from swh.provenance.tests.conftest import fill_storage, load_repo_data
 from swh.storage.interface import StorageInterface
+
+from .utils import fill_storage, load_repo_data
 
 
 def test_provenance_fixture(provenance: ProvenanceInterface) -> None:

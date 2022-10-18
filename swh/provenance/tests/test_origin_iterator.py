@@ -6,13 +6,14 @@
 import pytest
 
 from swh.provenance.algos.origin import CSVOriginIterator
-from swh.provenance.tests.conftest import fill_storage, load_repo_data
 from swh.storage.algos.origin import (
     iter_origin_visit_statuses,
     iter_origin_visits,
     iter_origins,
 )
 from swh.storage.interface import StorageInterface
+
+from .utils import fill_storage, load_repo_data
 
 
 @pytest.mark.origin_layer

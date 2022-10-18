@@ -6,8 +6,9 @@
 import pytest
 
 from swh.provenance.algos.directory import CSVDirectoryIterator
-from swh.provenance.tests.conftest import fill_storage, load_repo_data
 from swh.storage.interface import StorageInterface
+
+from .utils import fill_storage, load_repo_data
 
 
 @pytest.mark.parametrize(

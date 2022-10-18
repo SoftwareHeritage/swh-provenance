@@ -9,10 +9,9 @@ from confluent_kafka import Consumer
 import pytest
 
 from swh.model.hashutil import MultiHash
-from swh.provenance.tests.conftest import fill_storage, load_repo_data
 from swh.storage.interface import StorageInterface
 
-from .test_utils import invoke
+from .utils import fill_storage, invoke, load_repo_data
 
 
 @pytest.fixture

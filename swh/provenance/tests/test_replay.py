@@ -25,7 +25,7 @@ from swh.provenance.storage.replay import (
     process_replay_objects,
 )
 
-from .conftest import fill_storage, load_repo_data, ts2dt
+from .utils import fill_storage, load_repo_data, ts2dt
 
 
 @pytest.fixture(scope="function")

@@ -20,12 +20,8 @@ from swh.provenance.algos.revision import revision_add
 from swh.provenance.archive import ArchiveInterface
 from swh.provenance.interface import ProvenanceInterface
 from swh.provenance.model import DirectoryEntry, RevisionEntry
-from swh.provenance.tests.conftest import (
-    fill_storage,
-    get_datafile,
-    load_repo_data,
-    ts2dt,
-)
+
+from .utils import fill_storage, get_datafile, load_repo_data, ts2dt
 
 
 def isochrone_graph_from_dict(d: Dict[str, Any], depth: int = 0) -> IsochroneNode:

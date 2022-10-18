@@ -28,7 +28,8 @@ from swh.provenance.storage.interface import (
     RelationType,
     RevisionData,
 )
-from swh.provenance.tests.conftest import fill_storage, load_repo_data, ts2dt
+
+from .utils import fill_storage, load_repo_data, ts2dt
 
 
 class TestProvenanceStorage:

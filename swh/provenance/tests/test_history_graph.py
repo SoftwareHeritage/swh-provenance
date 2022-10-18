@@ -11,7 +11,8 @@ from swh.provenance.algos.origin import HistoryGraph, origin_add_revision
 from swh.provenance.archive import ArchiveInterface
 from swh.provenance.interface import ProvenanceInterface
 from swh.provenance.model import OriginEntry, RevisionEntry
-from swh.provenance.tests.conftest import fill_storage, get_datafile, load_repo_data
+
+from .utils import fill_storage, get_datafile, load_repo_data
 
 
 @pytest.mark.origin_layer

@@ -22,11 +22,9 @@ from swh.journal.serializers import key_to_kafka, value_to_kafka
 from swh.model.hashutil import MultiHash
 import swh.provenance.cli  # noqa ; ensure cli is loaded
 from swh.provenance.storage.interface import EntityType, RelationType
-from swh.provenance.tests.conftest import fill_storage, load_repo_data
 from swh.storage.interface import StorageInterface
 
-from .conftest import get_datafile
-from .test_utils import invoke
+from .utils import fill_storage, get_datafile, invoke, load_repo_data
 
 logger = logging.getLogger(__name__)
 

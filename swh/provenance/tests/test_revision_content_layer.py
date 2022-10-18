@@ -17,12 +17,8 @@ from swh.provenance.archive import ArchiveInterface
 from swh.provenance.interface import ProvenanceInterface
 from swh.provenance.model import DirectoryEntry, RevisionEntry
 from swh.provenance.storage.interface import EntityType, RelationType
-from swh.provenance.tests.conftest import (
-    fill_storage,
-    get_datafile,
-    load_repo_data,
-    ts2dt,
-)
+
+from .utils import fill_storage, get_datafile, load_repo_data, ts2dt
 
 
 class SynthRelation(TypedDict):

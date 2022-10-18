@@ -6,8 +6,9 @@
 import pytest
 
 from swh.provenance.algos.revision import CSVRevisionIterator
-from swh.provenance.tests.conftest import fill_storage, load_repo_data, ts2dt
 from swh.storage.interface import StorageInterface
+
+from .utils import fill_storage, load_repo_data, ts2dt
 
 
 @pytest.mark.parametrize(

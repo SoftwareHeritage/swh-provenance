@@ -34,9 +34,10 @@ from swh.provenance.archive.multiplexer import ArchiveMultiplexed
 from swh.provenance.archive.postgresql import ArchivePostgreSQL
 from swh.provenance.archive.storage import ArchiveStorage
 from swh.provenance.archive.swhgraph import ArchiveGraph
-from swh.provenance.tests.conftest import fill_storage, grpc_server, load_repo_data
 from swh.storage.interface import StorageInterface
 from swh.storage.postgresql.storage import Storage
+
+from .utils import fill_storage, grpc_server, load_repo_data
 
 
 class ArchiveNoop:

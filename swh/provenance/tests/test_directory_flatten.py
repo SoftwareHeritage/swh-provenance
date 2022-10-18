@@ -13,7 +13,8 @@ from swh.provenance.archive import ArchiveInterface
 from swh.provenance.interface import ProvenanceInterface
 from swh.provenance.model import DirectoryEntry, FileEntry
 from swh.provenance.storage.interface import DirectoryData, RelationData, RelationType
-from swh.provenance.tests.conftest import fill_storage, load_repo_data
+
+from .utils import fill_storage, load_repo_data
 
 
 def prepare(

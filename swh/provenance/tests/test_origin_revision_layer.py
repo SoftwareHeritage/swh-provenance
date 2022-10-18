@@ -16,7 +16,8 @@ from swh.provenance.archive import ArchiveInterface
 from swh.provenance.interface import ProvenanceInterface
 from swh.provenance.model import OriginEntry
 from swh.provenance.storage.interface import EntityType, RelationType
-from swh.provenance.tests.conftest import fill_storage, get_datafile, load_repo_data
+
+from .utils import fill_storage, get_datafile, load_repo_data
 
 
 class SynthRelation(TypedDict):

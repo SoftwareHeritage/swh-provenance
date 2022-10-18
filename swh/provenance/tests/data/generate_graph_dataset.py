@@ -14,7 +14,7 @@ import shutil
 from swh.dataset.exporters.edges import GraphEdgesExporter
 from swh.dataset.exporters.orc import ORCExporter
 from swh.graph.webgraph import compress
-from swh.provenance.tests.conftest import load_repo_data
+from swh.provenance.tests.utils import load_repo_data
 
 
 def main():

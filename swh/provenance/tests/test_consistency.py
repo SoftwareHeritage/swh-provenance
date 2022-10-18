@@ -9,7 +9,8 @@ from swh.provenance.archive import ArchiveInterface
 from swh.provenance.interface import ProvenanceInterface
 from swh.provenance.model import RevisionEntry
 from swh.provenance.storage.interface import DirectoryData, ProvenanceResult
-from swh.provenance.tests.conftest import fill_storage, load_repo_data, ts2dt
+
+from .utils import fill_storage, load_repo_data, ts2dt
 
 
 def test_consistency(

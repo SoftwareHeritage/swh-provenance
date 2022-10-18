@@ -229,6 +229,7 @@ def test_archive_interface(repo: str, archive: ArchiveInterface) -> None:
         check_snapshot_get_heads(archive, archive_direct, data)
 
 
+@pytest.mark.grpc
 @pytest.mark.parametrize(
     "repo",
     ("cmdbts2", "out-of-order", "with-merges"),
@@ -246,6 +247,7 @@ def test_archive_graph(repo: str, archive: ArchiveInterface) -> None:
         check_snapshot_get_heads(archive, archive_graph, data)
 
 
+@pytest.mark.grpc
 @pytest.mark.parametrize(
     "repo",
     ("cmdbts2", "out-of-order", "with-merges"),

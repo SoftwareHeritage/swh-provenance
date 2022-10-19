@@ -22,6 +22,7 @@ def swh_storage_backend_config(swh_storage_backend_config, kafka_server, kafka_p
         "client_id": "kafka_writer",
         "prefix": kafka_prefix,
         "anonymize": False,
+        "auto_flush": False,
     }
     yield {**swh_storage_backend_config, "journal_writer": writer_config}
 

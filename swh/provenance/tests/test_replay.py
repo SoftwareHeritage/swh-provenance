@@ -63,6 +63,7 @@ def replayer_storage_and_client(
             "client_id": "kafka_writer",
             "prefix": kafka_prefix,
             "anonymize": False,
+            "auto_flush": False,
         },
     }
     with get_provenance_storage(cls="journal", **cfg) as storage:

@@ -364,19 +364,12 @@ class ProvenanceStorageRabbitMQClient(threading.Thread, metaclass=MetaRabbitMQCl
         properties: pika.spec.BasicProperties,
         body: bytes,
     ) -> None:
-        LOGGER.debug(
-            "Received message # %s from %s: %s",
-            deliver.delivery_tag,
-            properties.app_id,
-            body,
-        )
         self._response_queue.put(
             (
                 properties.correlation_id,
                 decode_data(body, extra_decoders=self.extra_type_decoders),
             )
         )
-        LOGGER.debug("Acknowledging message %s", deliver.delivery_tag)
         channel.basic_ack(delivery_tag=deliver.delivery_tag)
 
     def stop_consuming(self) -> None:

@@ -106,22 +106,27 @@ as $$
 
         execute format(
             'insert into %s (sha1)
-              select src
+              select distinct src
               from tmp_relation_add
+              where not exists (select 1 from %s where %s.sha1=tmp_relation_add.src)
              on conflict do nothing',
-             src_table);
+             src_table, src_table, src_table);
 
         execute format(
             'insert into %s (sha1)
-              select dst
+              select distinct dst
               from tmp_relation_add
+              where not exists (select 1 from %s where %s.sha1=tmp_relation_add.dst)
              on conflict do nothing',
-             dst_table);
+             dst_table, dst_table, dst_table);
 
         if src_table in ('content'::regclass, 'directory'::regclass) then
             insert into location(path)
               select distinct path
               from tmp_relation_add
+              where not exists (select 1 from location
+			    where digest(location.path,'sha1')=digest(tmp_relation_add.path,'sha1')
+				)
              on conflict do nothing;
            end if;
 
@@ -307,25 +312,29 @@ as $$
 
         execute format(
             'insert into %s (sha1)
-              select src
+              select distinct src
               from tmp_relation_add
+              where not exists (select 1 from %s where %s.sha1=tmp_relation_add.src)
              on conflict do nothing',
-             src_table);
+             src_table, src_table, src_table);
 
         execute format(
             'insert into %s (sha1)
-              select dst
+              select distinct dst
               from tmp_relation_add
+              where not exists (select 1 from %s where %s.sha1=tmp_relation_add.dst)
              on conflict do nothing',
-             dst_table);
+             dst_table, dst_table, dst_table);
 
         if src_table in ('content'::regclass, 'directory'::regclass) then
             insert into location(path)
               select distinct path
               from tmp_relation_add
+              where not exists (select 1 from location
+			    where digest(location.path,'sha1')=digest(tmp_relation_add.path,'sha1')
+				)
              on conflict do nothing;
-        end if;
-
+           end if;
 
         if src_table in ('content'::regclass, 'directory'::regclass) then
             select_fields := 'array_agg(D.id), array_agg(L.id)';

@@ -208,7 +208,7 @@ class TestProvenanceStorage:
         )
 
     @pytest.mark.origin_layer
-    def test_provenance_storage_relation_orign_layer(
+    def test_provenance_storage_relation_origin_layer(
         self,
         provenance_storage: ProvenanceStorageInterface,
     ) -> None:

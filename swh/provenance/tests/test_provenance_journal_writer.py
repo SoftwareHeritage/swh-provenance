@@ -76,7 +76,7 @@ class TestProvenanceStorageJournal(_TestProvenanceStorage):
         }
         assert provenance_storage.location_get_all() == journal_objs
 
-    def test_provenance_storage_orign(self, provenance_storage):
+    def test_provenance_storage_origin(self, provenance_storage):
         super().test_provenance_storage_origin(provenance_storage)
         assert provenance_storage.journal
         objtypes = {objtype for (objtype, obj) in provenance_storage.journal.objects}

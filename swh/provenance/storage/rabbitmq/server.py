@@ -719,18 +719,6 @@ def load_and_check_config(
     if scfg is None:
         raise KeyError("Missing 'provenance.rabbitmq.storage_config' configuration")
 
-    if type == "local":
-        cls = scfg.get("cls")
-        if cls != "postgresql":
-            raise ValueError(
-                "The provenance backend can only be started with a 'postgresql' "
-                "configuration"
-            )
-
-        db = scfg.get("db")
-        if not db:
-            raise KeyError("Invalid configuration; missing 'db' config entry")
-
     return cfg
 
 

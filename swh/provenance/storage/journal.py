@@ -138,17 +138,19 @@ class ProvenanceStorageJournal:
     def relation_add(
         self, relation: RelationType, data: Dict[Sha1Git, Set[RelationData]]
     ) -> bool:
+        messages = []
         for src, relations in data.items():
             for reldata in relations:
                 key = hashlib.sha1(src + reldata.dst + (reldata.path or b"")).digest()
-                self.journal.write_addition(
-                    relation.value,
+                messages.append(
                     JournalMessage(
                         key,
                         {"src": src, "dst": reldata.dst, "path": reldata.path},
                         add_id=False,
-                    ),
+                    )
                 )
+
+        self.journal.write_additions(relation.value, messages)
         return self.storage.relation_add(relation, data)
 
     def relation_get(

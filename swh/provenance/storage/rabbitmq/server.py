@@ -298,7 +298,7 @@ class ProvenanceStorageRabbitMQWorker(multiprocessing.Process):
         properties: pika.spec.BasicProperties,
         body: bytes,
     ) -> None:
-        LOGGER.info(
+        LOGGER.debug(
             "Received message # %s from %s: %s",
             deliver.delivery_tag,
             properties.app_id,
@@ -311,7 +311,7 @@ class ProvenanceStorageRabbitMQWorker(multiprocessing.Process):
             self._request_queues[deliver.routing_key].put(
                 (tuple(item), (properties.correlation_id, properties.reply_to))
             )
-        LOGGER.info("Acknowledging message %s", deliver.delivery_tag)
+        LOGGER.debug("Acknowledging message %s", deliver.delivery_tag)
         channel.basic_ack(delivery_tag=deliver.delivery_tag)
 
     def stop_consuming(self) -> None:

@@ -3,7 +3,6 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from dataclasses import asdict
 from typing import Dict, Generator
 
 import pytest
@@ -63,19 +62,6 @@ class TestProvenanceStorageJournal(_TestProvenanceStorage):
         }
         assert provenance_storage.entity_get_all(EntityType.DIRECTORY) == journal_objs
 
-    def test_provenance_storage_location(self, provenance_storage):
-        super().test_provenance_storage_location(provenance_storage)
-        assert provenance_storage.journal
-        objtypes = {objtype for (objtype, obj) in provenance_storage.journal.objects}
-        assert objtypes == {"location"}
-
-        journal_objs = {
-            obj.id: obj.value
-            for (objtype, obj) in provenance_storage.journal.objects
-            if objtype == "location"
-        }
-        assert provenance_storage.location_get_all() == journal_objs
-
     def test_provenance_storage_origin(self, provenance_storage):
         super().test_provenance_storage_origin(provenance_storage)
         assert provenance_storage.journal
@@ -100,94 +86,102 @@ class TestProvenanceStorageJournal(_TestProvenanceStorage):
             for (objtype, obj) in provenance_storage.journal.objects
             if objtype == "revision"
         }
-        assert provenance_storage.entity_get_all(EntityType.REVISION) == journal_objs
+        all_revisions = provenance_storage.revision_get(
+            provenance_storage.entity_get_all(EntityType.REVISION)
+        )
+
+        assert {
+            id for (id, value) in all_revisions.items() if value.date is not None
+        } == journal_objs
 
     def test_provenance_storage_relation_revision_layer(self, provenance_storage):
         super().test_provenance_storage_relation_revision_layer(provenance_storage)
         assert provenance_storage.journal
         objtypes = {objtype for (objtype, obj) in provenance_storage.journal.objects}
         assert objtypes == {
-            "location",
             "content",
             "directory",
-            "revision",
             "content_in_revision",
             "content_in_directory",
             "directory_in_revision",
         }
 
         journal_rels = {
-            obj.id: {tuple(v.items()) for v in obj.value}
+            tuple(obj.value[k] for k in ("src", "dst", "path"))
             for (objtype, obj) in provenance_storage.journal.objects
             if objtype == "content_in_revision"
         }
         prov_rels = {
-            k: {tuple(asdict(reldata).items()) for reldata in v}
+            (k, relation.dst, relation.path)
             for k, v in provenance_storage.relation_get_all(
                 RelationType.CNT_EARLY_IN_REV
             ).items()
+            for relation in v
         }
         assert prov_rels == journal_rels
 
         journal_rels = {
-            obj.id: {tuple(v.items()) for v in obj.value}
+            tuple(obj.value[k] for k in ("src", "dst", "path"))
             for (objtype, obj) in provenance_storage.journal.objects
             if objtype == "content_in_directory"
         }
         prov_rels = {
-            k: {tuple(asdict(reldata).items()) for reldata in v}
+            (k, relation.dst, relation.path)
             for k, v in provenance_storage.relation_get_all(
                 RelationType.CNT_IN_DIR
             ).items()
+            for relation in v
         }
         assert prov_rels == journal_rels
 
         journal_rels = {
-            obj.id: {tuple(v.items()) for v in obj.value}
+            tuple(obj.value[k] for k in ("src", "dst", "path"))
             for (objtype, obj) in provenance_storage.journal.objects
             if objtype == "directory_in_revision"
         }
         prov_rels = {
-            k: {tuple(asdict(reldata).items()) for reldata in v}
+            (k, relation.dst, relation.path)
             for k, v in provenance_storage.relation_get_all(
                 RelationType.DIR_IN_REV
             ).items()
+            for relation in v
         }
         assert prov_rels == journal_rels
 
     def test_provenance_storage_relation_origin_layer(self, provenance_storage):
-        super().test_provenance_storage_relation_orign_layer(provenance_storage)
+        super().test_provenance_storage_relation_origin_layer(provenance_storage)
         assert provenance_storage.journal
         objtypes = {objtype for (objtype, obj) in provenance_storage.journal.objects}
         assert objtypes == {
             "origin",
-            "revision",
             "revision_in_origin",
             "revision_before_revision",
         }
 
         journal_rels = {
-            obj.id: {tuple(v.items()) for v in obj.value}
+            tuple(obj.value[k] for k in ("src", "dst", "path"))
             for (objtype, obj) in provenance_storage.journal.objects
             if objtype == "revision_in_origin"
         }
         prov_rels = {
-            k: {tuple(asdict(reldata).items()) for reldata in v}
+            (k, relation.dst, relation.path)
             for k, v in provenance_storage.relation_get_all(
                 RelationType.REV_IN_ORG
             ).items()
+            for relation in v
         }
         assert prov_rels == journal_rels
 
         journal_rels = {
-            obj.id: {tuple(v.items()) for v in obj.value}
+            tuple(obj.value[k] for k in ("src", "dst", "path"))
             for (objtype, obj) in provenance_storage.journal.objects
             if objtype == "revision_before_revision"
         }
         prov_rels = {
-            k: {tuple(asdict(reldata).items()) for reldata in v}
+            (k, relation.dst, relation.path)
             for k, v in provenance_storage.relation_get_all(
                 RelationType.REV_BEFORE_REV
             ).items()
+            for relation in v
         }
         assert prov_rels == journal_rels

@@ -5,8 +5,8 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict
 from datetime import datetime
+import hashlib
 from types import TracebackType
 from typing import Dict, Generator, Iterable, List, Optional, Set, Type
 
@@ -23,9 +23,10 @@ from swh.provenance.storage.interface import (
 
 
 class JournalMessage:
-    def __init__(self, id, value):
+    def __init__(self, id, value, add_id=True):
         self.id = id
         self.value = value
+        self.add_id = add_id
 
     def anonymize(self):
         return None
@@ -34,10 +35,13 @@ class JournalMessage:
         return self.id
 
     def to_dict(self):
-        return {
-            "id": self.id,
-            "value": self.value,
-        }
+        if self.add_id:
+            return {
+                "id": self.id,
+                "value": self.value,
+            }
+        else:
+            return self.value
 
 
 class ProvenanceStorageJournal:
@@ -83,7 +87,11 @@ class ProvenanceStorageJournal:
     def directory_add(self, dirs: Dict[Sha1Git, DirectoryData]) -> bool:
         self.journal.write_additions(
             "directory",
-            [JournalMessage(key, asdict(value)) for (key, value) in dirs.items()],
+            [
+                JournalMessage(key, value.date)
+                for (key, value) in dirs.items()
+                if value.date is not None
+            ],
         )
         return self.storage.directory_add(dirs)
 
@@ -99,9 +107,6 @@ class ProvenanceStorageJournal:
         return self.storage.entity_get_all(entity)
 
     def location_add(self, paths: Dict[Sha1Git, bytes]) -> bool:
-        self.journal.write_additions(
-            "location", [JournalMessage(key, value) for (key, value) in paths.items()]
-        )
         return self.storage.location_add(paths)
 
     def location_get_all(self) -> Dict[Sha1Git, bytes]:
@@ -119,7 +124,11 @@ class ProvenanceStorageJournal:
     def revision_add(self, revs: Dict[Sha1Git, RevisionData]) -> bool:
         self.journal.write_additions(
             "revision",
-            [JournalMessage(key, asdict(value)) for (key, value) in revs.items()],
+            [
+                JournalMessage(key, value.date)
+                for (key, value) in revs.items()
+                if value.date is not None
+            ],
         )
         return self.storage.revision_add(revs)
 
@@ -129,13 +138,17 @@ class ProvenanceStorageJournal:
     def relation_add(
         self, relation: RelationType, data: Dict[Sha1Git, Set[RelationData]]
     ) -> bool:
-        self.journal.write_additions(
-            relation.value,
-            [
-                JournalMessage(key, [asdict(reldata) for reldata in value])
-                for (key, value) in data.items()
-            ],
-        )
+        for src, relations in data.items():
+            for reldata in relations:
+                key = hashlib.sha1(src + reldata.dst + (reldata.path or b"")).digest()
+                self.journal.write_addition(
+                    relation.value,
+                    JournalMessage(
+                        key,
+                        {"src": src, "dst": reldata.dst, "path": reldata.path},
+                        add_id=False,
+                    ),
+                )
         return self.storage.relation_add(relation, data)
 
     def relation_get(

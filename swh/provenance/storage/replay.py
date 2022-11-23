@@ -3,8 +3,10 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from collections import defaultdict
+from datetime import datetime
 import logging
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 try:
     from systemd.daemon import notify
@@ -18,6 +20,7 @@ from swh.provenance.storage.interface import (
     RelationData,
     RelationType,
     RevisionData,
+    Sha1Git,
 )
 
 from .interface import ProvenanceStorageInterface
@@ -29,11 +32,11 @@ REPLAY_DURATION_METRIC = "swh_provenance_replayer_duration_seconds"
 
 
 def cvrt_directory(msg_d):
-    return (msg_d["id"], DirectoryData(**msg_d["value"]))
+    return (msg_d["id"], DirectoryData(date=msg_d["value"], flat=False))
 
 
 def cvrt_revision(msg_d):
-    return (msg_d["id"], RevisionData(**msg_d["value"]))
+    return (msg_d["id"], RevisionData(date=msg_d["value"], origin=None))
 
 
 def cvrt_default(msg_d):
@@ -41,14 +44,13 @@ def cvrt_default(msg_d):
 
 
 def cvrt_relation(msg_d):
-    return (msg_d["id"], {RelationData(**v) for v in msg_d["value"]})
+    return (msg_d["src"], RelationData(dst=msg_d["dst"], path=msg_d["path"]))
 
 
 OBJECT_CONVERTERS: Dict[str, Callable[[Dict], Tuple[bytes, Any]]] = {
     "directory": cvrt_directory,
     "revision": cvrt_revision,
     "content": cvrt_default,
-    "location": cvrt_default,
     "content_in_revision": cvrt_relation,
     "content_in_directory": cvrt_relation,
     "directory_in_revision": cvrt_relation,
@@ -100,8 +102,21 @@ def _insert_objects(
         logger.warning("Received a series of %s, this should not happen", object_type)
         return
 
-    data = dict(objects)
     if "_in_" in object_type:
-        storage.relation_add(relation=RelationType(object_type), data=data)
+        reldata = defaultdict(set)
+        for k, v in objects:
+            reldata[k].add(v)
+        storage.relation_add(relation=RelationType(object_type), data=reldata)
+    elif object_type in ("revision", "directory"):
+        entitydata: Dict[Sha1Git, Union[RevisionData, DirectoryData]] = {}
+        for k, v in objects:
+            if k not in entitydata or entitydata[k].date > v.date:
+                entitydata[k] = v
+        getattr(storage, f"{object_type}_add")(entitydata)
     else:
+        data: Dict[Sha1Git, datetime] = {}
+        for k, v in objects:
+            assert isinstance(v, datetime)
+            if k not in data or data[k] > v:
+                data[k] = v
         getattr(storage, f"{object_type}_add")(data)

@@ -187,77 +187,44 @@ def test_replay(
     )
 
     for i in range(10):
+        date = datetime.fromtimestamp(i, tz=timezone.utc)
         cntkey = (b"cnt:" + bytes([i])).ljust(20, b"\x00")
-        producer.produce(
-            topic=kafka_prefix + ".content",
-            key=key_to_kafka(cntkey),
-            value=value_to_kafka({"id": cntkey, "value": {"date": None}}),
-        )
         dirkey = (b"dir:" + bytes([i])).ljust(20, b"\x00")
-        producer.produce(
-            topic=kafka_prefix + ".directory",
-            key=key_to_kafka(dirkey),
-            value=value_to_kafka(
-                {"id": dirkey, "value": {"date": None, "flat": False}}
-            ),
-        )
         revkey = (b"rev:" + bytes([i])).ljust(20, b"\x00")
-        producer.produce(
-            topic=kafka_prefix + ".revision",
-            key=key_to_kafka(revkey),
-            value=value_to_kafka(
-                {"id": revkey, "value": {"date": None, "origin": None}}
-            ),
-        )
+
         loc = f"dir/{i}".encode()
-        lockey = (b"loc:" + bytes([i])).ljust(20, b"\x00")
-        producer.produce(
-            topic=kafka_prefix + ".location",
-            key=key_to_kafka(lockey),
-            value=value_to_kafka({"id": lockey, "value": loc}),
-        )
 
         producer.produce(
             topic=kafka_prefix + ".content_in_revision",
             key=key_to_kafka(cntkey),
-            value=value_to_kafka(
-                {"id": cntkey, "value": [{"dst": revkey, "path": loc}]}
-            ),
+            value=value_to_kafka({"src": cntkey, "dst": revkey, "path": loc}),
         )
         producer.produce(
             topic=kafka_prefix + ".content_in_directory",
             key=key_to_kafka(cntkey),
-            value=value_to_kafka(
-                {"id": cntkey, "value": [{"dst": dirkey, "path": loc}]}
-            ),
+            value=value_to_kafka({"src": cntkey, "dst": dirkey, "path": loc}),
         )
         producer.produce(
             topic=kafka_prefix + ".directory_in_revision",
             key=key_to_kafka(dirkey),
-            value=value_to_kafka(
-                {"id": dirkey, "value": [{"dst": revkey, "path": loc}]}
-            ),
+            value=value_to_kafka({"src": dirkey, "dst": revkey, "path": loc}),
         )
 
         # now add dates to entities
         producer.produce(
             topic=kafka_prefix + ".content",
             key=key_to_kafka(cntkey),
-            value=value_to_kafka({"id": cntkey, "value": {"date": now()}}),
+            value=value_to_kafka({"id": cntkey, "value": date}),
         )
         producer.produce(
             topic=kafka_prefix + ".directory",
             key=key_to_kafka(dirkey),
-            value=value_to_kafka(
-                {"id": dirkey, "value": {"date": now(), "flat": False}}
-            ),
+            value=value_to_kafka({"id": dirkey, "value": date}),
         )
         producer.produce(
             topic=kafka_prefix + ".revision",
             key=key_to_kafka(revkey),
-            value=value_to_kafka(
-                {"id": revkey, "value": {"date": now(), "origin": None}}
-            ),
+            value=value_to_kafka({"id": revkey, "value": date}),
         )
 
     producer.flush()
@@ -279,7 +246,7 @@ def test_replay(
     }
 
     result = invoke(["replay"], config=config)
-    expected = r"Done. processed 100 messages\n"
+    expected = r"Done. processed 60 messages\n"
 
     assert result.exit_code == 0, result.output
     assert re.fullmatch(expected, result.output, re.MULTILINE), result.output

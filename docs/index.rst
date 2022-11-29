@@ -29,18 +29,6 @@ setup):
   swh db init-admin -d provdb provenance
   swh db init -d provdb provenance
 
-The provenance index DB comes in 2 feature flags, so there are 4 possible flavors. Feature flags are:
-
-- ``with-path`` / ``without-path``: whether the provenance index database will store file path,
-- ``normalized`` / ``denormalized``: whether or not the main relation tables are normalized (see below).
-
-So the possible flavors are:
-
-- ``with-path``
-- ``without-path``
-- ``with-path-denormalized``
-- ``without-path-denormalized``
-
 Filling the provenance index database
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

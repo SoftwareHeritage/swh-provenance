@@ -1,6 +1,3 @@
--- psql variables to get the current database flavor
-select position('denormalized' in swh_get_dbflavor()::text) = 0 as dbflavor_norm \gset
-
 -- a Git object ID, i.e., a Git-style salted SHA1 checksum
 create domain sha1_git as bytea check (length(value) = 20);
 
@@ -72,68 +69,41 @@ comment on column origin.url is 'URL of the origin';
 create table content_in_revision
 (
     content  bigint not null,               -- internal identifier of the content blob
-\if :dbflavor_norm
     revision bigint not null,               -- internal identifier of the revision where the blob appears for the first time
     location bigint                         -- location of the content relative to the revision's root directory
-\else
-    revision bigint[],                      -- internal identifiers of the revisions where the blob appears for the first time
-    location bigint[]                       -- locations of the content relative to the revisions' root directory
-\endif
     -- foreign key (content) references content (id),
     -- foreign key (revision) references revision (id),
     -- foreign key (location) references location (id)
 );
 comment on column content_in_revision.content is 'Content internal identifier';
-\if :dbflavor_norm
 comment on column content_in_revision.revision is 'Revision internal identifier';
 comment on column content_in_revision.location is 'Location of content in revision';
-\else
-comment on column content_in_revision.revision is 'Revision/location internal identifiers';
-\endif
 
 create table content_in_directory
 (
     content   bigint not null,              -- internal identifier of the content blob
-\if :dbflavor_norm
     directory bigint not null,              -- internal identifier of the directory containing the blob
     location  bigint                        -- location of the content relative to its parent directory in the isochrone frontier
-\else
-    directory bigint[],                     -- internal reference of the directories containing the blob
-    location bigint[]                       -- locations of the content relative to its parent directories in the isochrone frontier
-\endif
     -- foreign key (content) references content (id),
     -- foreign key (directory) references directory (id),
     -- foreign key (location) references location (id)
 );
 comment on column content_in_directory.content is 'Content internal identifier';
-\if :dbflavor_norm
 comment on column content_in_directory.directory is 'Directory internal identifier';
 comment on column content_in_directory.location is 'Location of content in directory';
-\else
-comment on column content_in_directory.directory is 'Directory/location internal identifiers';
-\endif
 
 create table directory_in_revision
 (
     directory bigint not null,              -- internal identifier of the directory appearing in the revision
-\if :dbflavor_norm
     revision  bigint not null,              -- internal identifier of the revision containing the directory
     location  bigint                        -- location of the directory relative to the revision's root directory
-\else
-    revision bigint[],                      -- internal identifiers of the revisions containing the directory
-    location bigint[]                       -- locations of the directory relative to the revisions' root directory
-\endif
     -- foreign key (directory) references directory (id),
     -- foreign key (revision) references revision (id),
     -- foreign key (location) references location (id)
 );
 comment on column directory_in_revision.directory is 'Directory internal identifier';
-\if :dbflavor_norm
 comment on column directory_in_revision.revision is 'Revision internal identifier';
 comment on column directory_in_revision.location is 'Location of content in revision';
-\else
-comment on column directory_in_revision.revision is 'Revision/location internal identifiers';
-\endif
 
 create table revision_in_origin
 (

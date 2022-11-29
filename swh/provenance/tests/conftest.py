@@ -26,7 +26,6 @@ provenance_postgresql_proc = factories.postgresql_proc(
         partial(
             initialize_database_for_module,
             modname="provenance",
-            flavor="normalized",
             version=ProvenanceStoragePostgreSql.current_version,
         )
     ],
@@ -67,7 +66,8 @@ def provenance(
 
     init_admin_extensions("swh.provenance", postgres_provenance.dsn)
     populate_database_for_package(
-        "swh.provenance", postgres_provenance.dsn, flavor="normalized"
+        "swh.provenance",
+        postgres_provenance.dsn,
     )
     # in test sessions, we DO want to raise any exception occurring at commit time
     with get_provenance(

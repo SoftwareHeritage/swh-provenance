@@ -51,7 +51,7 @@ def handle_raise_on_commit(f):
 
 
 class ProvenanceStoragePostgreSql:
-    current_version = 4
+    current_version = 5
 
     def __init__(
         self,
@@ -100,10 +100,6 @@ class ProvenanceStoragePostgreSql:
                 self._flavor = flavor["flavor"]
         assert self._flavor is not None
         return self._flavor
-
-    @property
-    def denormalized(self) -> bool:
-        return "denormalized" in self.flavor
 
     @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "close"})
     def close(self) -> None:

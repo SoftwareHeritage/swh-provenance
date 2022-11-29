@@ -67,10 +67,7 @@ You need a configuration file, like:
   provenance:
     storage:
       cls: postgresql
-      db:
-        host: /tmp/tmpifn2ov_j
-        port: 9824
-        dbname: provdb
+      db: host=/tmp/tmpifn2ov_j port=9824 dbname=provdb
     archive:
       cls: api
       storage:

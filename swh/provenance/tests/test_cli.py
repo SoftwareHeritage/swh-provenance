@@ -148,8 +148,7 @@ def test_cli_origin_from_csv(
             },
             "storage": {
                 "cls": "postgresql",
-                # "db": provenance.storage.conn.dsn,
-                "db": provenance.storage.conn.get_dsn_parameters(),
+                "db": provenance.storage.conn.dsn,
             },
         },
     }
@@ -171,7 +170,7 @@ def test_cli_origin_from_csv(
 @pytest.mark.kafka
 def test_replay(
     provenance_storage,
-    provenance_postgresqldb,
+    provenance_postgresqldb: str,
     kafka_prefix: str,
     kafka_consumer_group: str,
     kafka_server: str,

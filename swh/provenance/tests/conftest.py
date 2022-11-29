@@ -4,7 +4,7 @@
 # See top-level LICENSE file for more information
 
 from functools import partial
-from typing import Dict, Generator
+from typing import Generator
 
 from _pytest.fixtures import SubRequest
 import psycopg2.extensions
@@ -36,14 +36,14 @@ postgres_provenance = factories.postgresql("provenance_postgresql_proc")
 
 
 @pytest.fixture()
-def provenance_postgresqldb(request, postgres_provenance):
-    return postgres_provenance.get_dsn_parameters()
+def provenance_postgresqldb(request, postgres_provenance) -> str:
+    return postgres_provenance.dsn
 
 
 @pytest.fixture()
 def provenance_storage(
     request: SubRequest,
-    provenance_postgresqldb: Dict[str, str],
+    provenance_postgresqldb: str,
 ) -> Generator[ProvenanceStorageInterface, None, None]:
     """Return a working and initialized ProvenanceStorageInterface object"""
 
@@ -72,7 +72,7 @@ def provenance(
     # in test sessions, we DO want to raise any exception occurring at commit time
     with get_provenance(
         cls="postgresql",
-        db=postgres_provenance.get_dsn_parameters(),
+        db=postgres_provenance.dsn,
         raise_on_commit=True,
     ) as provenance:
         yield provenance

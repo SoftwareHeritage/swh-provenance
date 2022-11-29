@@ -15,7 +15,7 @@ from .test_provenance_storage import TestProvenanceStorage as _TestProvenanceSto
 
 @pytest.fixture()
 def provenance_storage(
-    provenance_postgresqldb: Dict[str, str],
+    provenance_postgresqldb: str,
     rabbitmq,
 ) -> Generator[ProvenanceStorageInterface, None, None]:
     """Return a working and initialized ProvenanceStorageInterface object"""

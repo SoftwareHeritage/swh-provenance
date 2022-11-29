@@ -36,7 +36,7 @@ def get_provenance_storage(cls: str, **kwargs) -> ProvenanceStorageInterface:
 
         raise_on_commit = kwargs.get("raise_on_commit", False)
         return ProvenanceStoragePostgreSql(
-            raise_on_commit=raise_on_commit, **kwargs["db"]
+            raise_on_commit=raise_on_commit, db=kwargs["db"]
         )
 
     elif cls == "rabbitmq":

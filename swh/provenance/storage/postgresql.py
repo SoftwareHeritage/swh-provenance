@@ -54,10 +54,13 @@ class ProvenanceStoragePostgreSql:
     current_version = 4
 
     def __init__(
-        self, page_size: Optional[int] = None, raise_on_commit: bool = False, **kwargs
+        self,
+        page_size: Optional[int] = None,
+        raise_on_commit: bool = False,
+        db: str = "",
     ) -> None:
         self.conn: Optional[psycopg2.extensions.connection] = None
-        self.conn_args = kwargs
+        self.dsn = db
         self._flavor: Optional[str] = None
         self.page_size = page_size
         self.raise_on_commit = raise_on_commit
@@ -260,7 +263,7 @@ class ProvenanceStoragePostgreSql:
 
     @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "open"})
     def open(self) -> None:
-        self.conn = BaseDb.connect(**self.conn_args).conn
+        self.conn = BaseDb.connect(self.dsn).conn
         BaseDb.adapt_conn(self.conn)
         with self.transaction() as cursor:
             cursor.execute("SET timezone TO 'UTC'")

@@ -28,9 +28,7 @@ archive:
 
 provenance:
   cls: direct
-  db:
-    dbname: provenance
-    host: localhost
+  db: dbname=provenance host=localhost
 
 
 ```

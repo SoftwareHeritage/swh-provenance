@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Dict, Generator
+from typing import Generator
 
 import pytest
 
@@ -19,7 +19,7 @@ from .test_provenance_storage import TestProvenanceStorage as _TestProvenanceSto
 
 @pytest.fixture()
 def provenance_storage(
-    provenance_postgresqldb: Dict[str, str],
+    provenance_postgresqldb: str,
 ) -> Generator[ProvenanceStorageInterface, None, None]:
     cfg = {
         "storage": {

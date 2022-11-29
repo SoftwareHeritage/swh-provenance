@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Dict, Generator
+from typing import Generator
 
 from confluent_kafka import Consumer
 import pytest
@@ -18,7 +18,7 @@ from .test_provenance_storage import (  # noqa
 
 @pytest.fixture()
 def provenance_storage(
-    provenance_postgresqldb: Dict[str, str],
+    provenance_postgresqldb: str,
     kafka_prefix: str,
     kafka_server: str,
     consumer: Consumer,

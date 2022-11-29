@@ -64,7 +64,7 @@ def test_cli_origin_from_journal_client(
             },
             "storage": {
                 "cls": "postgresql",
-                "db": postgres_provenance.get_dsn_parameters(),
+                "db": postgres_provenance.dsn,
             },
         },
     }
@@ -116,7 +116,7 @@ def test_cli_revision_from_journal_client(
             },
             "storage": {
                 "cls": "postgresql",
-                "db": postgres_provenance.get_dsn_parameters(),
+                "db": postgres_provenance.dsn,
             },
         },
     }

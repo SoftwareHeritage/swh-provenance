@@ -4,9 +4,9 @@
 # See top-level LICENSE file for more information
 
 import functools
-from typing import Dict
 
 import psycopg2
+from psycopg2.extensions import parse_dsn
 import pytest
 
 from swh.journal.client import JournalClient
@@ -46,7 +46,7 @@ def object_types():
 
 @pytest.fixture()
 def replayer_storage_and_client(
-    provenance_postgresqldb: Dict[str, str],
+    provenance_postgresqldb: str,
     kafka_prefix: str,
     kafka_consumer_group: str,
     kafka_server: str,
@@ -80,13 +80,14 @@ def replayer_storage_and_client(
 
 
 @pytest.fixture()
-def secondary_db(provenance_postgresqldb: Dict[str, str]):
+def secondary_db(provenance_postgresqldb: str):
     """Create a new test db
 
     the new db is named after the db configured in provenance_postgresqldb and
     is using the same template as this later.
     """
-    dsn = provenance_postgresqldb.copy()
+    dsn = parse_dsn(provenance_postgresqldb)
+
     conn = psycopg2.connect(
         dbname="postgres",
         user=dsn["user"],
@@ -102,7 +103,7 @@ def secondary_db(provenance_postgresqldb: Dict[str, str]):
         cur.execute(f'CREATE DATABASE "{secondary_dbname}" TEMPLATE "{template_name}"')
     try:
         dsn["dbname"] = secondary_dbname
-        yield dsn
+        yield " ".join(f"{k}={v}" for k, v in dsn.items())
     finally:
         with conn.cursor() as cur:
             cur.execute(f'DROP DATABASE "{secondary_dbname}"')
@@ -121,7 +122,7 @@ def test_provenance_replayer(
     provenance_storage: ProvenanceStorageInterface,
     archive: ArchiveInterface,
     replayer_storage_and_client,
-    secondary_db,
+    secondary_db: str,
     repo: str,
 ):
     """Optimal replayer scenario.

@@ -62,12 +62,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
             "url": "amqp://localhost:5672/%2f",
             "storage_config": {
                 "cls": "postgresql",
-                "db": {
-                    "host": "localhost",
-                    "user": "postgres",
-                    "password": "postgres",
-                    "dbname": "provenance",
-                },
+                "db": "host=localhost user=postgres password=postgres dbname=provenance",
             },
             "batch_size": 100,
             "prefetch_count": 100,
@@ -195,8 +190,7 @@ def replay(ctx: click.core.Context, stop_after_objects, object_types):
       provenance:
         storage:
           cls: postgresql
-          db:
-            [...]
+          db: [...]
         journal_client:
           cls: kafka
           prefix: swh.journal.provenance

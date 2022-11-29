@@ -4,7 +4,7 @@
 # See top-level LICENSE file for more information
 
 from datetime import datetime
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 from swh.model.hashutil import hash_to_bytes
 from swh.model.model import Sha1Git
@@ -140,30 +140,37 @@ def test_resolve_revision_keep_min_date() -> None:
 
 
 def test_resolve_relation() -> None:
-    items: List[Tuple[Sha1Git, Sha1Git, bytes]] = [
+    items: List[Tuple[Sha1Git, Sha1Git, Optional[bytes], Optional[datetime]]] = [
         (
             hash_to_bytes("c0d8929936631ecbcf9147be6b8aa13b13b014e4"),
             hash_to_bytes("3acef14580ea7fd42840ee905c5ce2b0ef9e8174"),
             b"/path/1",
+            datetime.fromtimestamp(1000000001),
         ),
         (
             hash_to_bytes("c0d8929936631ecbcf9147be6b8aa13b13b014e4"),
             hash_to_bytes("3acef14580ea7fd42840ee905c5ce2b0ef9e8174"),
             b"/path/2",
+            None,
         ),
         (
             hash_to_bytes("c0d8929936631ecbcf9147be6b8aa13b13b014e4"),
             hash_to_bytes("3acef14580ea7fd42840ee905c5ce2b0ef9e8174"),
             b"/path/1",
+            datetime.fromtimestamp(1000000001),
         ),
     ]
     assert resolve_relation(items) == {
         hash_to_bytes("c0d8929936631ecbcf9147be6b8aa13b13b014e4"): {
             RelationData(
-                hash_to_bytes("3acef14580ea7fd42840ee905c5ce2b0ef9e8174"), b"/path/1"
+                hash_to_bytes("3acef14580ea7fd42840ee905c5ce2b0ef9e8174"),
+                b"/path/1",
+                dst_date=datetime.fromtimestamp(1000000001),
             ),
             RelationData(
-                hash_to_bytes("3acef14580ea7fd42840ee905c5ce2b0ef9e8174"), b"/path/2"
+                hash_to_bytes("3acef14580ea7fd42840ee905c5ce2b0ef9e8174"),
+                b"/path/2",
+                dst_date=None,
             ),
         }
     }

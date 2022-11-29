@@ -4,7 +4,8 @@ as $$
     create temp table tmp_relation_add (
         src sha1_git not null,
         dst sha1_git not null,
-        path unix_path
+        path unix_path,
+        dst_date timestamptz
     ) on commit drop
 $$;
 
@@ -21,7 +22,7 @@ create or replace function swh_provenance_content_find_first(content_id sha1_git
 as $$
     select C.sha1 as content,
            R.sha1 as revision,
-           R.date as date,
+           CR.revision_date as date,
            O.url as origin,
            L.path as path
     from content as C
@@ -46,7 +47,7 @@ create or replace function swh_provenance_content_find_all(content_id sha1_git, 
 as $$
     (select C.sha1 as content,
             R.sha1 as revision,
-            R.date as date,
+            CR.revision_date as date,
             O.url as origin,
             L.path as path
      from content as C
@@ -54,7 +55,8 @@ as $$
      inner join location as L on (L.id = CR.location)
      inner join revision as R on (R.id = CR.revision)
      left join origin as O on (O.id = R.origin)
-     where C.sha1 = content_id)
+     where C.sha1 = content_id
+     order by date, revision, origin, path limit early_cut)
     union
     (select C.sha1 as content,
             R.sha1 as revision,
@@ -72,7 +74,8 @@ as $$
      inner join location as CL on (CL.id = CD.location)
      inner join location as DL on (DL.id = DR.location)
      left join origin as O on (O.id = R.origin)
-     where C.sha1 = content_id)
+     where C.sha1 = content_id
+     order by date, revision, origin, path limit early_cut)
     order by date, revision, origin, path limit early_cut
 $$;
 
@@ -87,13 +90,17 @@ as $$
         select_fields text;
         join_location text;
     begin
-        if src_table in ('content'::regclass, 'directory'::regclass) then
+        case
+          when src_table = 'content'::regclass and dst_table = 'revision'::regclass then
+            select_fields := 'D.id, L.id, dst_date as revision_date';
+            join_location := 'inner join location as L on (digest(L.path,''sha1'') = digest(V.path,''sha1''))';
+          when src_table in ('content'::regclass, 'directory'::regclass) then
             select_fields := 'D.id, L.id';
             join_location := 'inner join location as L on (digest(L.path,''sha1'') = digest(V.path,''sha1''))';
-        else
+          else
             select_fields := 'D.id';
             join_location := '';
-        end if;
+        end case;
 
         execute format(
             'insert into %s (sha1)

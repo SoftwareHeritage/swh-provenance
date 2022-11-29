@@ -51,7 +51,7 @@ def handle_raise_on_commit(f):
 
 
 class ProvenanceStoragePostgreSql:
-    current_version = 5
+    current_version = 6
 
     def __init__(
         self,
@@ -330,7 +330,11 @@ class ProvenanceStoragePostgreSql:
     def relation_add(
         self, relation: RelationType, data: Dict[Sha1Git, Set[RelationData]]
     ) -> bool:
-        rows = [(src, rel.dst, rel.path) for src, dsts in data.items() for rel in dsts]
+        rows = [
+            (src, rel.dst, rel.path, rel.dst_date)
+            for src, dsts in data.items()
+            for rel in dsts
+        ]
         if rows:
             rel_table = relation.value
             src_table, *_, dst_table = rel_table.split("_")
@@ -341,7 +345,7 @@ class ProvenanceStoragePostgreSql:
                 cursor.execute("SELECT swh_mktemp_relation_add()")
                 psycopg2.extras.execute_values(
                     cur=cursor,
-                    sql="INSERT INTO tmp_relation_add(src, dst, path) VALUES %s",
+                    sql="INSERT INTO tmp_relation_add(src, dst, path, dst_date) VALUES %s",
                     argslist=rows,
                     page_size=page_size,
                 )

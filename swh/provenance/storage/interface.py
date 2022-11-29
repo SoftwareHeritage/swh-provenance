@@ -67,13 +67,16 @@ class RevisionData:
 
 @dataclass(eq=True, frozen=True)
 class RelationData:
-    """Object representing a relation entry in the provenance model, where `src` and
-    `dst` are the sha1 ids of the entities being related, and `path` is optional
-    depending on the relation being represented.
+    """Object representing a relation entry in the provenance model, where `src`
+    and `dst` are the sha1 ids of the entities being related, and `path` is
+    optional depending on the relation being represented. `dst_date` is the
+    (denormalized) known date of the destination, if relevant (e.g. in
+    `content_in_revision`).
     """
 
     dst: Sha1Git
     path: Optional[bytes]
+    dst_date: Optional[datetime] = None
 
 
 @runtime_checkable

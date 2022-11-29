@@ -39,16 +39,19 @@ def test_split_ranges_for_relation() -> None:
                 hash_to_bytes("c0d8929936631ecbcf9147be6b8aa13b13b014e4"),
                 hash_to_bytes("3acef14580ea7fd42840ee905c5ce2b0ef9e8174"),
                 b"/path/1",
+                None,
             ),
             (
                 hash_to_bytes("c0d8929936631ecbcf9147be6b8aa13b13b014e4"),
                 hash_to_bytes("3acef14580ea7fd42840ee905c5ce2b0ef9e8174"),
                 b"/path/2",
+                None,
             ),
             (
                 hash_to_bytes("c1d8929936631ecbcf9147be6b8aa13b13b014e4"),
                 hash_to_bytes("3acef14580ea7fd42840ee905c5ce2b0ef9e8174"),
                 b"/path/4",
+                None,
             ),
         },
         "relation_add.content_in_revision.d": {
@@ -56,6 +59,7 @@ def test_split_ranges_for_relation() -> None:
                 hash_to_bytes("d0d8929936631ecbcf9147be6b8aa13b13b014e4"),
                 hash_to_bytes("3acef14580ea7fd42840ee905c5ce2b0ef9e8174"),
                 b"/path/3",
+                None,
             ),
         },
     }

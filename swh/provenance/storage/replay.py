@@ -44,7 +44,10 @@ def cvrt_default(msg_d):
 
 
 def cvrt_relation(msg_d):
-    return (msg_d["src"], RelationData(dst=msg_d["dst"], path=msg_d["path"]))
+    return (
+        msg_d["src"],
+        RelationData(dst=msg_d["dst"], path=msg_d["path"], dst_date=msg_d["dst_date"]),
+    )
 
 
 OBJECT_CONVERTERS: Dict[str, Callable[[Dict], Tuple[bytes, Any]]] = {

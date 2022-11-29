@@ -70,7 +70,8 @@ create table content_in_revision
 (
     content  bigint not null,               -- internal identifier of the content blob
     revision bigint not null,               -- internal identifier of the revision where the blob appears for the first time
-    location bigint                         -- location of the content relative to the revision's root directory
+    location bigint,                        -- location of the content relative to the revision's root directory
+    revision_date timestamptz not null      -- date of the revision where the blob appears for the first time
     -- foreign key (content) references content (id),
     -- foreign key (revision) references revision (id),
     -- foreign key (location) references location (id)
@@ -78,6 +79,7 @@ create table content_in_revision
 comment on column content_in_revision.content is 'Content internal identifier';
 comment on column content_in_revision.revision is 'Revision internal identifier';
 comment on column content_in_revision.location is 'Location of content in revision';
+comment on column content_in_revision.revision_date is 'Date of the revision';
 
 create table content_in_directory
 (

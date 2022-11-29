@@ -1,6 +1,6 @@
 -- create unique indexes (instead of pkey) because location might be null for
 -- the without-path flavor
-create unique index on content_in_revision(content, revision, location);
+create unique index on content_in_revision(content, revision_date, revision, location);
 create unique index on directory_in_revision(directory, revision, location);
 create unique index on content_in_directory(content, directory, location);
 

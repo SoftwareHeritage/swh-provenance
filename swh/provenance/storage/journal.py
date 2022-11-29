@@ -145,7 +145,12 @@ class ProvenanceStorageJournal:
                 messages.append(
                     JournalMessage(
                         key,
-                        {"src": src, "dst": reldata.dst, "path": reldata.path},
+                        {
+                            "src": src,
+                            "dst": reldata.dst,
+                            "path": reldata.path,
+                            "dst_date": reldata.dst_date,
+                        },
                         add_id=False,
                     )
                 )

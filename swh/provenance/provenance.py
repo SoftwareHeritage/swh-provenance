@@ -54,7 +54,7 @@ class ProvenanceCache(TypedDict):
     directory_flatten: Dict[Sha1Git, Optional[bool]]  # None means unknown
     revision: DatetimeCache
     # below are insertion caches only
-    content_in_revision: Set[Tuple[Sha1Git, Sha1Git, bytes]]
+    content_in_revision: Set[Tuple[Sha1Git, Sha1Git, datetime, bytes]]
     content_in_directory: Set[Tuple[Sha1Git, Sha1Git, bytes]]
     directory_in_revision: Set[Tuple[Sha1Git, Sha1Git, bytes]]
     # these two are for the origin layer
@@ -269,9 +269,12 @@ class Provenance:
 
         paths = {
             hashlib.sha1(path).digest(): path
-            for _, _, path in self.cache["content_in_revision"]
-            | self.cache["content_in_directory"]
-            | self.cache["directory_in_revision"]
+            for cache_table in (
+                "content_in_revision",
+                "content_in_directory",
+                "directory_in_revision",
+            )
+            for *_, path in self.cache[cache_table]  # type: ignore
         }
         if paths:
             while not self.storage.location_add(paths):
@@ -287,8 +290,10 @@ class Provenance:
         # failure, reprocessing the input does not generated an inconsistent database.
         if self.cache["content_in_revision"]:
             cnt_in_rev: Dict[Sha1Git, Set[RelationData]] = {}
-            for src, dst, path in self.cache["content_in_revision"]:
-                cnt_in_rev.setdefault(src, set()).add(RelationData(dst=dst, path=path))
+            for src, dst, dst_date, path in self.cache["content_in_revision"]:
+                cnt_in_rev.setdefault(src, set()).add(
+                    RelationData(dst=dst, dst_date=dst_date, path=path)
+                )
             while not self.storage.relation_add(
                 RelationType.CNT_EARLY_IN_REV, cnt_in_rev
             ):
@@ -379,8 +384,14 @@ class Provenance:
     def content_add_to_revision(
         self, revision: RevisionEntry, blob: FileEntry, prefix: bytes
     ) -> None:
+        assert revision.date is not None
         self.cache["content_in_revision"].add(
-            (blob.id, revision.id, path_normalize(os.path.join(prefix, blob.name)))
+            (
+                blob.id,
+                revision.id,
+                revision.date,
+                path_normalize(os.path.join(prefix, blob.name)),
+            )
         )
 
     def content_find_first(self, id: Sha1Git) -> Optional[ProvenanceResult]:

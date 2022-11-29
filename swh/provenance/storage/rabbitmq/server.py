@@ -108,11 +108,13 @@ def resolve_revision(
 
 
 def resolve_relation(
-    data: Iterable[Tuple[Sha1Git, Sha1Git, bytes]]
+    data: Iterable[Tuple[Sha1Git, Sha1Git, Optional[bytes], Optional[datetime]]]
 ) -> Dict[Sha1Git, Set[RelationData]]:
     result: Dict[Sha1Git, Set[RelationData]] = {}
-    for src, dst, path in data:
-        result.setdefault(src, set()).add(RelationData(dst=dst, path=path))
+    for src, dst, path, dst_date in data:
+        result.setdefault(src, set()).add(
+            RelationData(dst=dst, path=path, dst_date=dst_date)
+        )
     return result
 
 
@@ -304,8 +306,6 @@ class ProvenanceStorageRabbitMQWorker(multiprocessing.Process):
             properties.app_id,
             body,
         )
-        # XXX: for some reason this function is returning lists instead of tuples
-        #      (the client send tuples)
         batch = decode_data(data=body, extra_decoders=self.extra_type_decoders)["data"]
         for item in batch:
             self._request_queues[deliver.routing_key].put(

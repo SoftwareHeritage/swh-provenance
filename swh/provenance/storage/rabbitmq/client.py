@@ -65,7 +65,9 @@ def split_ranges(
                 assert isinstance(
                     rel, RelationData
                 ), "Values in the dictionary must be RelationData structures"
-                ranges.setdefault(key, set()).add((src, rel.dst, rel.path))
+                ranges.setdefault(key, set()).add(
+                    (src, rel.dst, rel.path, rel.dst_date)
+                )
     else:
         items: Union[Set[Tuple[bytes, Any]], Set[Tuple[bytes]]]
         if isinstance(data, dict):

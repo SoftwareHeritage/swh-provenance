@@ -128,17 +128,23 @@ def test_replay(
         producer.produce(
             topic=kafka_prefix + ".content_in_revision",
             key=key_to_kafka(cntkey),
-            value=value_to_kafka({"src": cntkey, "dst": revkey, "path": loc}),
+            value=value_to_kafka(
+                {"src": cntkey, "dst": revkey, "path": loc, "dst_date": date}
+            ),
         )
         producer.produce(
             topic=kafka_prefix + ".content_in_directory",
             key=key_to_kafka(cntkey),
-            value=value_to_kafka({"src": cntkey, "dst": dirkey, "path": loc}),
+            value=value_to_kafka(
+                {"src": cntkey, "dst": dirkey, "path": loc, "dst_date": None}
+            ),
         )
         producer.produce(
             topic=kafka_prefix + ".directory_in_revision",
             key=key_to_kafka(dirkey),
-            value=value_to_kafka({"src": dirkey, "dst": revkey, "path": loc}),
+            value=value_to_kafka(
+                {"src": dirkey, "dst": revkey, "path": loc, "dst_date": None}
+            ),
         )
 
         # now add dates to entities

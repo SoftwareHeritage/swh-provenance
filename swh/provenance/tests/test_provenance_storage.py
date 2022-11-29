@@ -180,7 +180,9 @@ class TestProvenanceStorage:
                 for subdir in data["directory"]
                 if subdir["id"] == rev["directory"]
             )
-            for cnt, rel in dircontent(data, rev["id"], root):
+            for cnt, rel in dircontent(
+                data=data, ref=rev["id"], dir=root, ref_date=ts2dt(rev["date"])
+            ):
                 cnt_in_rev.setdefault(cnt, set()).add(rel)
         relation_add_and_compare_result(
             provenance_storage, RelationType.CNT_EARLY_IN_REV, cnt_in_rev
@@ -190,7 +192,7 @@ class TestProvenanceStorage:
         # Create flat models for every directory in the dataset.
         cnt_in_dir: Dict[Sha1Git, Set[RelationData]] = {}
         for dir in data["directory"]:
-            for cnt, rel in dircontent(data, dir["id"], dir):
+            for cnt, rel in dircontent(data=data, ref=dir["id"], dir=dir):
                 cnt_in_dir.setdefault(cnt, set()).add(rel)
         relation_add_and_compare_result(
             provenance_storage, RelationType.CNT_IN_DIR, cnt_in_dir
@@ -391,11 +393,14 @@ def dircontent(
     ref: Sha1Git,
     dir: Dict[str, Any],
     prefix: bytes = b"",
+    ref_date: Optional[datetime] = None,
 ) -> Iterable[Tuple[Sha1Git, RelationData]]:
     content = {
         (
             entry["target"],
-            RelationData(dst=ref, path=os.path.join(prefix, entry["name"])),
+            RelationData(
+                dst=ref, path=os.path.join(prefix, entry["name"]), dst_date=ref_date
+            ),
         )
         for entry in dir["entries"]
         if entry["type"] == "file"
@@ -408,7 +413,13 @@ def dircontent(
                 if subdir["id"] == entry["target"]
             )
             content.update(
-                dircontent(data, ref, child, os.path.join(prefix, entry["name"]))
+                dircontent(
+                    data=data,
+                    ref=ref,
+                    dir=child,
+                    prefix=os.path.join(prefix, entry["name"]),
+                    ref_date=ref_date,
+                )
             )
     return content
 

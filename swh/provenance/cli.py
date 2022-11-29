@@ -41,12 +41,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
             # }
             # Direct access Archive object
             "cls": "direct",
-            "db": {
-                "host": "belvedere.internal.softwareheritage.org",
-                "port": 5432,
-                "dbname": "softwareheritage",
-                "user": "guest",
-            },
+            "db": (
+                "host=belvedere.internal.softwareheritage.org port=5432 "
+                "dbname=softwareheritage user=guest"
+            ),
         },
         "storage": {
             # Local PostgreSQL Storage

@@ -34,7 +34,7 @@ def get_archive(cls: str, **kwargs) -> ArchiveInterface:
 
         from .postgresql import ArchivePostgreSQL
 
-        return ArchivePostgreSQL(BaseDb.connect(**kwargs["db"]).conn)
+        return ArchivePostgreSQL(BaseDb.connect(kwargs["db"]).conn)
 
     elif cls == "graph":
         try:

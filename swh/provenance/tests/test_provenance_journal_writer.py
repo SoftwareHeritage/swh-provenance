@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Generator
+from typing import Dict, Generator
 
 import pytest
 
@@ -19,7 +19,7 @@ from .test_provenance_storage import TestProvenanceStorage as _TestProvenanceSto
 
 @pytest.fixture()
 def provenance_storage(
-    provenance_postgresqldb: str,
+    provenance_postgresqldb: Dict[str, str],
 ) -> Generator[ProvenanceStorageInterface, None, None]:
     cfg = {
         "storage": {
@@ -38,52 +38,64 @@ def provenance_storage(
 class TestProvenanceStorageJournal(_TestProvenanceStorage):
     def test_provenance_storage_content(self, provenance_storage):
         super().test_provenance_storage_content(provenance_storage)
-        assert provenance_storage.journal
-        objtypes = {objtype for (objtype, obj) in provenance_storage.journal.objects}
+        assert provenance_storage.journal_writer.journal
+        objtypes = {
+            objtype
+            for (objtype, obj) in provenance_storage.journal_writer.journal.objects
+        }
         assert objtypes == {"content"}
 
         journal_objs = {
             obj.id
-            for (objtype, obj) in provenance_storage.journal.objects
+            for (objtype, obj) in provenance_storage.journal_writer.journal.objects
             if objtype == "content"
         }
         assert provenance_storage.entity_get_all(EntityType.CONTENT) == journal_objs
 
     def test_provenance_storage_directory(self, provenance_storage):
         super().test_provenance_storage_directory(provenance_storage)
-        assert provenance_storage.journal
-        objtypes = {objtype for (objtype, obj) in provenance_storage.journal.objects}
+        assert provenance_storage.journal_writer.journal
+        objtypes = {
+            objtype
+            for (objtype, obj) in provenance_storage.journal_writer.journal.objects
+        }
         assert objtypes == {"directory"}
 
         journal_objs = {
             obj.id
-            for (objtype, obj) in provenance_storage.journal.objects
+            for (objtype, obj) in provenance_storage.journal_writer.journal.objects
             if objtype == "directory"
         }
         assert provenance_storage.entity_get_all(EntityType.DIRECTORY) == journal_objs
 
     def test_provenance_storage_origin(self, provenance_storage):
         super().test_provenance_storage_origin(provenance_storage)
-        assert provenance_storage.journal
-        objtypes = {objtype for (objtype, obj) in provenance_storage.journal.objects}
+        assert provenance_storage.journal_writer.journal
+        objtypes = {
+            objtype
+            for (objtype, obj) in provenance_storage.journal_writer.journal.objects
+        }
         assert objtypes == {"origin"}
 
         journal_objs = {
             obj.id
-            for (objtype, obj) in provenance_storage.journal.objects
+            for (objtype, obj) in provenance_storage.journal_writer.journal.objects
             if objtype == "origin"
         }
         assert provenance_storage.entity_get_all(EntityType.ORIGIN) == journal_objs
 
     def test_provenance_storage_revision(self, provenance_storage):
         super().test_provenance_storage_revision(provenance_storage)
-        assert provenance_storage.journal
-        objtypes = {objtype for (objtype, obj) in provenance_storage.journal.objects}
+        assert provenance_storage.journal_writer.journal
+        objtypes = {
+            objtype
+            for (objtype, obj) in provenance_storage.journal_writer.journal.objects
+        }
         assert objtypes == {"revision", "origin"}
 
         journal_objs = {
             obj.id
-            for (objtype, obj) in provenance_storage.journal.objects
+            for (objtype, obj) in provenance_storage.journal_writer.journal.objects
             if objtype == "revision"
         }
         all_revisions = provenance_storage.revision_get(
@@ -96,8 +108,11 @@ class TestProvenanceStorageJournal(_TestProvenanceStorage):
 
     def test_provenance_storage_relation_revision_layer(self, provenance_storage):
         super().test_provenance_storage_relation_revision_layer(provenance_storage)
-        assert provenance_storage.journal
-        objtypes = {objtype for (objtype, obj) in provenance_storage.journal.objects}
+        assert provenance_storage.journal_writer.journal
+        objtypes = {
+            objtype
+            for (objtype, obj) in provenance_storage.journal_writer.journal.objects
+        }
         assert objtypes == {
             "content",
             "directory",
@@ -108,7 +123,7 @@ class TestProvenanceStorageJournal(_TestProvenanceStorage):
 
         journal_rels = {
             tuple(obj.value[k] for k in ("src", "dst", "path"))
-            for (objtype, obj) in provenance_storage.journal.objects
+            for (objtype, obj) in provenance_storage.journal_writer.journal.objects
             if objtype == "content_in_revision"
         }
         prov_rels = {
@@ -122,7 +137,7 @@ class TestProvenanceStorageJournal(_TestProvenanceStorage):
 
         journal_rels = {
             tuple(obj.value[k] for k in ("src", "dst", "path"))
-            for (objtype, obj) in provenance_storage.journal.objects
+            for (objtype, obj) in provenance_storage.journal_writer.journal.objects
             if objtype == "content_in_directory"
         }
         prov_rels = {
@@ -136,7 +151,7 @@ class TestProvenanceStorageJournal(_TestProvenanceStorage):
 
         journal_rels = {
             tuple(obj.value[k] for k in ("src", "dst", "path"))
-            for (objtype, obj) in provenance_storage.journal.objects
+            for (objtype, obj) in provenance_storage.journal_writer.journal.objects
             if objtype == "directory_in_revision"
         }
         prov_rels = {
@@ -150,8 +165,11 @@ class TestProvenanceStorageJournal(_TestProvenanceStorage):
 
     def test_provenance_storage_relation_origin_layer(self, provenance_storage):
         super().test_provenance_storage_relation_origin_layer(provenance_storage)
-        assert provenance_storage.journal
-        objtypes = {objtype for (objtype, obj) in provenance_storage.journal.objects}
+        assert provenance_storage.journal_writer.journal
+        objtypes = {
+            objtype
+            for (objtype, obj) in provenance_storage.journal_writer.journal.objects
+        }
         assert objtypes == {
             "origin",
             "revision_in_origin",
@@ -160,7 +178,7 @@ class TestProvenanceStorageJournal(_TestProvenanceStorage):
 
         journal_rels = {
             tuple(obj.value[k] for k in ("src", "dst", "path"))
-            for (objtype, obj) in provenance_storage.journal.objects
+            for (objtype, obj) in provenance_storage.journal_writer.journal.objects
             if objtype == "revision_in_origin"
         }
         prov_rels = {
@@ -174,7 +192,7 @@ class TestProvenanceStorageJournal(_TestProvenanceStorage):
 
         journal_rels = {
             tuple(obj.value[k] for k in ("src", "dst", "path"))
-            for (objtype, obj) in provenance_storage.journal.objects
+            for (objtype, obj) in provenance_storage.journal_writer.journal.objects
             if objtype == "revision_before_revision"
         }
         prov_rels = {

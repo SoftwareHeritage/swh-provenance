@@ -44,10 +44,67 @@ class JournalMessage:
             return self.value
 
 
+class ProvenanceStorageJournalWriter:
+    def __init__(self, journal):
+        self.journal = journal
+
+    def content_add(self, cnts: Dict[Sha1Git, datetime]) -> None:
+        self.journal.write_additions(
+            "content", [JournalMessage(key, value) for (key, value) in cnts.items()]
+        )
+
+    def directory_add(self, dirs: Dict[Sha1Git, DirectoryData]) -> None:
+        self.journal.write_additions(
+            "directory",
+            [
+                JournalMessage(key, value.date)
+                for (key, value) in dirs.items()
+                if value.date is not None
+            ],
+        )
+
+    def origin_add(self, orgs: Dict[Sha1Git, str]) -> None:
+        self.journal.write_additions(
+            "origin", [JournalMessage(key, value) for (key, value) in orgs.items()]
+        )
+
+    def revision_add(self, revs: Dict[Sha1Git, RevisionData]) -> None:
+        self.journal.write_additions(
+            "revision",
+            [
+                JournalMessage(key, value.date)
+                for (key, value) in revs.items()
+                if value.date is not None
+            ],
+        )
+
+    def relation_add(
+        self, relation: RelationType, data: Dict[Sha1Git, Set[RelationData]]
+    ) -> None:
+        messages = []
+        for src, relations in data.items():
+            for reldata in relations:
+                key = hashlib.sha1(src + reldata.dst + (reldata.path or b"")).digest()
+                messages.append(
+                    JournalMessage(
+                        key,
+                        {
+                            "src": src,
+                            "dst": reldata.dst,
+                            "path": reldata.path,
+                            "dst_date": reldata.dst_date,
+                        },
+                        add_id=False,
+                    )
+                )
+
+        self.journal.write_additions(relation.value, messages)
+
+
 class ProvenanceStorageJournal:
     def __init__(self, storage, journal):
         self.storage = storage
-        self.journal = journal
+        self.journal_writer = ProvenanceStorageJournalWriter(journal)
 
     def __enter__(self) -> ProvenanceStorageInterface:
         self.storage.__enter__()
@@ -68,9 +125,7 @@ class ProvenanceStorageJournal:
         self.storage.close()
 
     def content_add(self, cnts: Dict[Sha1Git, datetime]) -> bool:
-        self.journal.write_additions(
-            "content", [JournalMessage(key, value) for (key, value) in cnts.items()]
-        )
+        self.journal_writer.content_add(cnts)
         return self.storage.content_add(cnts)
 
     def content_find_first(self, id: Sha1Git) -> Optional[ProvenanceResult]:
@@ -85,14 +140,7 @@ class ProvenanceStorageJournal:
         return self.storage.content_get(ids)
 
     def directory_add(self, dirs: Dict[Sha1Git, DirectoryData]) -> bool:
-        self.journal.write_additions(
-            "directory",
-            [
-                JournalMessage(key, value.date)
-                for (key, value) in dirs.items()
-                if value.date is not None
-            ],
-        )
+        self.journal_writer.directory_add(dirs)
         return self.storage.directory_add(dirs)
 
     def directory_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, DirectoryData]:
@@ -113,23 +161,14 @@ class ProvenanceStorageJournal:
         return self.storage.location_get_all()
 
     def origin_add(self, orgs: Dict[Sha1Git, str]) -> bool:
-        self.journal.write_additions(
-            "origin", [JournalMessage(key, value) for (key, value) in orgs.items()]
-        )
+        self.journal_writer.origin_add(orgs)
         return self.storage.origin_add(orgs)
 
     def origin_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, str]:
         return self.storage.origin_get(ids)
 
     def revision_add(self, revs: Dict[Sha1Git, RevisionData]) -> bool:
-        self.journal.write_additions(
-            "revision",
-            [
-                JournalMessage(key, value.date)
-                for (key, value) in revs.items()
-                if value.date is not None
-            ],
-        )
+        self.journal_writer.revision_add(revs)
         return self.storage.revision_add(revs)
 
     def revision_get(self, ids: Iterable[Sha1Git]) -> Dict[Sha1Git, RevisionData]:
@@ -138,24 +177,7 @@ class ProvenanceStorageJournal:
     def relation_add(
         self, relation: RelationType, data: Dict[Sha1Git, Set[RelationData]]
     ) -> bool:
-        messages = []
-        for src, relations in data.items():
-            for reldata in relations:
-                key = hashlib.sha1(src + reldata.dst + (reldata.path or b"")).digest()
-                messages.append(
-                    JournalMessage(
-                        key,
-                        {
-                            "src": src,
-                            "dst": reldata.dst,
-                            "path": reldata.path,
-                            "dst_date": reldata.dst_date,
-                        },
-                        add_id=False,
-                    )
-                )
-
-        self.journal.write_additions(relation.value, messages)
+        self.journal_writer.relation_add(relation, data)
         return self.storage.relation_add(relation, data)
 
     def relation_get(

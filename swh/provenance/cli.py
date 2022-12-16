@@ -7,6 +7,7 @@
 # control
 from datetime import datetime, timezone
 from functools import partial
+import logging
 import os
 from typing import Any, Dict, Generator, Optional, Tuple
 
@@ -25,6 +26,8 @@ from swh.core.cli import CONTEXT_SETTINGS
 from swh.core.cli import swh as swh_cli_group
 from swh.model.hashutil import hash_to_bytes, hash_to_hex
 from swh.model.model import Sha1Git
+
+logger = logging.getLogger(__name__)
 
 # All generic config code should reside in swh.core.config
 CONFIG_ENVVAR = "SWH_CONFIG_FILENAME"
@@ -140,7 +143,7 @@ def cli(ctx: click.core.Context, config_file: Optional[str], profile: str) -> No
     "-n",
     default=None,
     type=int,
-    help="Stop after processing this many objects. Default is to " "run forever.",
+    help="Stop after processing this many objects. Default is to run forever.",
 )
 @click.option(
     "--type",
@@ -195,8 +198,6 @@ def replay(ctx: click.core.Context, stop_after_objects, object_types):
           brokers: [...]
           [...]
     """
-    import functools
-
     from swh.journal.client import get_journal_client
     from swh.provenance.storage import get_provenance_storage
     from swh.provenance.storage.replay import (
@@ -222,7 +223,7 @@ def replay(ctx: click.core.Context, stop_after_objects, object_types):
     except ValueError as exc:
         ctx.fail(str(exc))
 
-    worker_fn = functools.partial(process_replay_objects, storage=storage)
+    worker_fn = partial(process_replay_objects, storage=storage)
 
     if notify:
         notify("READY=1")
@@ -238,6 +239,88 @@ def replay(ctx: click.core.Context, stop_after_objects, object_types):
         if notify:
             notify("STOPPING=1")
         client.close()
+
+
+@cli.command(name="backfill")
+@click.option(
+    "--concurrency",
+    "-n",
+    default=None,
+    type=int,
+    help="Concurrency level. Default is twice the number os CPUs.",
+)
+@click.pass_context
+def backfill(ctx: click.core.Context, concurrency: Optional[int]):
+    """Fill a ProvenanceStorage Journal from an existing postgresql provenance storage.
+
+    The expected configuration file should have one 'provenance' section with 2
+    subsections:
+
+    - storage: the configuration of the provenance storage; it MUST be a
+      postgresql backend,
+
+    - journal_writer: the configuration of access to the kafka journal. See the
+      documentation of `swh.journal` for more details on the possible
+      configuration entries in this section.
+
+      https://docs.softwareheritage.org/devel/apidoc/swh.journal.client.html
+
+    eg.::
+
+      provenance:
+        backfiller:
+          status_db_path: provenance_backfill_log_db
+          db:
+            service: <db-service-name>
+          journal_writer:
+            cls: kafka
+            prefix: swh.journal.provenance
+            brokers: [...]
+            client_id: [...]
+            producer_config:
+               compression.type: zstd
+               [...]
+
+    """
+    from multiprocessing import cpu_count
+
+    from swh.journal.writer import get_journal_writer
+    from swh.provenance.storage.backfill import Backfiller
+
+    conf = ctx.obj["config"]["provenance"]["backfiller"]
+    assert "db" in conf
+    assert "journal_writer" in conf
+    assert "status_db_path" in conf
+
+    if not concurrency:
+        concurrency = 2 * cpu_count()
+    journal = get_journal_writer(**conf["journal_writer"])
+
+    backfiller = Backfiller(
+        conn_args=conf["db"],
+        journal=journal,
+        status_db_path=conf["status_db_path"],
+        concurrency=concurrency,
+    )
+    logger.info("Created backfiller")
+    if notify:
+        notify("READY=1")
+
+    import signal
+
+    def signal_handler(signum, frame):
+        logger.info("\nStopping the backfiller")
+        backfiller.stop()
+
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+
+    try:
+        logger.info("Starting backfilling")
+        backfiller.run()
+    finally:
+        if notify:
+            notify("STOPPING=1")
 
 
 @cli.group(name="origin")

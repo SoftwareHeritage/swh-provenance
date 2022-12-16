@@ -5,6 +5,7 @@ click
 deprecated
 iso8601
 pika
+plyvel
 PyYAML
 types-click
 types-PyYAML

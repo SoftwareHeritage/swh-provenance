@@ -4,7 +4,7 @@
 # See top-level LICENSE file for more information
 
 from datetime import datetime
-from typing import Any, Dict, Iterable, Set, Tuple
+from typing import Any, Dict, Iterable, Iterator, Set, Tuple
 
 from swh.core.statsd import statsd
 from swh.model.model import ObjectType, Sha1Git, TargetType
@@ -40,6 +40,18 @@ class ArchiveStorage:
         if rev is not None:
             for parent_id in rev.parents:
                 yield (revision_id, parent_id)
+
+    @statsd.timed(
+        metric=ARCHIVE_DURATION_METRIC,
+        tags={"method": "revisions_get"},
+    )
+    def revisions_get(
+        self, revision_ids: Iterable[Sha1Git]
+    ) -> Iterator[Tuple[Sha1Git, Sha1Git, Dict[str, Any]]]:
+        revs = self.storage.revision_get(list(revision_ids))
+        for rev in revs:
+            if rev is not None and rev.date is not None:
+                yield (rev.id, rev.directory, rev.date.to_dict())
 
     @statsd.timed(metric=ARCHIVE_DURATION_METRIC, tags={"method": "snapshot_get_heads"})
     def snapshot_get_heads(self, id: Sha1Git) -> Iterable[Sha1Git]:

@@ -555,6 +555,13 @@ def revision_from_csv(
     type=int,
     help="""Set the maximum recursive directory size of revisions to be indexed.""",
 )
+@click.option(
+    "-t",
+    "--object-type",
+    default="revision",
+    type=click.Choice(["revision", "release"]),
+    help="""Topic (type of objects) to get revisions from.""",
+)
 @click.pass_context
 def revision_from_journal(
     ctx: click.core.Context,
@@ -565,10 +572,14 @@ def revision_from_journal(
     reuse: bool,
     min_size: int,
     max_directory_size: int,
+    object_type: str,
 ) -> None:
     from swh.journal.client import get_journal_client
 
-    from .journal_client import process_journal_revisions
+    if object_type == "release":
+        from .journal_client import process_journal_releases as process_journal
+    else:
+        from .journal_client import process_journal_revisions as process_journal
 
     provenance = ctx.obj["provenance"]
     archive = ctx.obj["archive"]
@@ -576,7 +587,7 @@ def revision_from_journal(
     journal_cfg = ctx.obj["config"].get("journal_client", {})
 
     worker_fn = partial(
-        process_journal_revisions,
+        process_journal,
         archive=archive,
         provenance=provenance,
         minsize=min_size,
@@ -588,7 +599,7 @@ def revision_from_journal(
         cls,
         **{
             **journal_cfg,
-            "object_types": ["revision"],
+            "object_types": [object_type],
         },
     )
 

@@ -132,3 +132,62 @@ def test_cli_revision_from_journal_client(
     result = provenance.storage.revision_get(revisions)
 
     assert set(result.keys()) == set(revisions)
+
+
+@pytest.mark.kafka
+def test_cli_release_from_journal_client(
+    swh_storage: StorageInterface,
+    swh_storage_backend_config: Dict,
+    kafka_prefix: str,
+    kafka_server: str,
+    consumer: Consumer,
+    provenance,
+    postgres_provenance,
+) -> None:
+    """Test revision journal client cli"""
+
+    # Prepare storage data
+    data = load_repo_data("cmdbts2")
+    assert len(data["origin"]) >= 1
+    assert len(data["release"]) >= 1
+    fill_storage(swh_storage, data)
+
+    # Prepare configuration for cli call
+    swh_storage_backend_config.pop("journal_writer", None)  # no need for that config
+    storage_config_dict = swh_storage_backend_config
+    cfg = {
+        "journal_client": {
+            "cls": "kafka",
+            "brokers": [kafka_server],
+            "group_id": "toto",
+            "prefix": kafka_prefix,
+            "stop_on_eof": True,
+        },
+        "provenance": {
+            "archive": {
+                "cls": "api",
+                "storage": storage_config_dict,
+            },
+            "storage": {
+                "cls": "postgresql",
+                "db": postgres_provenance.dsn,
+            },
+        },
+    }
+
+    release_revs = [rel["target"] for rel in data["release"]]
+    result = provenance.storage.revision_get(release_revs)
+    assert not result
+
+    # call the cli 'swh provenance revision from-journal'
+    cli_result = invoke(
+        ["revision", "from-journal", "--object-type", "release"], config=cfg
+    )
+    assert cli_result.exit_code == 0, f"Unexpected result: {cli_result.output}"
+
+    result = provenance.storage.revision_get(release_revs)
+    assert set(result.keys()) == set(release_revs)
+
+    # ensure only these release revisions have been ingested
+    result = provenance.storage.revision_get([rev["id"] for rev in data["revision"]])
+    assert set(result.keys()) == set(release_revs)

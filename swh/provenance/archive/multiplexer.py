@@ -4,7 +4,7 @@
 # See top-level LICENSE file for more information
 
 import logging
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, Iterator, List, Tuple
 
 from swh.core.statsd import statsd
 from swh.model.model import Directory, Sha1Git
@@ -92,6 +92,44 @@ class ArchiveMultiplexed:
         )
 
         return []
+
+    @statsd.timed(
+        metric=ARCHIVE_DURATION_METRIC,
+        tags={"method": "revisions_get"},
+    )
+    def revisions_get(
+        self, revision_ids: Iterable[Sha1Git]
+    ) -> Iterator[Tuple[Sha1Git, Sha1Git, Dict[str, Any]]]:
+        revision_ids = list(revision_ids)  # this will be iterated several times
+        for backend, archive in self.archives:
+            try:
+                revs = list(archive.revisions_get(revision_ids))
+                if revs:
+                    statsd.increment(
+                        ARCHIVE_OPS_METRIC,
+                        tags={
+                            "method": "revisions_get",
+                            "backend": backend,
+                        },
+                    )
+                    yield from revs
+                LOGGER.debug(
+                    "No revs found via %s",
+                    archive.__class__,
+                )
+            except Exception as e:
+                LOGGER.warn(
+                    "Error retrieving revisions via %s: %s",
+                    archive.__class__,
+                    e,
+                )
+        statsd.increment(
+            ARCHIVE_OPS_METRIC,
+            tags={
+                "method": "revisions_get",
+                "backend": "not_found",
+            },
+        )
 
     @statsd.timed(metric=ARCHIVE_DURATION_METRIC, tags={"method": "snapshot_get_heads"})
     def snapshot_get_heads(self, id: Sha1Git) -> Iterable[Sha1Git]:

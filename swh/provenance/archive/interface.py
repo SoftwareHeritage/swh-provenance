@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Any, Dict, Iterable, Tuple
+from typing import Any, Dict, Iterable, Iterator, Tuple
 
 from typing_extensions import Protocol, runtime_checkable
 
@@ -39,6 +39,20 @@ class ArchiveInterface(Protocol):
 
         Returns:
             list of edges (revision_id, parent_revision_id)
+
+        """
+        ...
+
+    def revisions_get(
+        self, ids: Iterable[Sha1Git]
+    ) -> Iterator[Tuple[Sha1Git, Sha1Git, Dict[str, Any]]]:
+        """Get revision date and root directory.
+
+        Args:
+            ids: iterable of sha1 id of the revision to list parents from.
+
+        Returns:
+            list of (revision_id, directory_id, commit_timestamp)
 
         """
         ...

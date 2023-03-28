@@ -7,7 +7,7 @@ from collections import Counter
 from operator import itemgetter
 from typing import Any
 from typing import Counter as TCounter
-from typing import Dict, Iterable, List, Set, Tuple, Type, Union
+from typing import Dict, Iterable, Iterator, List, Set, Tuple, Type, Union
 
 import pytest
 
@@ -53,6 +53,11 @@ class ArchiveNoop:
 
     def snapshot_get_heads(self, id: Sha1Git) -> Iterable[Sha1Git]:
         return []
+
+    def revisions_get(
+        self, ids: Iterable[Sha1Git]
+    ) -> Iterator[Tuple[Sha1Git, Sha1Git, Dict[str, Any]]]:
+        yield from []
 
 
 def check_directory_ls(

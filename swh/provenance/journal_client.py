@@ -67,3 +67,37 @@ def process_journal_revisions(
         revision_add(provenance, archive, revisions, **cfg)
     if notify:
         notify("WATCHDOG=1")
+
+
+def process_journal_releases(
+    messages, *, provenance: ProvenanceInterface, archive: ArchiveInterface, **cfg
+) -> None:
+    """Worker function for `JournalClient.process(worker_fn)`."""
+    assert set(messages) == {"release"}, set(messages)
+    rev_ids = []
+    for rel in messages["release"]:
+        if rel["target"] is None:
+            continue
+
+        if rel["target_type"] == "revision":
+            rev_ids.append(rel["target"])
+
+    revisions = []
+    for (rev, directory, date_d) in archive.revisions_get(rev_ids):
+        if not date_d:
+            continue
+        date = TimestampWithTimezone.from_dict(date_d).to_datetime()
+        if date <= EPOCH:
+            continue
+        revisions.append(
+            RevisionEntry(
+                id=rev,
+                root=directory,
+                date=date,
+            )
+        )
+
+    if revisions:
+        revision_add(provenance, archive, revisions, **cfg)
+    if notify:
+        notify("WATCHDOG=1")

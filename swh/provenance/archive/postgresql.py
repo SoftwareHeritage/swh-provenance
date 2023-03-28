@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Any, Dict, Iterable, List, Tuple, cast
+from typing import Any, Dict, Iterable, Iterator, List, Tuple, cast
 
 import psycopg2.extensions
 
@@ -113,6 +113,19 @@ class ArchivePostgreSQL:
                 (revision_id,),
             )
             return cast(List[Tuple[Sha1Git, Sha1Git]], cursor.fetchall())
+
+    @statsd.timed(
+        metric=ARCHIVE_DURATION_METRIC,
+        tags={"method": "revisions_get"},
+    )
+    def revisions_get(
+        self, revision_ids: Iterable[Sha1Git]
+    ) -> Iterator[Tuple[Sha1Git, Sha1Git, Dict[str, Any]]]:
+        # XXX write the actual SQL version of this?
+        revs = self.storage.revision_get(list(revision_ids))
+        for rev in revs:
+            if rev is not None and rev.date is not None:
+                yield (rev.id, rev.directory, rev.date.to_dict())
 
     @statsd.timed(metric=ARCHIVE_DURATION_METRIC, tags={"method": "snapshot_get_heads"})
     def snapshot_get_heads(self, id: Sha1Git) -> Iterable[Sha1Git]:

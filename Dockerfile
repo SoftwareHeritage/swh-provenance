@@ -11,7 +11,7 @@ RUN apt-get update && apt-get -y install rsync libcmph-dev && \
 USER swh
 
 RUN python -m venv /src/venv && \
-    . /src/venv/bin/activate && \ 
+    . /src/venv/bin/activate && \
     python -m pip install --upgrade pip && \
     ls /requirements* | xargs -t -n1 pip install -r
 

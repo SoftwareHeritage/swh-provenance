@@ -53,7 +53,7 @@ class ArchiveGraph:
         except grpc.RpcError as e:
             if (
                 e.code() == grpc.StatusCode.INVALID_ARGUMENT
-                and "Unknown SWHID" in e.details()
+                and "Unknown SWHID" in (e.details() or "")
             ):
                 pass
             raise
@@ -74,7 +74,7 @@ class ArchiveGraph:
         except grpc.RpcError as e:
             if (
                 e.code() == grpc.StatusCode.INVALID_ARGUMENT
-                and "Unknown SWHID" in e.details()
+                and "Unknown SWHID" in (e.details() or "")
             ):
                 pass
             raise

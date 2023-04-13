@@ -12,7 +12,6 @@ except ImportError:
 
 import sentry_sdk
 
-from swh.model.model import TimestampWithTimezone
 from swh.provenance.algos.origin import origin_add
 from swh.provenance.algos.revision import revision_add
 from swh.provenance.archive import ArchiveInterface
@@ -45,24 +44,19 @@ def process_journal_revisions(
     assert set(messages) == {"revision"}, set(messages)
     revisions = []
     for rev in messages["revision"]:
-        if rev["date"] is None:
+        if not rev["date"]:
             continue
         try:
-            date = TimestampWithTimezone.from_dict(rev["date"]).to_datetime()
+            reventry = RevisionEntry.from_revision_dict(rev)
         except Exception:
             sentry_sdk.capture_exception()
             continue
 
-        if date <= EPOCH:
+        if reventry.date <= EPOCH:
             continue
 
-        revisions.append(
-            RevisionEntry(
-                id=rev["id"],
-                root=rev["directory"],
-                date=date,
-            )
-        )
+        revisions.append(reventry)
+
     if revisions:
         revision_add(provenance, archive, revisions, **cfg)
     if notify:
@@ -83,19 +77,20 @@ def process_journal_releases(
             rev_ids.append(rel["target"])
 
     revisions = []
-    for (rev, directory, date_d) in archive.revisions_get(rev_ids):
-        if not date_d:
+    for (rev_id, directory, date_d) in archive.revisions_get(rev_ids):
+        rev = {"id": rev_id, "directory": directory, "date": date_d}
+        if not rev["date"]:
             continue
-        date = TimestampWithTimezone.from_dict(date_d).to_datetime()
-        if date <= EPOCH:
+        try:
+            reventry = RevisionEntry.from_revision_dict(rev)
+        except Exception:
+            sentry_sdk.capture_exception()
             continue
-        revisions.append(
-            RevisionEntry(
-                id=rev,
-                root=directory,
-                date=date,
-            )
-        )
+
+        if reventry.date <= EPOCH:
+            continue
+
+        revisions.append(reventry)
 
     if revisions:
         revision_add(provenance, archive, revisions, **cfg)

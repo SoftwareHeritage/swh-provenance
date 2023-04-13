@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Iterator, List, Optional
 
-from swh.model.model import Origin, Sha1Git
+from swh.model.model import Origin, Sha1Git, TimestampWithTimezone
 
 from .archive import ArchiveInterface
 
@@ -71,6 +71,15 @@ class RevisionEntry:
 
     def __hash__(self) -> int:
         return hash(self.id)
+
+    @classmethod
+    def from_revision_dict(cls, revision):
+        date = TimestampWithTimezone.from_dict(revision["date"]).to_datetime()
+        return cls(
+            id=revision["id"],
+            root=revision["directory"],
+            date=date,
+        )
 
 
 class DirectoryEntry:

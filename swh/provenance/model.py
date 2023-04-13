@@ -5,12 +5,14 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Iterator, List, Optional
 
 from swh.model.model import Origin, Sha1Git
 
 from .archive import ArchiveInterface
+
+UTC = timezone.utc
 
 
 class OriginEntry:
@@ -57,8 +59,8 @@ class RevisionEntry:
         root: Optional[Sha1Git] = None,
     ) -> None:
         self.id = id
-        self.date = date
-        assert self.date is None or self.date.tzinfo is not None
+        assert date is None or date.tzinfo is not None
+        self.date = date.astimezone(UTC) if date is not None else None
         self.root = root
 
     def __str__(self) -> str:

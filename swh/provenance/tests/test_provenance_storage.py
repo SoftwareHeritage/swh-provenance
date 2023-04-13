@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import inspect
 import os
@@ -31,6 +31,8 @@ from swh.provenance.storage.interface import (
 
 from .utils import fill_storage, load_repo_data, ts2dt
 
+UTC = timezone.utc
+
 
 class TestProvenanceStorage:
     def test_provenance_storage_content(
@@ -44,11 +46,58 @@ class TestProvenanceStorage:
 
         # Add all content present in the current repo to the storage, just assigning their
         # creation dates. Then check that the returned results when querying are the same.
-        cnt_dates = {
-            cnt["sha1_git"]: cnt["ctime"] for idx, cnt in enumerate(data["content"])
+        cnt_dates = {cnt["sha1_git"]: cnt["ctime"] for cnt in data["content"]}
+
+        expected_dates = {
+            cnt["sha1_git"]: cnt["ctime"].astimezone(UTC) for cnt in data["content"]
         }
         assert provenance_storage.content_add(cnt_dates)
-        assert provenance_storage.content_get(set(cnt_dates.keys())) == cnt_dates
+        assert provenance_storage.content_get(set(cnt_dates.keys())) == expected_dates
+        assert provenance_storage.entity_get_all(EntityType.CONTENT) == set(
+            cnt_dates.keys()
+        )
+
+    def test_provenance_storage_content_invalid_dates(
+        self,
+        provenance_storage: ProvenanceStorageInterface,
+    ) -> None:
+        """Tests content methods for every `ProvenanceStorageInterface` implementation."""
+
+        # Read data/README.md for more details on how these datasets are generated.
+        data = load_repo_data("cmdbts2")
+
+        # Add all content present in the current repo to the storage, just assigning their
+        # creation dates. Then check that the returned results when querying are the same.
+        cnt_dates = {
+            cnt["sha1_git"]: cnt["ctime"].replace(
+                tzinfo=timezone(-timedelta(hours=23, minutes=59, seconds=59))
+            )
+            for cnt in data["content"]
+        }
+        expected_dates = {
+            sha1_git: date.astimezone(UTC) for sha1_git, date in cnt_dates.items()
+        }
+
+        assert provenance_storage.content_add(cnt_dates)
+        assert provenance_storage.content_get(set(cnt_dates.keys())) == expected_dates
+        assert provenance_storage.entity_get_all(EntityType.CONTENT) == set(
+            cnt_dates.keys()
+        )
+
+        # Add all content present in the current repo to the storage, just assigning their
+        # creation dates. Then check that the returned results when querying are the same.
+        cnt_dates = {
+            cnt["sha1_git"]: cnt["ctime"].replace(
+                tzinfo=timezone(timedelta(hours=23, minutes=59, seconds=59))
+            )
+            for cnt in data["content"]
+        }
+        expected_dates = {
+            sha1_git: date.astimezone(UTC) for sha1_git, date in cnt_dates.items()
+        }
+
+        assert provenance_storage.content_add(cnt_dates)
+        assert provenance_storage.content_get(set(cnt_dates.keys())) == expected_dates
         assert provenance_storage.entity_get_all(EntityType.CONTENT) == set(
             cnt_dates.keys()
         )

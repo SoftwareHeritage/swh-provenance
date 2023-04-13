@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import wraps
 from hashlib import sha1
 import itertools
@@ -29,6 +29,8 @@ from swh.provenance.storage.interface import (
     RelationType,
     RevisionData,
 )
+
+UTC = timezone.utc
 
 LOGGER = logging.getLogger(__name__)
 
@@ -111,16 +113,18 @@ class ProvenanceStoragePostgreSql:
     def content_add(self, cnts: Dict[Sha1Git, datetime]) -> bool:
         if cnts:
             # Upsert in consistent order to avoid deadlocks
-            rows = sorted(cnts.items())
             sql = """
                 INSERT INTO content(sha1, date) VALUES %s
                   ON CONFLICT (sha1) DO
                   UPDATE SET date=LEAST(EXCLUDED.date,content.date)
                 """
+            rows = [
+                (sha1git, date.astimezone(UTC)) for (sha1git, date) in sorted(cnts.items())
+            ]
             page_size = self.page_size or len(rows)
             with self.transaction() as cursor:
                 psycopg2.extras.execute_values(
-                    cursor, sql, argslist=rows, page_size=page_size
+                    cursor, sql, argslist=rows, page_size=page_size,
                 )
         return True
 
@@ -162,8 +166,11 @@ class ProvenanceStoragePostgreSql:
     @statsd.timed(metric=STORAGE_DURATION_METRIC, tags={"method": "directory_add"})
     @handle_raise_on_commit
     def directory_add(self, dirs: Dict[Sha1Git, DirectoryData]) -> bool:
-        # Upsert in consistent order to avoid deadlocks
-        data = sorted((sha1, rev.date, rev.flat) for sha1, rev in dirs.items())
+        # sorted: Upsert in consistent order to avoid deadlocks
+        data = [
+            (sha1, rev.date.astimezone(UTC) if rev.date else None, rev.flat)
+            for sha1, rev in sorted(dirs.items())
+        ]
         if data:
             sql = """
                 INSERT INTO directory(sha1, date, flat) VALUES %s
@@ -291,8 +298,11 @@ class ProvenanceStoragePostgreSql:
     @handle_raise_on_commit
     def revision_add(self, revs: Dict[Sha1Git, RevisionData]) -> bool:
         if revs:
-            # Upsert in consistent order to avoid deadlocks
-            data = sorted((sha1, rev.date, rev.origin) for sha1, rev in revs.items())
+            # sorted: Upsert in consistent order to avoid deadlocks
+            data = [
+                (sha1, rev.date.astimezone(UTC) if rev.date else None, rev.origin)
+                for sha1, rev in sorted(revs.items())
+            ]
             sql = """
                 INSERT INTO revision(sha1, date, origin)
                   (SELECT V.rev AS sha1, V.date::timestamptz AS date, O.id AS origin

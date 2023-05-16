@@ -19,6 +19,7 @@ class ArchivePostgreSQL:
         self.storage = get_storage(
             "postgresql", db=conn.dsn, objstorage={"cls": "memory"}
         )
+        conn.set_session(readonly=True, autocommit=True)
         self.conn = conn
 
     def directory_ls(self, id: Sha1Git, minsize: int = 0) -> Iterable[Dict[str, Any]]:

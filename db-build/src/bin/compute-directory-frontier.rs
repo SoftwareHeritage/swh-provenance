@@ -200,12 +200,12 @@ where
             .context("Could not write record")
     };
 
-    swh_provenance_db_build::frontier::find_frontiers_in_root_directory(
+    swh_provenance_db_build::frontier::find_frontiers_from_root_directory(
         graph,
         max_timestamps,
         is_frontier,
         on_frontier,
-        false, // Don't recurse through frontiers (frontier-directories-in-revisions will)
+        /* recurse_through_frontiers: */ false,
         root_dir_id,
     )
 }

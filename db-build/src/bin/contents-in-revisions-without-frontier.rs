@@ -20,7 +20,7 @@ use swh_graph::graph::*;
 use swh_graph::java_compat::mph::gov::GOVMPH;
 use swh_graph::SWHID;
 
-use swh_provenance_db_build::dataset_writer::{CsvZstTableWriter, ParallelDatasetWriter};
+use swh_graph::utils::dataset_writer::{CsvZstTableWriter, ParallelDatasetWriter};
 use swh_provenance_db_build::frontier::PathParts;
 
 #[derive(Parser, Debug)]

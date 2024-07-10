@@ -5,13 +5,14 @@
 
 from contextlib import contextmanager
 import logging
+from typing import Optional
 
 import psycopg2.extras
 import psycopg2.pool
 from swh.core.db import BaseDb
 from swh.core.db.common import db_transaction
 from swh.core.db.db_utils import swh_db_version
-from swh.model.swhids import CoreSWHID
+from swh.model.swhids import CoreSWHID, QualifiedSWHID
 
 from swh.provenance.exc import ProvenanceDBError
 
@@ -93,5 +94,10 @@ class PostgresqlProvenance:
         return cur.fetchone()[0]
 
     @db_transaction()
-    def whereis(self, swhid: CoreSWHID, *, db: Db, cur=None):
-        return swhid
+    def whereis(
+        self, swhid: CoreSWHID, *, db: Db, cur=None
+    ) -> Optional[QualifiedSWHID]:
+        return QualifiedSWHID(
+            object_type=swhid.object_type,
+            object_id=swhid.object_id,
+        )

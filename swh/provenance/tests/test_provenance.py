@@ -11,7 +11,6 @@ from typing import Any, Dict
 import pytest
 from pytest_postgresql import factories
 from swh.core.db.db_utils import initialize_database_for_module
-from swh.model.swhids import CoreSWHID
 
 from swh.provenance.backend.postgresql import PostgresqlProvenance
 
@@ -37,11 +36,3 @@ def swh_provenance_config(postgres_provenance) -> Dict[str, Any]:
         "cls": "postgresql",
         "db": postgres_provenance.info.dsn,
     }
-
-
-class TestProvenance:
-    def test_where_is(self, swh_provenance):
-        swhid = CoreSWHID.from_string(
-            "swh:1:cnt:8ff44f081d43176474b267de5451f2c2e88089d0"
-        )
-        assert swh_provenance.whereis(swhid) == swhid

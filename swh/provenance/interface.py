@@ -6,7 +6,7 @@
 from typing import Optional
 
 from swh.core.api import remote_api_endpoint
-from swh.model.swhids import CoreSWHID, ExtendedSWHID
+from swh.model.swhids import CoreSWHID, QualifiedSWHID
 from typing_extensions import Protocol, runtime_checkable
 
 
@@ -18,6 +18,6 @@ class ProvenanceInterface(Protocol):
         ...
 
     @remote_api_endpoint("whereis")
-    def whereis(self, *, swhid: CoreSWHID) -> Optional[ExtendedSWHID]:
+    def whereis(self, *, swhid: CoreSWHID) -> Optional[QualifiedSWHID]:
         """Looks for the first occurrence of the given SHWID."""
         ...

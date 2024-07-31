@@ -140,3 +140,13 @@ class TestProvenance:
     def test_whereis_content_unknown(self, swh_provenance):
         """The requested object is unknown, we will return None"""
         self._test_whereis_case(swh_provenance, "content-unknown")
+
+    def test_whereare(self, swh_provenance):
+        sources = []
+        targets = []
+        for cases in TEST_CASES.values():
+            for case_source, case_target in cases:
+                sources.append(case_source)
+                targets.append(case_target)
+        result = swh_provenance.whereare(swhids=sources)
+        assert result == targets, result

@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Optional
+from typing import List, Optional
 
 from swh.core.api import remote_api_endpoint
 from swh.model.swhids import CoreSWHID, QualifiedSWHID
@@ -43,5 +43,13 @@ class ProvenanceInterface(Protocol):
         recent release/revision in the authoritative origin relevant to a
         content.  Finding the authoritative origin is a challenge in itclient.
 
+        """
+        ...
+
+    @remote_api_endpoint("whereare")
+    def whereare(self, *, swhids: List[CoreSWHID]) -> List[Optional[QualifiedSWHID]]:
+        """Given a list SWHID return a list of provenance info:
+
+        See `whereis` documentation for details on the provenance info.
         """
         ...

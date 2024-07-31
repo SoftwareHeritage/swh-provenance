@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Optional
+from typing import List, Optional
 
 import grpc
 from google.protobuf.field_mask_pb2 import FieldMask
@@ -147,3 +147,10 @@ class GraphProvenance:
                 anchor=anchor,
                 origin=origin,
             )
+
+    def whereare(self, *, swhids: List[CoreSWHID]) -> List[Optional[QualifiedSWHID]]:
+        """Given a list SWHID return a list of provenance info:
+
+        See `whereis` documentation for details on the provenance info.
+        """
+        return [self.whereis(swhid=si) for si in swhids]

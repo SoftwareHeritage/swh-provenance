@@ -5,7 +5,7 @@
 
 from contextlib import contextmanager
 import logging
-from typing import Optional
+from typing import List, Optional
 
 import psycopg2.extras
 import psycopg2.pool
@@ -101,3 +101,11 @@ class PostgresqlProvenance:
             object_type=swhid.object_type,
             object_id=swhid.object_id,
         )
+
+    @db_transaction()
+    def whereare(self, *, swhids: List[CoreSWHID]) -> List[Optional[QualifiedSWHID]]:
+        """Given a list SWHID return a list of provenance info:
+
+        See `whereis` documentation for details on the provenance info.
+        """
+        return [self.whereis(swhid=si) for si in swhids]

@@ -120,7 +120,7 @@ class GraphProvenance:
             return resp[0].ori.url
         return None
 
-    def whereis(self, swhid: CoreSWHID) -> Optional[QualifiedSWHID]:
+    def whereis(self, *, swhid: CoreSWHID) -> Optional[QualifiedSWHID]:
         """Given a SWHID return a QualifiedSWHID with some provenance info:
 
         - the release or revision containing that content or directory

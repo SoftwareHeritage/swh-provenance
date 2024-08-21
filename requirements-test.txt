@@ -1,0 +1,7 @@
+grpcio
+pytest
+swh.storage >= 0.40
+swh.graph[testing] >= 1.0.1
+types-click
+types-PyYAML
+types-Deprecated

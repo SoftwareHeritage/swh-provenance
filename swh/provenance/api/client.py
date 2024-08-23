@@ -6,6 +6,7 @@
 from swh.core.api import RPCClient
 
 from swh.provenance import exc
+from swh.provenance.api.serializers import DECODERS, ENCODERS
 from swh.provenance.interface import ProvenanceInterface
 
 
@@ -16,3 +17,5 @@ class RemoteProvenance(RPCClient):
     reraise_exceptions = [
         exc.ProvenanceException,
     ]
+    extra_type_decoders = DECODERS
+    extra_type_encoders = ENCODERS

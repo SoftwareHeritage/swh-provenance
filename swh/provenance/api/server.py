@@ -13,6 +13,7 @@ from swh.core.api import encode_data_server as encode_data
 from swh.core.api import error_handler
 
 from swh.provenance import get_provenance
+from swh.provenance.api.serializers import DECODERS, ENCODERS
 from swh.provenance.exc import ProvenanceException
 from swh.provenance.interface import ProvenanceInterface
 
@@ -26,7 +27,12 @@ def _get_provenance():
     return provenance
 
 
-app = RPCServerApp(
+class ProvenanceServerApp(RPCServerApp):
+    extra_type_decoders = DECODERS
+    extra_type_encoders = ENCODERS
+
+
+app = ProvenanceServerApp(
     __name__, backend_class=ProvenanceInterface, backend_factory=_get_provenance
 )
 

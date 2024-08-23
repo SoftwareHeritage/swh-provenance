@@ -16,11 +16,6 @@ pytest_plugins = [
 ]
 
 
-@pytest.fixture(scope="session", params=["rust"])
-def graph_grpc_backend_implementation(request):
-    return request.param
-
-
 @pytest.fixture
 def swh_provenance_config(graph_grpc_server) -> Dict[str, Any]:
     return {

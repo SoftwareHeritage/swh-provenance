@@ -1,29 +1,16 @@
-*.csv
-*.dump
-*.egg*
-*.log
-*.mypy*
-*.prof
-*.zip
-*.orig
-*.bak
-.coverage*
+*.egg-info/
+*.pyc
+.coverage
+.eggs/
+.hypothesis
+.mypy_cache
 .tox
-.vscode
 __pycache__
-compact.egg.info
-content-revision
-build
-data
-!/swh/provenance/tests/data
-/swh/provenance/tests/data/*
-!/swh/provenance/tests/data/*.yaml
-!/swh/provenance/tests/data/*.py
-!/swh/provenance/tests/data/*.msgpack
-debian
-dumps
-PKG-INFO
-revision-origin
-/misc/
-.venv
+build/
+dist/
+# these are symlinks created by a hook in swh-docs' main sphinx conf.py
 docs/README.rst
+docs/README.md
+# this should be a symlink for people who want to build the sphinx doc
+# without using tox, generally created by the swh-env/bin/update script
+docs/Makefile.sphinx

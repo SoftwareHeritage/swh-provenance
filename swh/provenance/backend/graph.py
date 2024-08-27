@@ -5,16 +5,13 @@
 
 from typing import List, Optional
 
-import grpc
 from google.protobuf.field_mask_pb2 import FieldMask
-from swh.graph.grpc.swhgraph_pb2 import GraphDirection, TraversalRequest, NodeFilter
+import grpc
+from swh.graph.grpc.swhgraph_pb2 import GraphDirection, NodeFilter, TraversalRequest
 from swh.graph.grpc.swhgraph_pb2_grpc import TraversalServiceStub
-
-from swh.model.swhids import (
-    CoreSWHID,
-    QualifiedSWHID,
-    ObjectType as SWHIDType,
-)
+from swh.model.swhids import CoreSWHID
+from swh.model.swhids import ObjectType as SWHIDType
+from swh.model.swhids import QualifiedSWHID
 
 
 class GraphProvenance:
@@ -29,7 +26,7 @@ class GraphProvenance:
     def _get_anchor(self, swhid: CoreSWHID, leaf_type) -> Optional[CoreSWHID]:
         """Find some top level object that contains the argument
 
-        The search forcus on `leaf_type`, that can be either "rel" or "rev".
+        The search focus on `leaf_type`, that can be either "rel" or "rev".
         However if you pass a `shwid` for an higher level object, you will get
         it back as is.
 

@@ -3,23 +3,17 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import (
-    Dict,
-    List,
-    Tuple,
-    Optional,
-)
+from typing import Dict, List, Optional, Tuple
 
 import pytest
-
+from swh.graph import example_dataset as data
 from swh.model.swhids import CoreSWHID, QualifiedSWHID
 
-
-from swh.graph import example_dataset as data
-
-
 # a set of (swhid → expectation)
-TEST_CASES: Dict[str, List[Tuple[CoreSWHID, Optional[QualifiedSWHID]]],] = {
+TEST_CASES: Dict[
+    str,
+    List[Tuple[CoreSWHID, Optional[QualifiedSWHID]]],
+] = {
     "content-with-rel": [
         (
             data.CONTENTS[0].swhid(),

@@ -20,12 +20,32 @@ The idea is to use both the compressed graph representation of the Archive
 provenance queries.
 
 
-API Description
-===============
+Description
+===========
 
-For a single object::
+The core feature of this tool is to provide a service to the reference to an
+object within the Software Heritage Archive where the queried object can be
+found.
 
-    Input: SWHID (core SWHID of an artifact found in the use code base)
+There are mostly 2 kinds of provenance queries that can be done:
+- search for the best provenance answer from a given object;
+- search for all the possible provenance answers for a given object.
+
+For each input object, the definition of "best provenance answer" is simple and
+unambiguous; for now, the best answer is the *an* origin in which the oldest
+revision (in the sense of the revision with the oldest commit date) in which
+this object has been found.
+
+Provenance can be looked for:
+
+- ``Content``
+- ``Directory``
+- ``Revision``
+- ``Release``
+
+For each object::
+
+    Input: SWHID (core SWHID of an artifact found in the user code base)
 
     Output: SWHID or origin URI where input SWHID was found + context information
         Context information, a subset of:
@@ -34,19 +54,19 @@ For a single object::
             revision (rev)
             path (filesystem-style path)
 
-    Non-functional requirements: TODO something about the fact that both the
-    answer and the context information should be "as high as possible" in the
-    graph
+    Non-functional requirements:
+      - the returned object should be as high as possible; i.e. prefer an
+        Origin (if any), then a Snapshot, then a Release, then a Revision,
+      - the returned object should be the best possible answer, if possible;
+        the definition of "best answer" being something like:
 
+          *an* origin in which the oldest revision (in the sense of the
+          revision with the oldest commit date) in which this object has been
+          found.
 
-Public API
-----------
+.. Note:: This documents the backend provenance service; it is not meant to be
+          used directly but rather via the Public API; please refer to its
+          `description`_ for more details on how to use the Provenance public
+          API.
 
-::
-
-    GET /whereis/:swhid
-
-    GET /whereis_all/
-
-    POST /whereare/TODO
-      :swhids
+.. _`description`: https://archive.softwareheritage.org/api/1/

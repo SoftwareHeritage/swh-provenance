@@ -7,6 +7,7 @@ from typing import List, Optional
 
 from google.protobuf.field_mask_pb2 import FieldMask
 import grpc
+
 from swh.graph.grpc.swhgraph_pb2 import GraphDirection, NodeFilter, TraversalRequest
 from swh.graph.grpc.swhgraph_pb2_grpc import TraversalServiceStub
 from swh.model.swhids import CoreSWHID

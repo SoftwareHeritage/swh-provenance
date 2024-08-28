@@ -10,8 +10,8 @@ from typing import Any, Dict
 
 import pytest
 from pytest_postgresql import factories
-from swh.core.db.db_utils import initialize_database_for_module
 
+from swh.core.db.db_utils import initialize_database_for_module
 from swh.provenance.backend.postgresql import PostgresqlProvenance
 
 os.environ["LC_ALL"] = "C.UTF-8"

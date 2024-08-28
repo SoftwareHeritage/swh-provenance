@@ -11,7 +11,6 @@ from swh.core import config
 from swh.core.api import RPCServerApp
 from swh.core.api import encode_data_server as encode_data
 from swh.core.api import error_handler
-
 from swh.provenance import get_provenance
 from swh.provenance.api.serializers import DECODERS, ENCODERS
 from swh.provenance.exc import ProvenanceException

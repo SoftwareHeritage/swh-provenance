@@ -4,7 +4,6 @@
 # See top-level LICENSE file for more information
 
 from swh.core.api import RPCClient
-
 from swh.provenance import exc
 from swh.provenance.api.serializers import DECODERS, ENCODERS
 from swh.provenance.interface import ProvenanceInterface

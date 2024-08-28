@@ -8,6 +8,7 @@
 import logging
 
 import click
+
 from swh.core.cli import CONTEXT_SETTINGS, AliasedGroup
 from swh.core.cli import swh as swh_cli_group
 

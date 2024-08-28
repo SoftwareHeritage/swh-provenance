@@ -7,6 +7,7 @@
 from typing import Any, Dict
 
 import pytest
+
 from swh.graph.grpc.swhgraph_pb2 import GraphDirection, TraversalRequest
 
 from .provenance_tests import TestProvenance  # noqa

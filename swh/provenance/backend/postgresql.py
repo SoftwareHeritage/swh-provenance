@@ -9,11 +9,11 @@ from typing import List, Optional
 
 import psycopg2.extras
 import psycopg2.pool
+
 from swh.core.db import BaseDb
 from swh.core.db.common import db_transaction
 from swh.core.db.db_utils import swh_db_version
 from swh.model.swhids import CoreSWHID, QualifiedSWHID
-
 from swh.provenance.exc import ProvenanceDBError
 
 logger = logging.getLogger(__name__)

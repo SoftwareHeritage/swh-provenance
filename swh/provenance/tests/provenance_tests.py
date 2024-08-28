@@ -6,6 +6,7 @@
 from typing import Dict, List, Optional, Tuple
 
 import pytest
+
 from swh.graph import example_dataset as data
 from swh.model.swhids import CoreSWHID, QualifiedSWHID
 

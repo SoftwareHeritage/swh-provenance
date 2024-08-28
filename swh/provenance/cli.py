@@ -47,7 +47,7 @@ def provenance_cli_group(ctx, config_file):
 )
 @click.option(
     "--port",
-    default=5011,
+    default=5014,
     type=click.INT,
     metavar="PORT",
     show_default=True,

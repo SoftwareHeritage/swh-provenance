@@ -74,7 +74,7 @@ def rpc_serve(ctx, host, port, debug):
 
 def main():
     logging.basicConfig()
-    return rpc_serve(auto_envvar_prefix="SWH_VAULT")
+    return rpc_serve(auto_envvar_prefix="SWH_PROVENANCE")
 
 
 if __name__ == "__main__":

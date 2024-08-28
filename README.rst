@@ -16,7 +16,7 @@ Software Heritage Archive is built with complex queries, mostly from the bottom
 to the top (aka from Content to Origin objects).
 
 The idea is to use both the compressed graph representation of the Archive
-(swh-graph) and a preprocessed provennce index to speed up some of the
+(swh-graph) and a preprocessed provenance index to speed up some of the
 provenance queries.
 
 

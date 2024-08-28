@@ -80,7 +80,7 @@ class GraphProvenance:
         return None
 
     def _get_origin(self, anchor_swhid: CoreSWHID) -> Optional[str]:
-        """find the url of an origin associated with an anchor object.
+        """Find the url of an origin associated with an anchor object.
 
         If no origin is found, return None."""
         if anchor_swhid.object_type not in (
@@ -126,7 +126,7 @@ class GraphProvenance:
 
         This can also be called for revision, release or snapshot to retrieve
         origin url information if any. When using a revision, the anchor will
-        be an association release if any
+        be an association release if any.
         """
         anchor = self._get_anchor(swhid, "rel")
         if anchor is None:
@@ -147,7 +147,7 @@ class GraphProvenance:
             )
 
     def whereare(self, *, swhids: List[CoreSWHID]) -> List[Optional[QualifiedSWHID]]:
-        """Given a list SWHID return a list of provenance info:
+        """Given a SWHID list return a list of provenance info:
 
         See `whereis` documentation for details on the provenance info.
         """

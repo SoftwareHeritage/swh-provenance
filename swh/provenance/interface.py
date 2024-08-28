@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2022  The Software Heritage developers
+# Copyright (C) 2015-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -39,17 +39,17 @@ class ProvenanceInterface(Protocol):
         prior art. We search for the first appearance of a content. So the
         "best answer" is the oldest content, something a bit tricky to
         determine as we can't fully trust the date of revision. On the other
-        hand, if we try to known which library are used and at which version,
+        hand, if we try to know which library are used and at which version,
         to detect CVE or outdated dependencies, the best answer is the most
         recent release/revision in the authoritative origin relevant to a
-        content.  Finding the authoritative origin is a challenge in itclient.
+        content.  Finding the authoritative origin is a challenge in itself.
 
         """
         ...
 
     @remote_api_endpoint("whereare")
     def whereare(self, *, swhids: List[CoreSWHID]) -> List[Optional[QualifiedSWHID]]:
-        """Given a list SWHID return a list of provenance info:
+        """Given a SWHID list return a list of provenance info:
 
         See `whereis` documentation for details on the provenance info.
         """

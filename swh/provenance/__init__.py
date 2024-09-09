@@ -15,10 +15,13 @@ PROVENANCE_IMPLEMENTATIONS = {
     "graph": "swh.provenance.backend.graph.GraphProvenance",
     "remote": "swh.provenance.api.client.RemoteProvenance",
     "postgresql": "swh.provenance.backend.postgresql.PostgresqlProvenance",
+    "known_swhid_filter": "swh.provenance.backend.known_swhid_proxy.KnownSwhidFilterProvenance",
 }
 
+ProvenanceSpec = Dict[str, Any]
 
-def get_provenance(cls: str, **kwargs: Dict[str, Any]) -> "ProvenanceInterface":
+
+def get_provenance(cls: str, **kwargs: ProvenanceSpec) -> "ProvenanceInterface":
     """Get a provenance service of class `cls` with arguments `args`.
 
     Args:

@@ -8,7 +8,9 @@ from typing import Any, Dict
 
 import pytest
 
+from swh.graph import example_dataset as data
 from swh.graph.grpc.swhgraph_pb2 import GraphDirection, TraversalRequest
+from swh.provenance.backend.graph import GraphProvenance
 
 from .provenance_tests import TestProvenance  # noqa
 
@@ -37,3 +39,8 @@ class TestProvenanceGraphGRPC:
         )
         result = list(resp)
         assert len(result) == 6
+
+    def test_max_edges(self, swh_provenance):
+        assert swh_provenance.whereis(swhid=data.CONTENTS[0].swhid()) is not None
+        prov2 = GraphProvenance(url=swh_provenance.graph_url, max_edges=1)
+        assert prov2.whereis(swhid=data.CONTENTS[0].swhid()) is None

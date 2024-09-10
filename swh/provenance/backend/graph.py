@@ -20,10 +20,19 @@ logger = logging.getLogger(__name__)
 
 
 class GraphProvenance:
-    def __init__(self, url):
+    def __init__(self, url, max_edges=10000):
+        """Provenance instance using a swh-graph GRPC backend
+
+        Args:
+            url: the location of the GRPC server; should be of the form: "<host>:<port>"
+            max_edges: maximum number of edges that can be fetched by a traversal query;
+              for more details, see:
+              https://docs.softwareheritage.org/devel/swh-graph/grpc-api.html#limiting-the-traversal
+        """
         self.graph_url = url
         self._channel = grpc.insecure_channel(self.graph_url)
         self._stub = TraversalServiceStub(self._channel)
+        self._max_edges = max_edges
 
     def check_config(self) -> bool:
         return True
@@ -58,7 +67,7 @@ class GraphProvenance:
             src=src,
             edges=edges,
             direction=GraphDirection.BACKWARD,
-            max_edges=10000,
+            max_edges=self._max_edges,
             return_nodes=NodeFilter(types=leaf_type),
             mask=FieldMask(paths=["swhid"]),
             max_matching_nodes=1,
@@ -109,7 +118,7 @@ class GraphProvenance:
             src=src,
             edges="rev:rev,rev:rel,*:snp,*:ori",
             direction=GraphDirection.BACKWARD,
-            max_edges=10000,
+            max_edges=self._max_edges,
             return_nodes=NodeFilter(types="ori"),
             max_matching_nodes=1,
         )

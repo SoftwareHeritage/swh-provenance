@@ -3,6 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import logging
+from time import monotonic
 from typing import List, Optional
 
 from google.protobuf.field_mask_pb2 import FieldMask
@@ -13,6 +15,8 @@ from swh.graph.grpc.swhgraph_pb2_grpc import TraversalServiceStub
 from swh.model.swhids import CoreSWHID
 from swh.model.swhids import ObjectType as SWHIDType
 from swh.model.swhids import QualifiedSWHID
+
+logger = logging.getLogger(__name__)
 
 
 class GraphProvenance:
@@ -60,9 +64,11 @@ class GraphProvenance:
             max_matching_nodes=1,
         )
         try:
+            t0 = monotonic()
             resp = list(self._stub.Traverse(anchor_search))
         except grpc.RpcError as exc:
             if exc.code() == grpc.StatusCode.NOT_FOUND:
+                logger.debug("SWHID %s anchor: not found", swhid)
                 return None
             d = exc.details()
             if (
@@ -72,11 +78,19 @@ class GraphProvenance:
             ):
                 # for java…
                 return None
+            logger.debug("SWHID %s anchor: GRPC error %s", swhid, exc)
             raise
+        finally:
+            logger.debug(
+                "SWHID %s anchor query took %.2fms", swhid, (monotonic() - t0) * 1000.0
+            )
+
         if resp:
             assert len(resp) == 1
             node = resp[0]
+            logger.debug("SWHID %s anchor: %s", swhid, resp[0])
             return CoreSWHID.from_string(node.swhid)
+        logger.debug("SWHID %s anchor: no result", swhid)
         return None
 
     def _get_origin(self, anchor_swhid: CoreSWHID) -> Optional[str]:
@@ -100,9 +114,11 @@ class GraphProvenance:
             max_matching_nodes=1,
         )
         try:
+            t0 = monotonic()
             resp = list(self._stub.Traverse(origin_search))
         except grpc.RpcError as exc:
             if exc.code() == grpc.StatusCode.NOT_FOUND:
+                logger.debug("SWHID %s origin: not found", anchor_swhid)
                 return None
             d = exc.details()
             if (
@@ -112,10 +128,20 @@ class GraphProvenance:
             ):
                 # for java…
                 return None
+            logger.debug("SWHID %s origin: GRPC error %s", anchor_swhid, exc)
             raise
+        finally:
+            logger.debug(
+                "SWHID %s origin query took %.2fms",
+                anchor_swhid,
+                (monotonic() - t0) * 1000.0,
+            )
+
         if resp:
             assert len(resp) == 1
+            logger.debug("SWHID %s origin: %s", anchor_swhid, resp[0].ori.url)
             return resp[0].ori.url
+        logger.debug("SWHID %s origin: no result", anchor_swhid)
         return None
 
     def whereis(self, *, swhid: CoreSWHID) -> Optional[QualifiedSWHID]:

@@ -272,27 +272,6 @@ IGNORED_SWHIDS: Set[CoreSWHID] = {
         "swh:1:cnt:fe1990c57a840e97c1075904f9e96daed2e65030",
         "swh:1:cnt:ff30235f076b3fde71fba6ceafa0f510e0006261",
         "swh:1:cnt:ff7dbb100623d2c1f447485012e8de229821cc84",
-        # MIT License
-        "swh:1:cnt:654d0bfe943437d43242325b1fbcff5f400d84ee",
-        "swh:1:cnt:e7af2f77107d73046421ef56c4684cbfdd3c1e89",
-        "swh:1:cnt:ee27ba4b4412b0e4a05af5e3d8a005bc6681fdf3",
-        # GPLv2
-        "swh:1:cnt:d159169d1050894d3ea3b98e1c965c4058208fe1",
-        "swh:1:cnt:d511905c1647a1e311e8b20d5930a37a9c2531cd",
-        "swh:1:cnt:d60c31a97a544b53039088d14fe9114583c0efc3",
-        # GPLv3
-        "swh:1:cnt:65c5ca88a67c30becee01c5a8816d964b03862f9",
-        "swh:1:cnt:94a9ed024d3859793618152ea559a168bbcbb5e2",
-        "swh:1:cnt:9cecc1d4669ee8af2ca727a5d8cde10cd8b2d7cc",
-        "swh:1:cnt:f288702d2fa16d3cdf0035b15a9fcbc552cd88e7",
-        # AGPLv3
-        "swh:1:cnt:dba13ed2ddf783ee8118c6a581dbf75305f816a3",
-        # Apache License 2.0
-        "swh:1:cnt:261eeb9e9f8b2b4b0d119366dda99c6fd7d35c64",
-        "swh:1:cnt:8dada3edaf50dbc082c9a125058f25def75e625a",
-        "swh:1:cnt:d645695673349e3947e8e5ae42332d0ac3164cd7",
-        # ISC License
-        "swh:1:cnt:19129e315fe593965a2fdd50ec0d1253bcbd2ece",
         # Create React App .gitignore
         "swh:1:cnt:4d29575de80483b005c29bfcac5061cd2f45313e",
         # React logo
@@ -314,9 +293,48 @@ IGNORED_SWHIDS: Set[CoreSWHID] = {
     ]
 }
 
+LICENSES: Set[CoreSWHID] = {
+    CoreSWHID.from_string(swhid)
+    for swhid in [
+        # MIT License
+        "swh:1:cnt:654d0bfe943437d43242325b1fbcff5f400d84ee",
+        "swh:1:cnt:e7af2f77107d73046421ef56c4684cbfdd3c1e89",
+        "swh:1:cnt:ee27ba4b4412b0e4a05af5e3d8a005bc6681fdf3",
+        # GPLv2
+        "swh:1:cnt:d159169d1050894d3ea3b98e1c965c4058208fe1",
+        "swh:1:cnt:d511905c1647a1e311e8b20d5930a37a9c2531cd",
+        "swh:1:cnt:d60c31a97a544b53039088d14fe9114583c0efc3",
+        # GPLv3
+        "swh:1:cnt:65c5ca88a67c30becee01c5a8816d964b03862f9",
+        "swh:1:cnt:94a9ed024d3859793618152ea559a168bbcbb5e2",
+        "swh:1:cnt:9cecc1d4669ee8af2ca727a5d8cde10cd8b2d7cc",
+        "swh:1:cnt:f288702d2fa16d3cdf0035b15a9fcbc552cd88e7",
+        # AGPLv3
+        "swh:1:cnt:dba13ed2ddf783ee8118c6a581dbf75305f816a3",
+        # Apache License 2.0
+        "swh:1:cnt:261eeb9e9f8b2b4b0d119366dda99c6fd7d35c64",
+        "swh:1:cnt:8dada3edaf50dbc082c9a125058f25def75e625a",
+        "swh:1:cnt:d645695673349e3947e8e5ae42332d0ac3164cd7",
+        #
+        "swh:1:cnt:19129e315fe593965a2fdd50ec0d1253bcbd2ece",  # ISC License
+        "swh:1:cnt:5f221241e800cf54f0ab26ea1ca12799346bbd46",  # Artistic
+        "swh:1:cnt:c7a0aa4f9417238fe9b9c6d1404f10180a80a5e6",  # BSD
+        "swh:1:cnt:0e259d42c996742e9e3cba14c677129b2c1b6311",  # CC0-1.0
+        "swh:1:cnt:68d93f4f67fd715b2a3fb01c9b96fbe3e10c9e41",  # GFDL-1.2
+        "swh:1:cnt:857214dd84593e0bacaac0211d76de0b69f2fa18",  # GFDL-1.3
+        "swh:1:cnt:8de98afaaf9a8472781df552e7a10c3d0ae30dd5",  # GPL-1
+        "swh:1:cnt:12735e6c21959f1c5db16aac184480f94697ef7f",  # LGPL-2
+        "swh:1:cnt:4362b49151d7b34ef83b3067a8f9c9f877d72a0e",  # LGPL-2.1
+        "swh:1:cnt:0a041280bd00a9d068f503b8ee7ce35214bd24a1",  # LGPL-3
+        "swh:1:cnt:566908108012cc288e8a9e8f9c0fb02e2d6e1152",  # MPL-1.1
+        "swh:1:cnt:14e2f777f6c395e7e04ab4aa306bbcc4b0c1120e",  # MPL-2.0
+    ]
+}
+
 
 class KnownSwhidFilterProvenance:
-    def __init__(self, provenance: ProvenanceSpec):
+    def __init__(self, provenance: ProvenanceSpec, filter_licenses=False):
+        self.filter_licenses = filter_licenses
         self.provenance: ProvenanceInterface = get_provenance(**provenance)
 
     def check_config(self) -> bool:
@@ -325,6 +343,9 @@ class KnownSwhidFilterProvenance:
     def whereis(self, *, swhid: CoreSWHID) -> Optional[QualifiedSWHID]:
         if swhid in IGNORED_SWHIDS:
             return None
+        if self.filter_licenses and swhid in LICENSES:
+            return None
+
         return self.provenance.whereis(swhid=swhid)
 
     def whereare(self, *, swhids: List[CoreSWHID]) -> List[Optional[QualifiedSWHID]]:

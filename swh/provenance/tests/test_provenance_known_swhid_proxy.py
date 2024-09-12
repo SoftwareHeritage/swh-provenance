@@ -45,7 +45,7 @@ def patched_ignored_swhids(
 
 
 class TestProvenanceFilterProxy:
-    def test_filtered(self, swh_provenance):
+    def test_whereis_filtered(self, swh_provenance):
         swhid = data.CONTENTS[0].swhid()
         assert swh_provenance.whereis(swhid=swhid) is not None
         with patched_ignored_swhids({swhid}):
@@ -66,3 +66,9 @@ class TestProvenanceFilterProxy:
         with patched_ignored_swhids({swhid}, known_swhid_proxy.LICENSES):
             assert swh_provenance.whereis(swhid=swhid) is not None
             assert swh_provenance2.whereis(swhid=swhid) is None  # filtered
+
+    def test_whereare_filtered(self, swh_provenance):
+        swhid = data.CONTENTS[0].swhid()
+        assert swh_provenance.whereare(swhids=[swhid])[0] is not None
+        with patched_ignored_swhids({swhid}):
+            assert swh_provenance.whereare(swhids=[swhid])[0] is None

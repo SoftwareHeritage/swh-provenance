@@ -349,4 +349,4 @@ class KnownSwhidFilterProvenance:
         return self.provenance.whereis(swhid=swhid)
 
     def whereare(self, *, swhids: List[CoreSWHID]) -> List[Optional[QualifiedSWHID]]:
-        return self.provenance.whereare(swhids=swhids)
+        return [self.whereis(swhid=si) for si in swhids]

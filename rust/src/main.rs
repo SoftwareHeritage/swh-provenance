@@ -51,7 +51,7 @@ async fn main() -> Result<()> {
             .await
             .context("SQL query failed")?;
         for batch in df.collect().await? {
-            tracing::info!("{:?}", batch)
+            tracing::debug!("{:?}", batch)
         }
     }
 

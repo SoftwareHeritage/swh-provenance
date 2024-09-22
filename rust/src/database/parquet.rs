@@ -15,7 +15,7 @@ use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::common::not_impl_err;
 use datafusion::common::GetExt;
 use datafusion::datasource::file_format::file_compression_type::FileCompressionType;
-use datafusion::datasource::file_format::parquet::{ParquetFormat};
+use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::file_format::{FileFormat, FileFormatFactory};
 use datafusion::datasource::physical_plan::parquet::{
     DefaultParquetFileReaderFactory, ParquetExecBuilder,
@@ -49,30 +49,25 @@ impl FileFormatFactory for CachingParquetFormatFactory {
         state: &SessionState,
         format_options: &std::collections::HashMap<String, String>,
     ) -> Result<Arc<dyn FileFormat>> {
-        panic!("1");
         self.0
             .create(state, format_options)
             .map(|format| Arc::new(CachingParquetFormat::new(format)) as _)
     }
 
     fn default(&self) -> Arc<dyn FileFormat> {
-        panic!("2");
         Arc::new(CachingParquetFormat::new(FileFormatFactory::default(
             self.0.as_ref(),
         )))
     }
 
     fn as_any(&self) -> &dyn Any {
-        panic!("3");
         self
     }
 }
 
 impl GetExt for CachingParquetFormatFactory {
     fn get_ext(&self) -> String {
-        let ext = self.0.get_ext();
-        println!("ext: {:?}", ext);
-        ext
+        self.0.get_ext()
     }
 }
 

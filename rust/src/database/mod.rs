@@ -8,6 +8,9 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
+use datafusion::datasource::file_format::parquet::ParquetFormat;
+use datafusion::datasource::file_format::parquet::ParquetFormatFactory;
+use datafusion::datasource::listing::ListingTableConfig;
 use datafusion::prelude::{SessionConfig, SessionContext};
 
 mod parquet;
@@ -27,22 +30,55 @@ impl ProvenanceDatabase {
 
         // Use the same underlying ParquetFormatFactory so they share their configuration
         let parquet_format_factory = ctx
-            .state()
+            .state_ref()
+            .read()
             .get_file_format_factory("parquet")
             .context("Could not get Parquet File Format")?;
+        assert!(
+            ctx.state_ref()
+                .read()
+                .get_file_format_factory("parquet")
+                .unwrap()
+                .as_any()
+                .downcast_ref::<ParquetFormatFactory>()
+                .is_some(),
+            "unexpected type of parquet factory"
+        );
+        let caching_parquet_format_factory =
+            Arc::new(CachingParquetFormatFactory::new(parquet_format_factory));
 
-        ctx.state()
+        // only useful when opening .parquet files directly, for some reason???
+        ctx.state_ref()
+            .write()
             .register_file_format(
-                Arc::new(CachingParquetFormatFactory::new(parquet_format_factory)),
+                caching_parquet_format_factory,
                 true, // overwrite
             )
             .context("Could not register CachingParquetFormatFactory")?;
 
+        assert!(
+            ctx.state_ref()
+                .read()
+                .get_file_format_factory("parquet")
+                .unwrap()
+                .as_any()
+                .downcast_ref::<CachingParquetFormatFactory>()
+                .is_some(),
+            "didn't overwrite the parquet factory"
+        );
+
         let table_path = |table_name| {
-            path.join(table_name)
-                .into_os_string()
-                .into_string()
-                .map_err(|table_path| anyhow!("Could not parse table path {table_path:?} as UTF8"))
+          //  datafusion::datasource::listing::ListingTableUrl::parse(format!(
+          //      "file://{}",
+                path.join(table_name)
+                    .into_os_string()
+                    .into_string()
+                    .map_err(|table_path| anyhow!(
+                        "Could not parse table path {table_path:?} as UTF8"
+                    ))
+          // ?
+          //  ))
+          //  .context("Could not parse file path in a file:// URL")
         };
 
         let options = datafusion::datasource::file_format::options::ParquetReadOptions {
@@ -53,6 +89,20 @@ impl ProvenanceDatabase {
             .await
             .context("Could not register 'node' table")?;
 
+        /*
+        let config = ListingTableConfig::new(table_path("contents_in_frontier_directories")?)
+            .infer_options(&ctx.state())
+            .await
+            .context("Could not infer options from contents_in_frontier_directories")?;
+        assert!(config
+            .options
+            .expect("Missing ListingOptions")
+            .format
+            .as_any()
+            .downcast_ref::<ParquetFormat>()
+            .is_some());
+        //config.options.format = caching_parquet_format_factory.
+        */
         ctx.sql(&format!(
             "
             CREATE EXTERNAL TABLE c_in_d
@@ -63,6 +113,7 @@ impl ProvenanceDatabase {
         ))
         .await
         .context("Could not register 'c_in_d' table")?;
+
         /*
         ctx.register_parquet(
             "c_in_d",
@@ -71,6 +122,7 @@ impl ProvenanceDatabase {
         )
         .await
         .context("Could not register 'c_in_d' table")?;
+        */
 
         /*
         ctx.register_parquet(

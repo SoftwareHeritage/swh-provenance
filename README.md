@@ -66,7 +66,5 @@ For each object::
 
 .. Note:: This documents the backend provenance service; it is not meant to be
           used directly but rather via the Public API; please refer to its
-          `description`_ for more details on how to use the Provenance public
-          API.
-
-.. _`description`: https://archive.softwareheritage.org/api/1/
+          [description](https://archive.softwareheritage.org/api/1/) for more
+          details on how to use the Provenance public API.

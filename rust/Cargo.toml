@@ -1,0 +1,64 @@
+[package]
+name = "swh-provenance"
+version.workspace = true
+readme = "README.md"
+edition = "2021"
+description = "gRPC service to efficiently find the first revisions/releases/origins to contain a given content/directory"
+repository = "https://gitlab.softwareheritage.org/swh/devel/swh-provenance"
+license = "GPL-3.0-or-later"
+keywords = ["software-heritage", "graph", "provenance", "grpc"]
+categories = ["compression", "science"]
+rust-version = "1.79"
+
+[dependencies]
+anyhow = { version="1.0.79", features=["backtrace"] }
+crossbeam-queue = "0.3.11"
+dashmap = "6.1.0"
+itertools = "0.13.0"
+
+# CLI & logging
+cadence = "1.4.0"
+clap = { version = "4.1.6", features = ["derive"] }
+chrono = { version = "0.4.31", features = ["serde"] }
+log = "0.4.17"
+sentry = { version = "0.32.1", features = ["anyhow", "tower", "tracing"], optional = true }
+sentry-tracing = "0.32.1"
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+
+# Database
+async-trait = "0.1.73"
+bytes = "1.7.1"
+datafusion = "42.0.0"
+object_store = { version = "0.11.0", default-features = false }
+parquet = { version = "53.0.0", default-features = false, features = ["arrow", "async"]}
+
+# gRPC
+# prost = "0.13"
+# prost-types = "0.13"
+# tonic = "0.12.2"
+# tonic-health = "0.12.2"
+# tonic-reflection = "0.12.2"
+# tonic-middleware = "0.2.1"
+# http-body = "1"  # must match the version used by tonic
+
+# serde
+serde_json = "1.0"
+serde = "1.0.189"
+serde_derive = "1.0.189"
+
+# Tokio & async
+async-scoped = { version = "0.9.0", features = ["use-tokio"] }
+futures-core = "0.3.30"
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
+tokio-stream = "0.1"
+
+[build-dependencies]
+#tonic-build = "0.11.0"
+
+[features]
+default = ["sentry"]
+
+#[[bin]]
+#name = "provenance-grpc-serve"
+#path = "src/main.rs"

@@ -1,0 +1,18 @@
+[workspace]
+
+resolver = "2"
+
+members = [
+    "rust",
+]
+
+[workspace.package]
+version = "0.2.2"
+
+[workspace.dependencies]
+
+
+[profile.release]
+lto = "fat"               # Full LTO
+debug = true              # Include debug info.
+debug-assertions = false  # Disables debug assertions.

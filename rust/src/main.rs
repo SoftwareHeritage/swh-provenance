@@ -13,6 +13,11 @@ use tracing_subscriber::util::SubscriberInitExt;
 
 use swh_provenance::database::ProvenanceDatabase;
 
+use mimalloc::MiMalloc;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {

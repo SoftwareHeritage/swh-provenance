@@ -13,6 +13,9 @@ version = "0.2.2"
 
 
 [profile.release]
-lto = "fat"               # Full LTO
+lto = "thin"              # Fat LTO takes minutes
 debug = true              # Include debug info.
 debug-assertions = false  # Disables debug assertions.
+
+[patch.crates-io]
+datafusion = { path = "../datafusion/datafusion/core" }

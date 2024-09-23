@@ -790,6 +790,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "42.0.0"
+source = "git+https://github.com/progval/arrow-datafusion.git?rev=d34711278685ae46cd2c83a1473c0a47411d8120#d34711278685ae46cd2c83a1473c0a47411d8120"
 dependencies = [
  "ahash",
  "arrow",
@@ -845,6 +846,7 @@ dependencies = [
 [[package]]
 name = "datafusion-catalog"
 version = "42.0.0"
+source = "git+https://github.com/progval/arrow-datafusion.git?rev=d34711278685ae46cd2c83a1473c0a47411d8120#d34711278685ae46cd2c83a1473c0a47411d8120"
 dependencies = [
  "arrow-schema",
  "async-trait",
@@ -858,6 +860,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "42.0.0"
+source = "git+https://github.com/progval/arrow-datafusion.git?rev=d34711278685ae46cd2c83a1473c0a47411d8120#d34711278685ae46cd2c83a1473c0a47411d8120"
 dependencies = [
  "ahash",
  "arrow",
@@ -880,6 +883,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common-runtime"
 version = "42.0.0"
+source = "git+https://github.com/progval/arrow-datafusion.git?rev=d34711278685ae46cd2c83a1473c0a47411d8120#d34711278685ae46cd2c83a1473c0a47411d8120"
 dependencies = [
  "log",
  "tokio",
@@ -888,6 +892,7 @@ dependencies = [
 [[package]]
 name = "datafusion-execution"
 version = "42.0.0"
+source = "git+https://github.com/progval/arrow-datafusion.git?rev=d34711278685ae46cd2c83a1473c0a47411d8120#d34711278685ae46cd2c83a1473c0a47411d8120"
 dependencies = [
  "arrow",
  "chrono",
@@ -907,6 +912,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "42.0.0"
+source = "git+https://github.com/progval/arrow-datafusion.git?rev=d34711278685ae46cd2c83a1473c0a47411d8120#d34711278685ae46cd2c83a1473c0a47411d8120"
 dependencies = [
  "ahash",
  "arrow",
@@ -916,6 +922,7 @@ dependencies = [
  "datafusion-common",
  "datafusion-expr-common",
  "datafusion-functions-aggregate-common",
+ "datafusion-functions-window-common",
  "datafusion-physical-expr-common",
  "paste",
  "serde_json",
@@ -927,6 +934,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr-common"
 version = "42.0.0"
+source = "git+https://github.com/progval/arrow-datafusion.git?rev=d34711278685ae46cd2c83a1473c0a47411d8120#d34711278685ae46cd2c83a1473c0a47411d8120"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -936,6 +944,7 @@ dependencies = [
 [[package]]
 name = "datafusion-functions"
 version = "42.0.0"
+source = "git+https://github.com/progval/arrow-datafusion.git?rev=d34711278685ae46cd2c83a1473c0a47411d8120#d34711278685ae46cd2c83a1473c0a47411d8120"
 dependencies = [
  "arrow",
  "arrow-buffer",
@@ -961,6 +970,7 @@ dependencies = [
 [[package]]
 name = "datafusion-functions-aggregate"
 version = "42.0.0"
+source = "git+https://github.com/progval/arrow-datafusion.git?rev=d34711278685ae46cd2c83a1473c0a47411d8120#d34711278685ae46cd2c83a1473c0a47411d8120"
 dependencies = [
  "ahash",
  "arrow",
@@ -980,6 +990,7 @@ dependencies = [
 [[package]]
 name = "datafusion-functions-aggregate-common"
 version = "42.0.0"
+source = "git+https://github.com/progval/arrow-datafusion.git?rev=d34711278685ae46cd2c83a1473c0a47411d8120#d34711278685ae46cd2c83a1473c0a47411d8120"
 dependencies = [
  "ahash",
  "arrow",
@@ -992,6 +1003,7 @@ dependencies = [
 [[package]]
 name = "datafusion-functions-nested"
 version = "42.0.0"
+source = "git+https://github.com/progval/arrow-datafusion.git?rev=d34711278685ae46cd2c83a1473c0a47411d8120#d34711278685ae46cd2c83a1473c0a47411d8120"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -1013,16 +1025,27 @@ dependencies = [
 [[package]]
 name = "datafusion-functions-window"
 version = "42.0.0"
+source = "git+https://github.com/progval/arrow-datafusion.git?rev=d34711278685ae46cd2c83a1473c0a47411d8120#d34711278685ae46cd2c83a1473c0a47411d8120"
 dependencies = [
  "datafusion-common",
  "datafusion-expr",
+ "datafusion-functions-window-common",
  "datafusion-physical-expr-common",
  "log",
 ]
 
 [[package]]
+name = "datafusion-functions-window-common"
+version = "42.0.0"
+source = "git+https://github.com/progval/arrow-datafusion.git?rev=d34711278685ae46cd2c83a1473c0a47411d8120#d34711278685ae46cd2c83a1473c0a47411d8120"
+dependencies = [
+ "datafusion-common",
+]
+
+[[package]]
 name = "datafusion-optimizer"
 version = "42.0.0"
+source = "git+https://github.com/progval/arrow-datafusion.git?rev=d34711278685ae46cd2c83a1473c0a47411d8120#d34711278685ae46cd2c83a1473c0a47411d8120"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1041,6 +1064,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "42.0.0"
+source = "git+https://github.com/progval/arrow-datafusion.git?rev=d34711278685ae46cd2c83a1473c0a47411d8120#d34711278685ae46cd2c83a1473c0a47411d8120"
 dependencies = [
  "ahash",
  "arrow",
@@ -1071,6 +1095,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr-common"
 version = "42.0.0"
+source = "git+https://github.com/progval/arrow-datafusion.git?rev=d34711278685ae46cd2c83a1473c0a47411d8120#d34711278685ae46cd2c83a1473c0a47411d8120"
 dependencies = [
  "ahash",
  "arrow",
@@ -1083,6 +1108,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-optimizer"
 version = "42.0.0"
+source = "git+https://github.com/progval/arrow-datafusion.git?rev=d34711278685ae46cd2c83a1473c0a47411d8120#d34711278685ae46cd2c83a1473c0a47411d8120"
 dependencies = [
  "arrow-schema",
  "datafusion-common",
@@ -1095,6 +1121,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-plan"
 version = "42.0.0"
+source = "git+https://github.com/progval/arrow-datafusion.git?rev=d34711278685ae46cd2c83a1473c0a47411d8120#d34711278685ae46cd2c83a1473c0a47411d8120"
 dependencies = [
  "ahash",
  "arrow",
@@ -1110,6 +1137,7 @@ dependencies = [
  "datafusion-expr",
  "datafusion-functions-aggregate",
  "datafusion-functions-aggregate-common",
+ "datafusion-functions-window-common",
  "datafusion-physical-expr",
  "datafusion-physical-expr-common",
  "futures",
@@ -1128,6 +1156,7 @@ dependencies = [
 [[package]]
 name = "datafusion-sql"
 version = "42.0.0"
+source = "git+https://github.com/progval/arrow-datafusion.git?rev=d34711278685ae46cd2c83a1473c0a47411d8120#d34711278685ae46cd2c83a1473c0a47411d8120"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -2254,9 +2283,9 @@ checksum = "1b6b67fb9a61334225b5b790716f609cd58395f895b3fe8b328786812a40bc3b"
 
 [[package]]
 name = "sqlparser"
-version = "0.50.0"
+version = "0.51.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2e5b515a2bd5168426033e9efbfd05500114833916f1d5c268f938b4ee130ac"
+checksum = "5fe11944a61da0da3f592e19a45ebe5ab92dc14a779907ff1f08fbb797bfefc7"
 dependencies = [
  "log",
  "sqlparser_derive",

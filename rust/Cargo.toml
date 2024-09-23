@@ -30,7 +30,8 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 # Database
 async-trait = "0.1.73"
 bytes = "1.7.1"
-datafusion = "42.0.0"
+#datafusion = "42.0.0"
+datafusion = { git = "https://github.com/progval/arrow-datafusion.git", rev = "d34711278685ae46cd2c83a1473c0a47411d8120" }
 object_store = { version = "0.11.0", default-features = false }
 parquet = { version = "53.0.0", default-features = false, features = ["arrow", "async"]}
 

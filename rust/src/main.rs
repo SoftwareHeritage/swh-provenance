@@ -21,6 +21,8 @@ static GLOBAL: MiMalloc = MiMalloc;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
+    #[arg(long)]
+    cache_parquet: bool,
     /// Path to the provenance database
     database: PathBuf,
 }
@@ -45,16 +47,23 @@ async fn main() -> Result<()> {
 
     let args = Args::parse();
 
-    let ctx = ProvenanceDatabase::new(args.database)
+    let ctx = ProvenanceDatabase::new(args.database, args.cache_parquet)
         .await
         .context("Could not initialize provenance database")?
         .ctx;
     for i in 0..100 {
         tracing::info!("Iteration {i}/100");
-        let df = ctx
-            .sql("SELECT cnt, dir FROM c_in_d WHERE cnt = 8480961860;")
-            .await
-            .context("SQL query failed")?;
+        let df = if i % 10 == 0 {
+            ctx
+                .sql("EXPLAIN ANALYZE SELECT cnt, dir FROM c_in_d WHERE cnt = 8480961860;")
+                .await
+                .context("SQL query failed")?
+        } else {
+            ctx
+                .sql("SELECT cnt, dir FROM c_in_d WHERE cnt = 8480961860;")
+                .await
+                .context("SQL query failed")?
+        };
         for batch in df.collect().await? {
             tracing::debug!("{:?}", batch)
         }

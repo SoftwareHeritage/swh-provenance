@@ -21,7 +21,7 @@ pub struct ProvenanceDatabase {
 }
 
 impl ProvenanceDatabase {
-    pub async fn new(path: impl AsRef<Path>) -> Result<Self> {
+    pub async fn new(path: impl AsRef<Path>, cache_parquet: bool) -> Result<Self> {
         let path = path.as_ref();
 
         let config =
@@ -47,38 +47,37 @@ impl ProvenanceDatabase {
         let caching_parquet_format_factory =
             Arc::new(CachingParquetFormatFactory::new(parquet_format_factory));
 
-        // only useful when opening .parquet files directly, for some reason???
-        ctx.state_ref()
-            .write()
-            .register_file_format(
-                caching_parquet_format_factory,
-                true, // overwrite
-            )
-            .context("Could not register CachingParquetFormatFactory")?;
-
-        assert!(
+        if cache_parquet {
             ctx.state_ref()
-                .read()
-                .get_file_format_factory("parquet")
-                .unwrap()
-                .as_any()
-                .downcast_ref::<CachingParquetFormatFactory>()
-                .is_some(),
-            "didn't overwrite the parquet factory"
-        );
+                .write()
+                .register_file_format(
+                    caching_parquet_format_factory,
+                    true, // overwrite
+                )
+                .context("Could not register CachingParquetFormatFactory")?;
+
+            assert!(
+                ctx.state_ref()
+                    .read()
+                    .get_file_format_factory("parquet")
+                    .unwrap()
+                    .as_any()
+                    .downcast_ref::<CachingParquetFormatFactory>()
+                    .is_some(),
+                "didn't overwrite the parquet factory"
+            );
+        }
 
         let table_path = |table_name| {
-          //  datafusion::datasource::listing::ListingTableUrl::parse(format!(
-          //      "file://{}",
-                path.join(table_name)
-                    .into_os_string()
-                    .into_string()
-                    .map_err(|table_path| anyhow!(
-                        "Could not parse table path {table_path:?} as UTF8"
-                    ))
-          // ?
-          //  ))
-          //  .context("Could not parse file path in a file:// URL")
+            //  datafusion::datasource::listing::ListingTableUrl::parse(format!(
+            //      "file://{}",
+            path.join(table_name)
+                .into_os_string()
+                .into_string()
+                .map_err(|table_path| anyhow!("Could not parse table path {table_path:?} as UTF8"))
+            // ?
+            //  ))
+            //  .context("Could not parse file path in a file:// URL")
         };
 
         let options = datafusion::datasource::file_format::options::ParquetReadOptions {

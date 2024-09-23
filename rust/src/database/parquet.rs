@@ -17,6 +17,7 @@ use datafusion::common::GetExt;
 use datafusion::datasource::file_format::file_compression_type::FileCompressionType;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::file_format::{FileFormat, FileFormatFactory};
+use datafusion::datasource::physical_plan::parquet::ParquetFileReader;
 use datafusion::datasource::physical_plan::parquet::{
     DefaultParquetFileReaderFactory, ParquetExecBuilder,
 };
@@ -29,8 +30,11 @@ use datafusion::execution::SessionState;
 use datafusion::physical_expr::LexRequirement;
 use datafusion::physical_plan::metrics::ExecutionPlanMetricsSet;
 use datafusion::physical_plan::{ExecutionPlan, PhysicalExpr, Statistics};
-use futures_core::future::BoxFuture;
+use futures::future::{BoxFuture, Either};
+use futures::FutureExt;
 use object_store::{ObjectMeta, ObjectStore};
+use parquet::arrow::arrow_reader::ArrowReaderMetadata;
+use parquet::arrow::arrow_reader::ArrowReaderOptions;
 use parquet::arrow::async_reader::AsyncFileReader;
 use parquet::file::metadata::ParquetMetaData;
 
@@ -185,7 +189,7 @@ impl FileFormat for CachingParquetFormat {
 #[derive(Debug, Default)]
 struct CachingParquetFileReaderFactoryFactory {
     /// Cache, keyed by file name and partition index
-    readers: Arc<DashMap<(PathBuf, usize), Mutex<Box<dyn AsyncFileReader + Send>>>>,
+    readers: Arc<DashMap<(PathBuf, usize), Mutex<Box<dyn ParquetFileReader>>>>,
 }
 
 impl CachingParquetFileReaderFactoryFactory {
@@ -205,7 +209,7 @@ struct CachingParquetFileReaderFactory {
     readers: Arc<
         DashMap<
             (object_store::path::Path, usize),
-            Arc<crossbeam_queue::SegQueue<Box<dyn AsyncFileReader + Send>>>,
+            Arc<crossbeam_queue::SegQueue<Box<dyn ParquetFileReader>>>,
         >,
     >,
 }
@@ -245,38 +249,132 @@ impl ParquetFileReaderFactory for CachingParquetFileReaderFactory {
         file_meta: FileMeta,
         metadata_size_hint: Option<usize>,
         metrics: &ExecutionPlanMetricsSet,
-    ) -> Result<Box<dyn AsyncFileReader + Send>> {
+    ) -> Result<Box<dyn ParquetFileReader>> {
         let filename = file_meta.location().to_owned();
         let reader_pool_guard = self.readers.entry((filename, partition_index)).or_default();
         let reader_pool = reader_pool_guard.value();
         let reader = match reader_pool.pop() {
             None => {
-                tracing::debug!("Creating new reader for {}", file_meta.location());
                 self.inner
                     .create_reader(partition_index, file_meta, metadata_size_hint, metrics)?
             }
             Some(reader) => {
-                tracing::debug!("Reusing reader for {}", file_meta.location());
                 reader
             }
         };
-        Ok(Box::new(PooledAsyncFileReader::new(
-            reader,
+        Ok(Box::new(PooledParquetFileReader::new(
+            Box::new(CachingParquetFileReader::new(reader)) as _,
             Arc::downgrade(reader_pool),
         )) as _)
     }
+
+    /*
+    fn load_metadata_async<'a>(
+        &'a self,
+        reader: &'a mut Box<dyn ParquetFileReader>,
+        options: ArrowReaderOptions,
+    ) -> BoxFuture<'a, parquet::errors::Result<ArrowReaderMetadata>> {
+        let reader = reader
+            .downcast_ref::<CachingParquetFileReader>()
+            .expect("Could not downcast to CachedParquetFileReader");
+        Box::pin(match reader.metadata {
+            Some(metadata) => Either::Left(std::future::ready(metadata.clone())),
+            None => Either::Right(
+                ArrowReaderMetadata::load_async(reader, options)
+                    .inspect(|metadata| if let Ok(metadata) = metadata {
+                        reader.metadata = metadata.clone()
+                    }),
+            ),
+        })
+    }*/
 }
 
-/// Wrapper for [`AsyncFileReader`] that puts its wrapped reader back into a pool when dropped.
-struct PooledAsyncFileReader {
-    inner: Option<Box<dyn AsyncFileReader + Send>>,
-    pool: Weak<crossbeam_queue::SegQueue<Box<dyn AsyncFileReader + Send>>>,
+/// Wrapper for [`ParquetFileReader`] that  only reads its metadata the first time it is requested
+struct CachingParquetFileReader {
+    inner: Box<dyn ParquetFileReader>,
+    metadata: Option<ArrowReaderMetadata>,
 }
 
-impl PooledAsyncFileReader {
+impl CachingParquetFileReader {
+    fn new(inner: Box<dyn ParquetFileReader>) -> Self {
+        Self {
+            inner: inner,
+            metadata: None,
+        }
+    }
+}
+
+impl AsyncFileReader for CachingParquetFileReader {
+    fn get_bytes(
+        &mut self,
+        range: Range<usize>,
+    ) -> BoxFuture<'_, parquet::errors::Result<bytes::Bytes>> {
+        self.inner.get_bytes(range)
+    }
+
+    fn get_metadata(&mut self) -> BoxFuture<'_, parquet::errors::Result<Arc<ParquetMetaData>>> {
+        self.inner.get_metadata()
+        /*
+        Box::pin(match self.metadata {
+            Some(metadata) => Either::Left(std::future::ready(metadata.clone())),
+            None => Either::Right(
+                // Technically, we could just do `self.inner.get_metadata()` instead of
+                // `ArrowReaderMetadata::load_async`. However, the latter does non-negligeable
+                // work after calling the former, such as parsing the Page Index, which wastes
+                // a lot of time when processing short queries. So we cache its result.
+                ArrowReaderMetadata::load_async(self.inner, options)
+                    .inspect(|metadata| if let Ok(metadata) = metadata {
+                        self.metadata = metadata.clone()
+                    }),
+            ),
+        })
+        */
+    }
+
+    fn get_byte_ranges(
+        &mut self,
+        ranges: Vec<Range<usize>>,
+    ) -> BoxFuture<'_, parquet::errors::Result<Vec<bytes::Bytes>>> {
+        self.inner.get_byte_ranges(ranges)
+    }
+}
+
+impl ParquetFileReader for CachingParquetFileReader {
+    fn upcast(self: Box<Self>) -> Box<dyn AsyncFileReader + 'static> {
+        Box::new(*self)
+    }
+
+    fn load_metadata(
+        &mut self,
+        options: ArrowReaderOptions,
+    ) -> BoxFuture<'_, parquet::errors::Result<ArrowReaderMetadata>> {
+        Box::pin(match &self.metadata {
+            Some(metadata) => Either::Left(std::future::ready(Ok(metadata.clone()))),
+            None => Either::Right(
+                // Technically, we could just do `self.inner.get_metadata()` instead of
+                // `ArrowReaderMetadata::load_async`. However, the latter does non-negligeable
+                // work after calling the former, such as parsing the Page Index, which wastes
+                // a lot of time when processing short queries. So we cache its result.
+                self.inner.load_metadata(options).inspect(|metadata| {
+                    if let Ok(metadata) = metadata {
+                        self.metadata = Some(metadata.clone())
+                    }
+                }),
+            ),
+        })
+    }
+}
+
+/// Wrapper for [`ParquetFileReader`] that puts its wrapped reader back into a pool when dropped.
+struct PooledParquetFileReader {
+    inner: Option<Box<dyn ParquetFileReader>>,
+    pool: Weak<crossbeam_queue::SegQueue<Box<dyn ParquetFileReader>>>,
+}
+
+impl PooledParquetFileReader {
     fn new(
-        inner: Box<dyn AsyncFileReader + Send>,
-        pool: Weak<crossbeam_queue::SegQueue<Box<dyn AsyncFileReader + Send>>>,
+        inner: Box<dyn ParquetFileReader>,
+        pool: Weak<crossbeam_queue::SegQueue<Box<dyn ParquetFileReader>>>,
     ) -> Self {
         Self {
             inner: Some(inner),
@@ -285,7 +383,7 @@ impl PooledAsyncFileReader {
     }
 }
 
-impl AsyncFileReader for PooledAsyncFileReader {
+impl AsyncFileReader for PooledParquetFileReader {
     fn get_bytes(
         &mut self,
         range: Range<usize>,
@@ -304,11 +402,23 @@ impl AsyncFileReader for PooledAsyncFileReader {
     }
 }
 
-impl Drop for PooledAsyncFileReader {
+impl ParquetFileReader for PooledParquetFileReader {
+    fn upcast(self: Box<Self>) -> Box<dyn AsyncFileReader + 'static> {
+        Box::new(*self)
+    }
+
+    fn load_metadata(
+        &mut self,
+        options: ArrowReaderOptions,
+    ) -> BoxFuture<'_, parquet::errors::Result<ArrowReaderMetadata>> {
+        self.inner.as_mut().unwrap().load_metadata(options)
+    }
+}
+
+impl Drop for PooledParquetFileReader {
     fn drop(&mut self) {
         // If the pool still exists, put the wrapped reader back into the pool
         if let Some(pool) = self.pool.upgrade() {
-            tracing::debug!("Releasing reader");
             pool.push(self.inner.take().unwrap());
         }
     }

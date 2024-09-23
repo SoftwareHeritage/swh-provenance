@@ -312,21 +312,6 @@ impl AsyncFileReader for CachingParquetFileReader {
 
     fn get_metadata(&mut self) -> BoxFuture<'_, parquet::errors::Result<Arc<ParquetMetaData>>> {
         self.inner.get_metadata()
-        /*
-        Box::pin(match self.metadata {
-            Some(metadata) => Either::Left(std::future::ready(metadata.clone())),
-            None => Either::Right(
-                // Technically, we could just do `self.inner.get_metadata()` instead of
-                // `ArrowReaderMetadata::load_async`. However, the latter does non-negligeable
-                // work after calling the former, such as parsing the Page Index, which wastes
-                // a lot of time when processing short queries. So we cache its result.
-                ArrowReaderMetadata::load_async(self.inner, options)
-                    .inspect(|metadata| if let Ok(metadata) = metadata {
-                        self.metadata = metadata.clone()
-                    }),
-            ),
-        })
-        */
     }
 
     fn get_byte_ranges(

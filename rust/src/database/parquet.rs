@@ -187,23 +187,6 @@ impl FileFormat for CachingParquetFormat {
     }
 }
 
-/*
-#[derive(Debug, Default)]
-struct CachingParquetFileReaderFactoryFactory {
-    /// Cache, keyed by file name and partition index
-    readers: Arc<DashMap<(PathBuf, usize), Mutex<Box<dyn ParquetFileReader>>>>,
-}
-
-impl CachingParquetFileReaderFactoryFactory {
-    fn for_runtime_env(runtime_env: Arc<RuntimeEnv>) -> CachingParquetFileReaderFactory {
-        CachingParquetFileReaderFactory {
-            runtime_env,
-            readers: Arc::clone(self.readers),
-        }
-    }
-}
-*/
-
 struct CachingParquetFileReaderFactory {
     inner: DefaultParquetFileReaderFactory,
     /// Cache, keyed by file name and partition index. Values are pools of readers, as each reader
@@ -261,26 +244,6 @@ impl ParquetFileReaderFactory for CachingParquetFileReaderFactory {
             )
         })
     }
-
-    /*
-    fn load_metadata_async<'a>(
-        &'a self,
-        reader: &'a mut Box<dyn ParquetFileReader>,
-        options: ArrowReaderOptions,
-    ) -> BoxFuture<'a, parquet::errors::Result<ArrowReaderMetadata>> {
-        let reader = reader
-            .downcast_ref::<CachingParquetFileReader>()
-            .expect("Could not downcast to CachedParquetFileReader");
-        Box::pin(match reader.metadata {
-            Some(metadata) => Either::Left(std::future::ready(metadata.clone())),
-            None => Either::Right(
-                ArrowReaderMetadata::load_async(reader, options)
-                    .inspect(|metadata| if let Ok(metadata) = metadata {
-                        reader.metadata = metadata.clone()
-                    }),
-            ),
-        })
-    }*/
 }
 
 /// Wrapper for [`ParquetFileReader`] that  only reads its metadata the first time it is requested

@@ -8,11 +8,11 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
-use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::file_format::parquet::ParquetFormatFactory;
-use datafusion::datasource::listing::ListingTableConfig;
 use datafusion::prelude::{SessionConfig, SessionContext};
 
+mod pooled_reader;
+use pooled_reader::ParquetFileReaderPool;
 mod parquet;
 use parquet::CachingParquetFormatFactory;
 

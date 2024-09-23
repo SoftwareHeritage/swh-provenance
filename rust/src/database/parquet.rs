@@ -7,7 +7,7 @@
 use std::any::Any;
 use std::collections::HashSet;
 use std::ops::Range;
-use std::sync::{Arc, Weak};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use dashmap::DashMap;
@@ -37,6 +37,8 @@ use parquet::arrow::arrow_reader::ArrowReaderMetadata;
 use parquet::arrow::arrow_reader::ArrowReaderOptions;
 use parquet::arrow::async_reader::AsyncFileReader;
 use parquet::file::metadata::ParquetMetaData;
+
+use super::ParquetFileReaderPool;
 
 #[derive(Debug)]
 pub struct CachingParquetFormatFactory(Arc<dyn FileFormatFactory>);
@@ -206,12 +208,7 @@ struct CachingParquetFileReaderFactory {
     inner: DefaultParquetFileReaderFactory,
     /// Cache, keyed by file name and partition index. Values are pools of readers, as each reader
     /// can not be used by two threads at the same time.
-    readers: Arc<
-        DashMap<
-            (object_store::path::Path, usize),
-            Arc<crossbeam_queue::SegQueue<Box<dyn ParquetFileReader>>>,
-        >,
-    >,
+    readers: Arc<DashMap<(object_store::path::Path, usize), ParquetFileReaderPool>>,
 }
 
 impl std::fmt::Debug for CachingParquetFileReaderFactory {
@@ -253,17 +250,16 @@ impl ParquetFileReaderFactory for CachingParquetFileReaderFactory {
         let filename = file_meta.location().to_owned();
         let reader_pool_guard = self.readers.entry((filename, partition_index)).or_default();
         let reader_pool = reader_pool_guard.value();
-        let reader = match reader_pool.pop() {
-            None => {
-                self.inner
-                    .create_reader(partition_index, file_meta, metadata_size_hint, metrics)?
-            }
-            Some(reader) => reader,
-        };
-        Ok(Box::new(PooledParquetFileReader::new(
-            Box::new(CachingParquetFileReader::new(reader)) as _,
-            Arc::downgrade(reader_pool),
-        )) as _)
+        reader_pool.try_get_reader(|| {
+            Ok(
+                Box::new(CachingParquetFileReader::new(self.inner.create_reader(
+                    partition_index,
+                    file_meta,
+                    metadata_size_hint,
+                    metrics,
+                )?)) as _,
+            )
+        })
     }
 
     /*
@@ -296,7 +292,7 @@ struct CachingParquetFileReader {
 impl CachingParquetFileReader {
     fn new(inner: Box<dyn ParquetFileReader>) -> Self {
         Self {
-            inner: inner,
+            inner,
             metadata: None,
         }
     }
@@ -339,64 +335,5 @@ impl ParquetFileReader for CachingParquetFileReader {
                 }
             })),
         })
-    }
-}
-
-/// Wrapper for [`ParquetFileReader`] that puts its wrapped reader back into a pool when dropped.
-struct PooledParquetFileReader {
-    inner: Option<Box<dyn ParquetFileReader>>,
-    pool: Weak<crossbeam_queue::SegQueue<Box<dyn ParquetFileReader>>>,
-}
-
-impl PooledParquetFileReader {
-    fn new(
-        inner: Box<dyn ParquetFileReader>,
-        pool: Weak<crossbeam_queue::SegQueue<Box<dyn ParquetFileReader>>>,
-    ) -> Self {
-        Self {
-            inner: Some(inner),
-            pool,
-        }
-    }
-}
-
-impl AsyncFileReader for PooledParquetFileReader {
-    fn get_bytes(
-        &mut self,
-        range: Range<usize>,
-    ) -> BoxFuture<'_, parquet::errors::Result<bytes::Bytes>> {
-        self.inner.as_mut().unwrap().get_bytes(range)
-    }
-    fn get_metadata(&mut self) -> BoxFuture<'_, parquet::errors::Result<Arc<ParquetMetaData>>> {
-        self.inner.as_mut().unwrap().get_metadata()
-    }
-
-    fn get_byte_ranges(
-        &mut self,
-        ranges: Vec<Range<usize>>,
-    ) -> BoxFuture<'_, parquet::errors::Result<Vec<bytes::Bytes>>> {
-        self.inner.as_mut().unwrap().get_byte_ranges(ranges)
-    }
-}
-
-impl ParquetFileReader for PooledParquetFileReader {
-    fn upcast(self: Box<Self>) -> Box<dyn AsyncFileReader + 'static> {
-        Box::new(*self)
-    }
-
-    fn load_metadata(
-        &mut self,
-        options: ArrowReaderOptions,
-    ) -> BoxFuture<'_, parquet::errors::Result<ArrowReaderMetadata>> {
-        self.inner.as_mut().unwrap().load_metadata(options)
-    }
-}
-
-impl Drop for PooledParquetFileReader {
-    fn drop(&mut self) {
-        // If the pool still exists, put the wrapped reader back into the pool
-        if let Some(pool) = self.pool.upgrade() {
-            pool.push(self.inner.take().unwrap());
-        }
     }
 }

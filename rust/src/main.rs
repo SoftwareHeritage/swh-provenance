@@ -54,13 +54,11 @@ async fn main() -> Result<()> {
     for i in 0..100 {
         tracing::info!("Iteration {i}/100");
         let df = if i % 10 == 0 {
-            ctx
-                .sql("EXPLAIN ANALYZE SELECT cnt, dir FROM c_in_d WHERE cnt = 8480961860;")
+            ctx.sql("EXPLAIN ANALYZE SELECT cnt, dir FROM c_in_d WHERE cnt = 8480961860;")
                 .await
                 .context("SQL query failed")?
         } else {
-            ctx
-                .sql("SELECT cnt, dir FROM c_in_d WHERE cnt = 8480961860;")
+            ctx.sql("SELECT cnt, dir FROM c_in_d WHERE cnt = 8480961860;")
                 .await
                 .context("SQL query failed")?
         };

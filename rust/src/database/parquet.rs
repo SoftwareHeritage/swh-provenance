@@ -258,9 +258,7 @@ impl ParquetFileReaderFactory for CachingParquetFileReaderFactory {
                 self.inner
                     .create_reader(partition_index, file_meta, metadata_size_hint, metrics)?
             }
-            Some(reader) => {
-                reader
-            }
+            Some(reader) => reader,
         };
         Ok(Box::new(PooledParquetFileReader::new(
             Box::new(CachingParquetFileReader::new(reader)) as _,
@@ -350,17 +348,11 @@ impl ParquetFileReader for CachingParquetFileReader {
     ) -> BoxFuture<'_, parquet::errors::Result<ArrowReaderMetadata>> {
         Box::pin(match &self.metadata {
             Some(metadata) => Either::Left(std::future::ready(Ok(metadata.clone()))),
-            None => Either::Right(
-                // Technically, we could just do `self.inner.get_metadata()` instead of
-                // `ArrowReaderMetadata::load_async`. However, the latter does non-negligeable
-                // work after calling the former, such as parsing the Page Index, which wastes
-                // a lot of time when processing short queries. So we cache its result.
-                self.inner.load_metadata(options).inspect(|metadata| {
-                    if let Ok(metadata) = metadata {
-                        self.metadata = Some(metadata.clone())
-                    }
-                }),
-            ),
+            None => Either::Right(self.inner.load_metadata(options).inspect(|metadata| {
+                if let Ok(metadata) = metadata {
+                    self.metadata = Some(metadata.clone())
+                }
+            })),
         })
     }
 }

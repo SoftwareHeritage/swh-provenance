@@ -10,7 +10,6 @@ use std::sync::Arc;
 use anyhow::{bail, Context, Result};
 use datafusion::datasource::file_format::parquet::ParquetFormatFactory;
 use datafusion::prelude::{SessionConfig, SessionContext};
-use object_store::ObjectStore;
 
 mod caching_parquet_format;
 use caching_parquet_format::CachingParquetFormatFactory;
@@ -47,12 +46,7 @@ impl ProvenanceDatabase {
                 .is_some(),
             "unexpected type of parquet factory"
         );
-        let caching_parquet_format_factory: Arc<
-            CachingParquetFormatFactory<
-                CachingParquetFileReaderFactory,
-                fn(Arc<dyn ObjectStore>) -> CachingParquetFileReaderFactory,
-            >,
-        > = Arc::new(CachingParquetFormatFactory::new(
+        let caching_parquet_format_factory = Arc::new(CachingParquetFormatFactory::new(
             parquet_format_factory,
             CachingParquetFileReaderFactory::new,
         ));
@@ -65,20 +59,6 @@ impl ProvenanceDatabase {
                     true, // overwrite
                 )
                 .context("Could not register CachingParquetFormatFactory")?;
-
-            assert!(
-                ctx.state_ref()
-                    .read()
-                    .get_file_format_factory("parquet")
-                    .unwrap()
-                    .as_any()
-                    .downcast_ref::<CachingParquetFormatFactory<
-                        CachingParquetFileReaderFactory,
-                        fn(Arc<dyn ObjectStore>) -> CachingParquetFileReaderFactory,
-                    >>()
-                    .is_some(),
-                "didn't overwrite the parquet factory"
-            );
         }
 
         {

@@ -7,7 +7,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{bail, Context, Result};
 use datafusion::datasource::file_format::parquet::ParquetFormatFactory;
 use datafusion::prelude::{SessionConfig, SessionContext};
 use object_store::ObjectStore;
@@ -81,78 +81,42 @@ impl ProvenanceDatabase {
             );
         }
 
-        let table_path = |table_name| {
-            //  datafusion::datasource::listing::ListingTableUrl::parse(format!(
-            //      "file://{}",
-            path.join(table_name)
-                .into_os_string()
-                .into_string()
-                .map_err(|table_path| anyhow!("Could not parse table path {table_path:?} as UTF8"))
-            // ?
-            //  ))
-            //  .context("Could not parse file path in a file:// URL")
-        };
-
-        let options = datafusion::datasource::file_format::options::ParquetReadOptions {
-            parquet_pruning: Some(true),
-            ..Default::default()
-        };
-        ctx.register_parquet("node", &table_path("nodes")?, options.clone())
+        {
+            let ctx = &ctx;
+            futures::future::join_all(
+                [
+                    ("node", "nodes"),
+                    ("c_in_d", "contents_in_frontier_directories"),
+                    ("d_in_r", "frontier_directories_in_revisions"),
+                    ("c_in_r", "contents_in_revisions_without_frontiers"),
+                ]
+                .into_iter()
+                .map(|(table_name, dir_name)| async move {
+                    let table_path = path.join(dir_name);
+                    let Ok(table_path) = table_path.clone().into_os_string().into_string() else {
+                        bail!("Could not parse table path {table_path:?} as UTF8");
+                    };
+                    ctx.sql(&format!(
+                        "
+                    CREATE EXTERNAL TABLE {}
+                    STORED AS PARQUET
+                    LOCATION '{}'
+                    ",
+                        table_name, table_path,
+                    ))
+                    .await
+                    .with_context(|| {
+                        format!(
+                            "Could not register '{}' table from {}",
+                            table_name, table_path
+                        )
+                    })
+                }),
+            )
             .await
-            .context("Could not register 'node' table")?;
-
-        /*
-        let config = ListingTableConfig::new(table_path("contents_in_frontier_directories")?)
-            .infer_options(&ctx.state())
-            .await
-            .context("Could not infer options from contents_in_frontier_directories")?;
-        assert!(config
-            .options
-            .expect("Missing ListingOptions")
-            .format
-            .as_any()
-            .downcast_ref::<ParquetFormat>()
-            .is_some());
-        //config.options.format = caching_parquet_format_factory.
-        */
-        ctx.sql(&format!(
-            "
-            CREATE EXTERNAL TABLE c_in_d
-            STORED AS PARQUET
-            LOCATION '{}'
-            ",
-            table_path("contents_in_frontier_directories")?
-        ))
-        .await
-        .context("Could not register 'c_in_d' table")?;
-
-        /*
-        ctx.register_parquet(
-            "c_in_d",
-            &table_path("contents_in_frontier_directories")?,
-            options.clone(),
-        )
-        .await
-        .context("Could not register 'c_in_d' table")?;
-        */
-
-        /*
-        ctx.register_parquet(
-            "d_in_r",
-            &table_path("frontier_directories_in_revisions")?,
-            options.clone(),
-        )
-        .await
-        .context("Could not register 'd_in_r' table")?;
-
-        ctx.register_parquet(
-            "c_in_r",
-            &table_path("contents_in_revisions_without_frontiers")?,
-            options.clone(),
-        )
-        .await
-        .context("Could not register 'c_in_r' table")?;
-        */
+            .into_iter()
+            .collect::<Result<Vec<_>>>()?;
+        }
 
         Ok(Self { ctx })
     }

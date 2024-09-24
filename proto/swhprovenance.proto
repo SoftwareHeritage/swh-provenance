@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+import "google/protobuf/field_mask.proto";
+
+package swh.provenance;
+
+/* Content Provenance service */
+service ProvenanceService {
+    /* Given an object's SWHID, returns an origin and revision/release where it can be found */
+    rpc WhereIsOne (WhereIsOneRequest) returns (WhereIsOneResult);
+
+    /* Given several objects' SWHIDs, returns an origin and revision/release for each of them
+     * where they can be found, in arbitrary order.
+     *
+     * Nodes with no known provenance are returned with both their anchor and origin empty. */
+    rpc WhereAreOne (WhereAreOneRequest) returns (stream WhereIsOneResult);
+}
+
+message WhereIsOneRequest {
+    /* Core SWHID of the node to lookup */
+    string swhid = 1;
+    /* FieldMask of which fields are to be returned (e.g., "origin,revision,release").
+     * By default, all fields are returned. */
+    optional google.protobuf.FieldMask mask = 8;
+}
+
+message WhereAreOneRequest {
+    /* Core SWHIDs of the nodes to lookup */
+    repeated string swhid = 1;
+    /* FieldMask of which fields are to be returned (e.g., "origin,revision,release").
+     * By default, all fields are returned. */
+    optional google.protobuf.FieldMask mask = 8;
+}
+
+message WhereIsOneResult {
+    /* Core SWHID of the node whose lookup was requested */
+    string swhid = 1;
+    /* Core SWHID of a revision or release that contains the above node */
+    optional string anchor = 2;
+    /* URL of an origin that contains the anchor */
+    optional string origin = 3;
+}

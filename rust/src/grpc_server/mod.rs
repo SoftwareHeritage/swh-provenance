@@ -4,13 +4,10 @@
 // See top-level LICENSE file for more information
 
 use std::sync::Arc;
-use tokio::sync::mpsc;
 
 use anyhow::Result;
 use futures::stream::FuturesUnordered;
-use futures::StreamExt;
 use sentry::integrations::anyhow::capture_anyhow;
-use tokio_stream::wrappers::ReceiverStream;
 use tonic::transport::Server;
 use tonic::{Request, Response};
 use tonic_middleware::MiddlewareFor;
@@ -55,7 +52,12 @@ impl proto::provenance_service_server::ProvenanceService for ProvenanceService {
         todo!()
     }
 
-    type WhereAreOneStream = ReceiverStream<Result<proto::WhereIsOneResult, tonic::Status>>;
+    // TODO: When impl_trait_in_assoc_type is stabilized, replace this with:
+    // type WhereAreOneStream = FuturesUnordered<impl Future<Output = Result<proto::WhereIsOneResult, tonic::Status>>;
+    // to avoid the dynamic dispatch
+    type WhereAreOneStream = Box<
+        dyn futures::Stream<Item = Result<proto::WhereIsOneResult, tonic::Status>> + Unpin + Send,
+    >;
     #[instrument(skip(self, request), err(level = Level::INFO))]
     async fn where_are_one(
         &self,
@@ -65,42 +67,22 @@ impl proto::provenance_service_server::ProvenanceService for ProvenanceService {
 
         let whereis_service = self.clone(); // Need to clone because we return from this function
                                             // before the work is done
-        let (tx, rx) = mpsc::channel(1_000);
-        tokio::spawn(async move {
+        Ok(Response::new(Box::new(
             request
                 .into_inner()
                 .swhid
                 .into_iter()
-                .map(|swhid| async {
-                    whereis_service.whereis(swhid).await.map_err(|e| {
-                        capture_anyhow(&e);
-                        tonic::Status::unknown(e.to_string())
-                    })
-                })
-                .collect::<FuturesUnordered<_>>()
-                .fold(Ok(()), |prev, result| async {
-                    match prev {
-                        Err(e) => Err(e),
-                        Ok(()) => tx.send(result).await,
+                .map(move |swhid| {
+                    let whereis_service = whereis_service.clone(); // ditto
+                    async move {
+                        whereis_service.whereis(swhid).await.map_err(|e| {
+                            capture_anyhow(&e);
+                            tonic::Status::unknown(e.to_string())
+                        })
                     }
                 })
-                .await
-                .map_err(|_: mpsc::error::SendError<_>| {
-                    tracing::debug!("Client disconnected before sending all results")
-                })
-        });
-
-        Ok(Response::new(ReceiverStream::new(rx)))
-
-        /* TODO: When impl_trait_in_assoc_type is stabilized, we can replace the code above with:
-        Ok(Response::new(
-            request
-                .get_ref()
-                .swhid
-                .into_iter()
-                .map(|swhid| self.whereis(swhid))
                 .collect::<FuturesUnordered<_>>(), // Run each request concurrently
-        ))*/
+        )))
     }
 }
 

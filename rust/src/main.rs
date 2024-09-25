@@ -26,7 +26,7 @@ struct Args {
     benchmark: bool,
     /// Path to the provenance database
     database: PathBuf,
-    #[arg(long, default_value = "[::]:50091")]
+    #[arg(long, default_value = "[::]:50141")]
     bind: std::net::SocketAddr,
     #[arg(long)]
     /// Defaults to `localhost:8125` (or whatever is configured by the `STATSD_HOST`

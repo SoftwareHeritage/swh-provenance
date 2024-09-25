@@ -8,7 +8,7 @@ use std::env::VarError;
 use anyhow::Result;
 use sentry::ClientInitGuard;
 use sentry_tracing::EventFilter;
-use tracing::{Level, Subscriber};
+use tracing::{Level, Metadata, Subscriber};
 
 /// Parses an environment variable as a boolean, like `swh.core.sentry.override_with_bool_envvar`
 fn parse_bool_env_var(var_name: &'static str, default: bool) -> bool {
@@ -36,6 +36,24 @@ fn _parse_bool_env_var(
     }
 }
 
+fn event_filter_without_exceptions(md: &Metadata<'_>) -> EventFilter {
+    match *md.level() {
+        Level::ERROR => EventFilter::Breadcrumb, // replaces the default (Exception)
+        Level::WARN | Level::INFO => EventFilter::Breadcrumb,
+        Level::DEBUG => EventFilter::Breadcrumb, // replaces the default (Ignore)
+        Level::TRACE => EventFilter::Ignore,
+    }
+}
+
+fn event_filter_with_exceptions(md: &Metadata<'_>) -> EventFilter {
+    match *md.level() {
+        Level::ERROR => EventFilter::Exception,
+        Level::WARN | Level::INFO => EventFilter::Breadcrumb,
+        Level::DEBUG => EventFilter::Breadcrumb, // replaces the default (Ignore)
+        Level::TRACE => EventFilter::Ignore,
+    }
+}
+
 pub fn setup<S: Subscriber + for<'a> tracing_subscriber::registry::LookupSpan<'a>>() -> (
     Result<ClientInitGuard, VarError>,
     impl tracing_subscriber::layer::Layer<S>,
@@ -55,15 +73,13 @@ pub fn setup<S: Subscriber + for<'a> tracing_subscriber::registry::LookupSpan<'a
         log::error!("Could not initialize Sentry: {e}");
     }
 
-    let mut sentry_layer = sentry_tracing::layer();
-
-    if parse_bool_env_var("SWH_SENTRY_DISABLE_LOGGING_EVENTS", false) {
-        sentry_layer = sentry_layer.event_filter(|md| match *md.level() {
-            Level::ERROR => EventFilter::Breadcrumb, // replaces the default (LogFilter::Exception)
-            Level::WARN | Level::INFO => EventFilter::Breadcrumb,
-            Level::DEBUG | Level::TRACE => EventFilter::Ignore,
-        });
-    }
+    let sentry_layer = sentry_tracing::layer().event_filter(
+        if parse_bool_env_var("SWH_SENTRY_DISABLE_LOGGING_EVENTS", false) {
+            event_filter_without_exceptions
+        } else {
+            event_filter_with_exceptions
+        },
+    );
     (guard, sentry_layer)
 }
 

@@ -5,15 +5,20 @@
 
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{anyhow, ensure, Context, Result};
+use ar_row::deserialize::ArRowDeserialize;
+use ar_row_derive::ArRowDeserialize;
 use futures::stream::FuturesUnordered;
 use sentry::integrations::anyhow::capture_anyhow;
+use swh_graph::SWHID;
 use tonic::transport::Server;
 use tonic::{Request, Response};
 use tonic_middleware::MiddlewareFor;
 use tracing::{instrument, Level};
 
 use crate::database::ProvenanceDatabase;
+
+pub type NodeId = u64;
 
 pub mod proto {
     tonic::include_proto!("swh.provenance");
@@ -36,8 +41,153 @@ impl ProvenanceService {
         Self { db: Arc::new(db) }
     }
 
-    async fn whereis(&self, swhid: String) -> Result<proto::WhereIsOneResult> {
-        todo!()
+    #[instrument(skip(self, query))]
+    async fn fetch_one<T: ArRowDeserialize>(&self, query: impl AsRef<str>) -> Result<Option<T>> {
+        tracing::debug!("fetch_one: {}", query.as_ref());
+        let mut batches = self
+            .db
+            .ctx
+            .sql(query.as_ref())
+            .await
+            .context("Query failed")?
+            .collect()
+            .await
+            .context("Could not get query result")?;
+        ensure!(
+            batches.len() <= 1,
+            "Expected 0 or 1 batch, got {}",
+            batches.len()
+        );
+        if let Some(batch) = batches.pop() {
+            let mut rows = T::from_record_batch(batch).context("Could not parse query result")?;
+            ensure!(rows.len() == 1, "Expected 1 node, got {}", rows.len());
+            return Ok(Some(rows.pop().unwrap()));
+        }
+
+        // No results
+        Ok(None)
+    }
+
+    #[instrument(skip(self))]
+    async fn node_id(&self, swhid: &str) -> Result<Result<NodeId, tonic::Status>> {
+        tracing::debug!("Getting node id for {}", swhid);
+        let Ok(swhid) = swh_graph::SWHID::try_from(swhid) else {
+            return Ok(Err(tonic::Status::invalid_argument(format!(
+                "{} is not a valid SWHID",
+                swhid
+            ))));
+        };
+
+        // TODO: use the MPH, it's faster than querying the node table
+        #[derive(ArRowDeserialize, Clone, Default)]
+        struct NodeRow {
+            id: u64,
+        }
+
+        let row: NodeRow = self
+            .fetch_one(format!(
+                "
+                SELECT id FROM node
+                WHERE
+                    type = '{}'
+                    AND sha1_git = ARROW_CAST(decode('{}', 'base64'), 'FixedSizeBinary(20)')
+                LIMIT 1
+                ",
+                swhid.node_type,
+                base64_simd::STANDARD_NO_PAD.encode_to_string(swhid.hash)
+            ))
+            .await
+            .context("Failed to get id from SWHID")?
+            .ok_or_else(|| tonic::Status::not_found(format!("Unknown SWHID: {}", swhid)))?;
+
+        Ok(Ok(row.id))
+    }
+
+    #[instrument(skip(self))]
+    async fn swhid(&self, node_id: NodeId) -> Result<SWHID> {
+        tracing::debug!("Getting SWHID from for {}", node_id);
+        // TODO: use the MPH, it's faster than querying the node table
+        #[derive(ArRowDeserialize, Clone, Default)]
+        struct NodeRow {
+            r#type: String,
+            sha1_git: Box<[u8]>,
+        }
+
+        let row: NodeRow = self
+            .fetch_one(format!(
+                "SELECT type, ARROW_CAST(sha1_git, 'Binary') FROM node WHERE id = {} LIMIT 1",
+                node_id,
+            ))
+            .await
+            .context("Failed to get SWHID from id")?
+            .with_context(|| format!("Unknown node id: {}", node_id))?;
+
+        Ok(SWHID {
+            namespace_version: 1,
+            node_type: row
+                .r#type
+                .parse()
+                .map_err(|node_type| anyhow!("Invalid node type in 'node' table: {node_type:?}"))?,
+            hash: row
+                .sha1_git
+                .as_ref()
+                .try_into()
+                .context("Invalid sha1_git length in 'node' table")?,
+        })
+    }
+
+    #[instrument(skip(self))]
+    async fn whereis(
+        &self,
+        swhid: String,
+    ) -> Result<Result<proto::WhereIsOneResult, tonic::Status>> {
+        let node_id = self.node_id(&swhid).await??;
+
+        tracing::debug!("Looking up c_in_r");
+        #[derive(ArRowDeserialize, Clone, Default)]
+        struct AnchorRow {
+            revrel: u64,
+        }
+        let row: Option<AnchorRow> = self
+            .fetch_one(format!(
+                "SELECT revrel FROM c_in_r WHERE cnt = {} LIMIT 1",
+                node_id
+            ))
+            .await
+            .context("Failed to query c_in_r")?;
+        if let Some(row) = row {
+            let anchor = self.swhid(row.revrel).await?;
+            return Ok(Ok(proto::WhereIsOneResult {
+                swhid,
+                anchor: Some(anchor.to_string()),
+                origin: None,
+            }));
+        }
+
+        tracing::debug!("Looking up c_in_d + d_in_r");
+        let row: Option<AnchorRow> = self
+            .fetch_one(format!(
+                "SELECT revrel FROM d_in_r INNER JOIN c_in_d USING (dir) WHERE cnt = {} LIMIT 1",
+                node_id
+            ))
+            .await
+            .context("Failed to query c_in_d + d_in_r")?;
+        if let Some(row) = row {
+            let anchor = self.swhid(row.revrel).await?;
+            return Ok(Ok(proto::WhereIsOneResult {
+                swhid,
+                anchor: Some(anchor.to_string()),
+                origin: None,
+            }));
+        }
+
+        tracing::debug!("Got no result");
+
+        // No result
+        Ok(Ok(proto::WhereIsOneResult {
+            swhid,
+            ..Default::default()
+        }))
     }
 }
 
@@ -49,7 +199,17 @@ impl proto::provenance_service_server::ProvenanceService for ProvenanceService {
         request: Request<proto::WhereIsOneRequest>,
     ) -> TonicResult<proto::WhereIsOneResult> {
         tracing::info!("{:?}", request.get_ref());
-        todo!()
+
+        match self.whereis(request.into_inner().swhid).await {
+            Ok(Ok(result)) => Ok(Response::new(result)),
+            Ok(Err(e)) => Err(e), // client error
+            Err(e) => {
+                // server error
+                tracing::error!("{:?}", e);
+                capture_anyhow(&e); // redundant with tracing::error!
+                Err(tonic::Status::internal(e.to_string()))
+            }
+        }
     }
 
     // TODO: When impl_trait_in_assoc_type is stabilized, replace this with:
@@ -75,10 +235,16 @@ impl proto::provenance_service_server::ProvenanceService for ProvenanceService {
                 .map(move |swhid| {
                     let whereis_service = whereis_service.clone(); // ditto
                     async move {
-                        whereis_service.whereis(swhid).await.map_err(|e| {
-                            capture_anyhow(&e);
-                            tonic::Status::unknown(e.to_string())
-                        })
+                        match whereis_service.whereis(swhid).await {
+                            Ok(Ok(result)) => Ok(result),
+                            Ok(Err(e)) => Err(e), // client error
+                            Err(e) => {
+                                // server error
+                                tracing::error!("{:?}", e);
+                                capture_anyhow(&e); // redundant with tracing::error!
+                                Err(tonic::Status::internal(e.to_string()))
+                            }
+                        }
                     }
                 })
                 .collect::<FuturesUnordered<_>>(), // Run each request concurrently

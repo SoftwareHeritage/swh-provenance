@@ -12,10 +12,12 @@ rust-version = "1.79"
 
 [dependencies]
 anyhow = { version="1.0.79", features=["backtrace"] }
+base64-simd = "0.8.0"
 crossbeam-queue = "0.3.11"
 dashmap = "6.1.0"
 itertools = "0.13.0"
 mimalloc = { version = "0.1", default-features = false }
+swh-graph = "6.0.0"
 
 # CLI & logging
 cadence = "1.4.0"
@@ -29,6 +31,8 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
 # Database
 async-trait = "0.1.73"
+ar_row = "1.1.0"
+ar_row_derive = "1.0.0"
 bytes = "1.7.1"
 #datafusion = "42.0.0"
 datafusion = { git = "https://github.com/progval/arrow-datafusion.git", rev = "d34711278685ae46cd2c83a1473c0a47411d8120" }

@@ -9,7 +9,6 @@ use std::sync::Arc;
 
 use dashmap::DashMap;
 use datafusion::datasource::physical_plan::parquet::DefaultParquetFileReaderFactory;
-use datafusion::datasource::physical_plan::parquet::ParquetFileReader;
 use datafusion::datasource::physical_plan::{FileMeta, ParquetFileReaderFactory};
 use datafusion::error::Result;
 use datafusion::physical_plan::metrics::ExecutionPlanMetricsSet;
@@ -19,6 +18,8 @@ use object_store::ObjectStore;
 use parquet::arrow::arrow_reader::ArrowReaderMetadata;
 use parquet::arrow::arrow_reader::ArrowReaderOptions;
 use parquet::arrow::async_reader::AsyncFileReader;
+use parquet::arrow::async_reader::MetadataFetch;
+use parquet::arrow::async_reader::MetadataLoader;
 use parquet::file::metadata::ParquetMetaData;
 
 use super::ParquetFileReaderPool;
@@ -65,7 +66,7 @@ impl ParquetFileReaderFactory for CachingParquetFileReaderFactory {
         file_meta: FileMeta,
         metadata_size_hint: Option<usize>,
         metrics: &ExecutionPlanMetricsSet,
-    ) -> Result<Box<dyn ParquetFileReader>> {
+    ) -> Result<Box<dyn AsyncFileReader + Send>> {
         let filename = file_meta.location().to_owned();
         let reader_pool_guard = self.readers.entry((filename, partition_index)).or_default();
         let reader_pool = reader_pool_guard.value();
@@ -82,14 +83,14 @@ impl ParquetFileReaderFactory for CachingParquetFileReaderFactory {
     }
 }
 
-/// Wrapper for [`ParquetFileReader`] that  only reads its metadata the first time it is requested
+/// Wrapper for [`AsyncFileReader`] that  only reads its metadata the first time it is requested
 struct CachingParquetFileReader {
-    inner: Box<dyn ParquetFileReader>,
-    metadata: Option<ArrowReaderMetadata>,
+    inner: Box<dyn AsyncFileReader + Send>,
+    metadata: Option<Arc<ParquetMetaData>>,
 }
 
 impl CachingParquetFileReader {
-    fn new(inner: Box<dyn ParquetFileReader>) -> Self {
+    fn new(inner: Box<dyn AsyncFileReader + Send>) -> Self {
         Self {
             inner,
             metadata: None,
@@ -106,7 +107,7 @@ impl AsyncFileReader for CachingParquetFileReader {
     }
 
     fn get_metadata(&mut self) -> BoxFuture<'_, parquet::errors::Result<Arc<ParquetMetaData>>> {
-        self.inner.get_metadata()
+        Box::pin(self.get_metadata_async())
     }
 
     fn get_byte_ranges(
@@ -117,22 +118,47 @@ impl AsyncFileReader for CachingParquetFileReader {
     }
 }
 
-impl ParquetFileReader for CachingParquetFileReader {
-    fn upcast(self: Box<Self>) -> Box<dyn AsyncFileReader + 'static> {
-        Box::new(*self)
-    }
-
-    fn load_metadata(
-        &mut self,
-        options: ArrowReaderOptions,
-    ) -> BoxFuture<'_, parquet::errors::Result<ArrowReaderMetadata>> {
-        Box::pin(match &self.metadata {
-            Some(metadata) => Either::Left(std::future::ready(Ok(metadata.clone()))),
-            None => Either::Right(self.inner.load_metadata(options).inspect(|metadata| {
-                if let Ok(metadata) = metadata {
-                    self.metadata = Some(metadata.clone())
+impl CachingParquetFileReader {
+    /// Implementation of [`AsyncFileReader::get_metadata`] using new-style async,
+    /// so it can pass the borrow checker
+    async fn get_metadata_async(&mut self) -> parquet::errors::Result<Arc<ParquetMetaData>> {
+        match &self.metadata {
+            Some(metadata) => Ok(Arc::clone(metadata)),
+            None => match self.inner.get_metadata().await {
+                Ok(metadata) => {
+                    // This function is called by `ArrowReaderMetadata::load_async`.
+                    // Then, `load_async` may enrich the `ParquetMetaData` we return with
+                    // the page index, using `MetadataLoader`; and this enriched
+                    // `ParquetMetaData` reader would not be cached.
+                    //
+                    // Datafusion does not (currently) support caching the enriched
+                    // `ParquetMetaData`, so we unconditionally enrich it here with
+                    // the page index, so we can cache it.
+                    //
+                    // See:
+                    // * discussion on https://github.com/apache/datafusion/pull/12593
+                    // * https://github.com/apache/arrow-rs/blob/62825b27e98e6719cb66258535c75c7490ddba44/parquet/src/arrow/async_reader/mod.rs#L212-L228
+                    let metadata = Arc::try_unwrap(metadata).unwrap_or_else(|e| e.as_ref().clone());
+                    let mut loader =
+                        MetadataLoader::new(CachingParquetFileReaderMetadataFetch(self), metadata);
+                    loader.load_page_index(true, true).await?;
+                    let metadata = Arc::new(loader.finish());
+                    self.metadata = Some(Arc::clone(&metadata));
+                    Ok(metadata)
                 }
-            })),
-        })
+                Err(e) => Err(e),
+            },
+        }
+    }
+}
+
+struct CachingParquetFileReaderMetadataFetch<'a>(&'a mut CachingParquetFileReader);
+
+impl<'a> MetadataFetch for CachingParquetFileReaderMetadataFetch<'a> {
+    fn fetch(
+        &mut self,
+        range: Range<usize>,
+    ) -> BoxFuture<'_, parquet::errors::Result<bytes::Bytes>> {
+        self.0.fetch(range)
     }
 }

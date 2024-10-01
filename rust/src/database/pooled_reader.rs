@@ -6,7 +6,6 @@
 use std::ops::Range;
 use std::sync::{Arc, Weak};
 
-use datafusion::datasource::physical_plan::parquet::ParquetFileReader;
 use datafusion::error::Result;
 use futures::future::BoxFuture;
 use parquet::arrow::arrow_reader::ArrowReaderMetadata;
@@ -14,17 +13,17 @@ use parquet::arrow::arrow_reader::ArrowReaderOptions;
 use parquet::arrow::async_reader::AsyncFileReader;
 use parquet::file::metadata::ParquetMetaData;
 
-/// A collection of [`ParquetFileReader`] that gets the reader back before they are dropped
+/// A collection of [`AsyncFileReader`] that gets the reader back before they are dropped
 ///
 /// This allows reusing readers across requests, so they can cache the metadata.
 #[derive(Default)]
-pub struct ParquetFileReaderPool(Arc<crossbeam_queue::SegQueue<Box<dyn ParquetFileReader>>>);
+pub struct ParquetFileReaderPool(Arc<crossbeam_queue::SegQueue<Box<dyn AsyncFileReader + Send>>>);
 
 impl ParquetFileReaderPool {
     pub fn try_get_reader<E>(
         &self,
-        reader_init: impl FnOnce() -> Result<Box<dyn ParquetFileReader>, E>,
-    ) -> Result<Box<dyn ParquetFileReader>, E> {
+        reader_init: impl FnOnce() -> Result<Box<dyn AsyncFileReader + Send>, E>,
+    ) -> Result<Box<dyn AsyncFileReader + Send>, E> {
         let inner_reader = match self.0.pop() {
             None => reader_init()?,
             Some(reader) => reader,
@@ -36,16 +35,16 @@ impl ParquetFileReaderPool {
     }
 }
 
-/// Wrapper for [`ParquetFileReader`] that puts its wrapped reader back into a pool when dropped.
+/// Wrapper for [`AsyncFileReader`] that puts its wrapped reader back into a pool when dropped.
 struct PooledParquetFileReader {
-    inner: Option<Box<dyn ParquetFileReader>>,
-    pool: Weak<crossbeam_queue::SegQueue<Box<dyn ParquetFileReader>>>,
+    inner: Option<Box<dyn AsyncFileReader + Send>>,
+    pool: Weak<crossbeam_queue::SegQueue<Box<dyn AsyncFileReader + Send>>>,
 }
 
 impl PooledParquetFileReader {
     fn new(
-        inner: Box<dyn ParquetFileReader>,
-        pool: Weak<crossbeam_queue::SegQueue<Box<dyn ParquetFileReader>>>,
+        inner: Box<dyn AsyncFileReader + Send>,
+        pool: Weak<crossbeam_queue::SegQueue<Box<dyn AsyncFileReader + Send>>>,
     ) -> Self {
         Self {
             inner: Some(inner),
@@ -70,19 +69,6 @@ impl AsyncFileReader for PooledParquetFileReader {
         ranges: Vec<Range<usize>>,
     ) -> BoxFuture<'_, parquet::errors::Result<Vec<bytes::Bytes>>> {
         self.inner.as_mut().unwrap().get_byte_ranges(ranges)
-    }
-}
-
-impl ParquetFileReader for PooledParquetFileReader {
-    fn upcast(self: Box<Self>) -> Box<dyn AsyncFileReader + 'static> {
-        Box::new(*self)
-    }
-
-    fn load_metadata(
-        &mut self,
-        options: ArrowReaderOptions,
-    ) -> BoxFuture<'_, parquet::errors::Result<ArrowReaderMetadata>> {
-        self.inner.as_mut().unwrap().load_metadata(options)
     }
 }
 

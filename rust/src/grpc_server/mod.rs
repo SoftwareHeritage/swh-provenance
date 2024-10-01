@@ -16,6 +16,10 @@ use tonic::{Request, Response};
 use tonic_middleware::MiddlewareFor;
 use tracing::{instrument, Level};
 
+use swh_graph::graph::SwhGraphWithProperties;
+use swh_graph::properties;
+use swh_graph::properties::NodeIdFromSwhidError;
+
 use crate::database::ProvenanceDatabase;
 
 pub type NodeId = u64;
@@ -31,16 +35,18 @@ use proto::provenance_service_server::ProvenanceServiceServer;
 
 mod metrics;
 
-#[derive(Clone)]
-pub struct ProvenanceService {
-    db: Arc<ProvenanceDatabase>,
+struct ProvenanceServiceInner<G: SwhGraphWithProperties + Send + Sync + 'static>
+where
+    <G as SwhGraphWithProperties>::Maps: properties::Maps,
+{
+    db: ProvenanceDatabase,
+    graph: Option<G>,
 }
 
-impl ProvenanceService {
-    pub fn new(db: ProvenanceDatabase) -> Self {
-        Self { db: Arc::new(db) }
-    }
-
+impl<G: SwhGraphWithProperties + Send + Sync + 'static> ProvenanceServiceInner<G>
+where
+    <G as SwhGraphWithProperties>::Maps: properties::Maps,
+{
     #[instrument(skip(self, query))]
     async fn fetch_one<T: ArRowDeserialize>(&self, query: impl AsRef<str>) -> Result<Option<T>> {
         tracing::debug!("fetch_one: {}", query.as_ref());
@@ -70,70 +76,89 @@ impl ProvenanceService {
 
     #[instrument(skip(self))]
     async fn node_id(&self, swhid: &str) -> Result<Result<NodeId, tonic::Status>> {
-        tracing::debug!("Getting node id for {}", swhid);
-        let Ok(swhid) = swh_graph::SWHID::try_from(swhid) else {
-            return Ok(Err(tonic::Status::invalid_argument(format!(
-                "{} is not a valid SWHID",
-                swhid
-            ))));
-        };
+        match &self.graph {
+            Some(graph) => match graph.properties().node_id_from_string_swhid(swhid) {
+                Ok(node_id) => Ok(Ok(node_id.try_into().expect("Node id overflowed u64"))),
+                Err(NodeIdFromSwhidError::InvalidSwhid(_)) => Ok(Err(
+                    tonic::Status::invalid_argument(format!("Unknown SWHID: {}", swhid)),
+                )),
+                Err(NodeIdFromSwhidError::UnknownSwhid(_)) => Ok(Err(tonic::Status::not_found(
+                    format!("Unknown SWHID: {}", swhid),
+                ))),
+                Err(NodeIdFromSwhidError::InternalError(e)) => Err(anyhow!("{}", e)),
+            },
+            None => {
+                tracing::debug!("Getting node id for {}", swhid);
+                let Ok(swhid) = swh_graph::SWHID::try_from(swhid) else {
+                    return Ok(Err(tonic::Status::invalid_argument(format!(
+                        "{} is not a valid SWHID",
+                        swhid
+                    ))));
+                };
 
-        // TODO: use the MPH, it's faster than querying the node table
-        #[derive(ArRowDeserialize, Clone, Default)]
-        struct NodeRow {
-            id: u64,
-        }
+                // TODO: use the MPH, it's faster than querying the node table
+                #[derive(ArRowDeserialize, Clone, Default)]
+                struct NodeRow {
+                    id: u64,
+                }
 
-        let row: NodeRow = self
-            .fetch_one(format!(
-                "
+                let row: NodeRow = self
+                    .fetch_one(format!(
+                        "
                 SELECT id FROM node
                 WHERE
                     type = '{}'
                     AND sha1_git = ARROW_CAST(decode('{}', 'base64'), 'FixedSizeBinary(20)')
                 LIMIT 1
                 ",
-                swhid.node_type,
-                base64_simd::STANDARD_NO_PAD.encode_to_string(swhid.hash)
-            ))
-            .await
-            .context("Failed to get id from SWHID")?
-            .ok_or_else(|| tonic::Status::not_found(format!("Unknown SWHID: {}", swhid)))?;
+                        swhid.node_type,
+                        base64_simd::STANDARD_NO_PAD.encode_to_string(swhid.hash)
+                    ))
+                    .await
+                    .context("Failed to get id from SWHID")?
+                    .ok_or_else(|| tonic::Status::not_found(format!("Unknown SWHID: {}", swhid)))?;
 
-        Ok(Ok(row.id))
+                Ok(Ok(row.id))
+            }
+        }
     }
 
     #[instrument(skip(self))]
     async fn swhid(&self, node_id: NodeId) -> Result<SWHID> {
-        tracing::debug!("Getting SWHID from for {}", node_id);
-        // TODO: use the MPH, it's faster than querying the node table
-        #[derive(ArRowDeserialize, Clone, Default)]
-        struct NodeRow {
-            r#type: String,
-            sha1_git: Box<[u8]>,
+        match &self.graph {
+            Some(graph) => Ok(graph
+                .properties()
+                .swhid(node_id.try_into().context("Node id overflowed usize")?)),
+            None => {
+                tracing::debug!("Getting SWHID from for {}", node_id);
+                #[derive(ArRowDeserialize, Clone, Default)]
+                struct NodeRow {
+                    r#type: String,
+                    sha1_git: Box<[u8]>,
+                }
+
+                let row: NodeRow = self
+                    .fetch_one(format!(
+                        "SELECT type, ARROW_CAST(sha1_git, 'Binary') FROM node WHERE id = {} LIMIT 1",
+                        node_id,
+                    ))
+                    .await
+                    .context("Failed to get SWHID from id")?
+                    .with_context(|| format!("Unknown node id: {}", node_id))?;
+
+                Ok(SWHID {
+                    namespace_version: 1,
+                    node_type: row.r#type.parse().map_err(|node_type| {
+                        anyhow!("Invalid node type in 'node' table: {node_type:?}")
+                    })?,
+                    hash: row
+                        .sha1_git
+                        .as_ref()
+                        .try_into()
+                        .context("Invalid sha1_git length in 'node' table")?,
+                })
+            }
         }
-
-        let row: NodeRow = self
-            .fetch_one(format!(
-                "SELECT type, ARROW_CAST(sha1_git, 'Binary') FROM node WHERE id = {} LIMIT 1",
-                node_id,
-            ))
-            .await
-            .context("Failed to get SWHID from id")?
-            .with_context(|| format!("Unknown node id: {}", node_id))?;
-
-        Ok(SWHID {
-            namespace_version: 1,
-            node_type: row
-                .r#type
-                .parse()
-                .map_err(|node_type| anyhow!("Invalid node type in 'node' table: {node_type:?}"))?,
-            hash: row
-                .sha1_git
-                .as_ref()
-                .try_into()
-                .context("Invalid sha1_git length in 'node' table")?,
-        })
     }
 
     #[instrument(skip(self))]
@@ -191,8 +216,36 @@ impl ProvenanceService {
     }
 }
 
+pub struct ProvenanceService<G: SwhGraphWithProperties + Send + Sync + 'static>(
+    Arc<ProvenanceServiceInner<G>>,
+)
+where
+    <G as SwhGraphWithProperties>::Maps: properties::Maps;
+
+impl<G: SwhGraphWithProperties + Send + Sync + 'static> ProvenanceService<G>
+where
+    <G as SwhGraphWithProperties>::Maps: properties::Maps,
+{
+    pub fn new(db: ProvenanceDatabase, graph: Option<G>) -> Self {
+        Self(Arc::new(ProvenanceServiceInner { db, graph }))
+    }
+}
+
+impl<G: SwhGraphWithProperties + Send + Sync + 'static> Clone for ProvenanceService<G>
+where
+    <G as SwhGraphWithProperties>::Maps: properties::Maps,
+{
+    fn clone(&self) -> Self {
+        Self(Arc::clone(&self.0))
+    }
+}
+
 #[tonic::async_trait]
-impl proto::provenance_service_server::ProvenanceService for ProvenanceService {
+impl<G: SwhGraphWithProperties + Send + Sync + 'static>
+    proto::provenance_service_server::ProvenanceService for ProvenanceService<G>
+where
+    <G as SwhGraphWithProperties>::Maps: properties::Maps,
+{
     #[instrument(skip(self, request), err(level = Level::INFO))]
     async fn where_is_one(
         &self,
@@ -200,7 +253,7 @@ impl proto::provenance_service_server::ProvenanceService for ProvenanceService {
     ) -> TonicResult<proto::WhereIsOneResult> {
         tracing::info!("{:?}", request.get_ref());
 
-        match self.whereis(request.into_inner().swhid).await {
+        match self.0.whereis(request.into_inner().swhid).await {
             Ok(Ok(result)) => Ok(Response::new(result)),
             Ok(Err(e)) => Err(e), // client error
             Err(e) => {
@@ -233,9 +286,9 @@ impl proto::provenance_service_server::ProvenanceService for ProvenanceService {
                 .swhid
                 .into_iter()
                 .map(move |swhid| {
-                    let whereis_service = whereis_service.clone(); // ditto
+                    let whereis_service: ProvenanceService<G> = whereis_service.clone(); // ditto
                     async move {
-                        match whereis_service.whereis(swhid).await {
+                        match whereis_service.0.whereis(swhid).await {
                             Ok(Ok(result)) => Ok(result),
                             Ok(Err(e)) => Err(e), // client error
                             Err(e) => {
@@ -254,14 +307,18 @@ impl proto::provenance_service_server::ProvenanceService for ProvenanceService {
 
 type TonicResult<T> = Result<tonic::Response<T>, tonic::Status>;
 
-pub async fn serve(
+pub async fn serve<G: SwhGraphWithProperties + Send + Sync + 'static>(
     db: ProvenanceDatabase,
+    graph: Option<G>,
     bind_addr: std::net::SocketAddr,
     statsd_client: cadence::StatsdClient,
-) -> Result<(), tonic::transport::Error> {
+) -> Result<(), tonic::transport::Error>
+where
+    <G as SwhGraphWithProperties>::Maps: properties::Maps,
+{
     let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
     health_reporter
-        .set_serving::<ProvenanceServiceServer<ProvenanceService>>()
+        .set_serving::<ProvenanceServiceServer<ProvenanceService<G>>>()
         .await;
 
     #[cfg(not(feature = "sentry"))]
@@ -271,7 +328,7 @@ pub async fn serve(
         Server::builder().layer(::sentry::integrations::tower::NewSentryLayer::new_from_top());
     builder
         .add_service(MiddlewareFor::new(
-            ProvenanceServiceServer::new(ProvenanceService::new(db)),
+            ProvenanceServiceServer::new(ProvenanceService::new(db, graph)),
             metrics::MetricsMiddleware::new(statsd_client),
         ))
         .add_service(health_service)

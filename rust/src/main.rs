@@ -7,10 +7,12 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use std::path::PathBuf;
 
+use mimalloc::MiMalloc;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
-use mimalloc::MiMalloc;
+use swh_graph::graph::SwhBidirectionalGraph;
+use swh_graph::mph::SwhidPthash;
 
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc; // Allocator recommended by Datafusion
@@ -24,6 +26,9 @@ struct Args {
     #[arg(long)]
     /// Runs a few queries and exits instead of starting a gRPC server
     benchmark: bool,
+    #[arg(long)]
+    /// Path to the graph prefix
+    graph: Option<PathBuf>,
     /// Path to the provenance database
     database: PathBuf,
     #[arg(long, default_value = "[::]:50141")]
@@ -64,6 +69,18 @@ pub fn main() -> Result<()> {
         .build()
         .unwrap()
         .block_on(async {
+            log::info!("Loading graph");
+            let graph = args
+                .graph
+                .map(|graph_path| {
+                    SwhBidirectionalGraph::new(graph_path)
+                        .context("Could not load graph")?
+                        .init_properties()
+                        .load_properties(|props| props.load_maps::<SwhidPthash>())
+                        .context("Could not load graph maps")
+                })
+                .transpose()?;
+
             log::info!("Loading Database");
             let db = swh_provenance::database::ProvenanceDatabase::new(
                 args.database,
@@ -95,7 +112,7 @@ pub fn main() -> Result<()> {
                 }
             } else {
                 log::info!("Starting server");
-                swh_provenance::grpc_server::serve(db, args.bind, statsd_client).await?
+                swh_provenance::grpc_server::serve(db, graph, args.bind, statsd_client).await?
             }
 
             Ok(())

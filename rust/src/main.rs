@@ -74,7 +74,8 @@ pub fn main() -> Result<()> {
 
             if args.benchmark {
                 for i in 0..100 {
-                    tracing::info!("Iteration {i}/100");
+                    tracing::debug!("Iteration {i}/100");
+                    let start_time = std::time::Instant::now();
                     let df = if i % 10 == 0 {
                         db.ctx.sql(
                             "EXPLAIN ANALYZE SELECT cnt, dir FROM c_in_d WHERE cnt = 8480961860;",
@@ -90,6 +91,7 @@ pub fn main() -> Result<()> {
                     for batch in df.collect().await? {
                         tracing::debug!("{:?}", batch)
                     }
+                    tracing::info!("Iteration {i}/100 took {:?}", start_time.elapsed());
                 }
             } else {
                 log::info!("Starting server");

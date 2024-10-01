@@ -76,6 +76,8 @@ where
 
     #[instrument(skip(self))]
     async fn node_id(&self, swhid: &str) -> Result<Result<NodeId, tonic::Status>> {
+        tracing::debug!("Getting node id for {}", swhid);
+
         match &self.graph {
             Some(graph) => match graph.properties().node_id_from_string_swhid(swhid) {
                 Ok(node_id) => Ok(Ok(node_id.try_into().expect("Node id overflowed u64"))),
@@ -88,7 +90,6 @@ where
                 Err(NodeIdFromSwhidError::InternalError(e)) => Err(anyhow!("{}", e)),
             },
             None => {
-                tracing::debug!("Getting node id for {}", swhid);
                 let Ok(swhid) = swh_graph::SWHID::try_from(swhid) else {
                     return Ok(Err(tonic::Status::invalid_argument(format!(
                         "{} is not a valid SWHID",
@@ -96,7 +97,6 @@ where
                     ))));
                 };
 
-                // TODO: use the MPH, it's faster than querying the node table
                 #[derive(ArRowDeserialize, Clone, Default)]
                 struct NodeRow {
                     id: u64,
@@ -125,12 +125,12 @@ where
 
     #[instrument(skip(self))]
     async fn swhid(&self, node_id: NodeId) -> Result<SWHID> {
+        tracing::debug!("Getting SWHID from for {}", node_id);
         match &self.graph {
             Some(graph) => Ok(graph
                 .properties()
                 .swhid(node_id.try_into().context("Node id overflowed usize")?)),
             None => {
-                tracing::debug!("Getting SWHID from for {}", node_id);
                 #[derive(ArRowDeserialize, Clone, Default)]
                 struct NodeRow {
                     r#type: String,

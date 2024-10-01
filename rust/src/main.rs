@@ -70,10 +70,10 @@ pub fn main() -> Result<()> {
         .build()
         .unwrap()
         .block_on(async {
-            log::info!("Loading graph");
             let graph = args
                 .graph
                 .map(|graph_path| {
+                    log::info!("Loading graph");
                     SwhBidirectionalGraph::new(graph_path)
                         .context("Could not load graph")?
                         .init_properties()

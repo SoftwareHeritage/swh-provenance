@@ -8,8 +8,6 @@ use std::sync::{Arc, Weak};
 
 use datafusion::error::Result;
 use futures::future::BoxFuture;
-use parquet::arrow::arrow_reader::ArrowReaderMetadata;
-use parquet::arrow::arrow_reader::ArrowReaderOptions;
 use parquet::arrow::async_reader::AsyncFileReader;
 use parquet::file::metadata::ParquetMetaData;
 

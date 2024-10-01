@@ -12,11 +12,8 @@ use datafusion::datasource::physical_plan::parquet::DefaultParquetFileReaderFact
 use datafusion::datasource::physical_plan::{FileMeta, ParquetFileReaderFactory};
 use datafusion::error::Result;
 use datafusion::physical_plan::metrics::ExecutionPlanMetricsSet;
-use futures::future::{BoxFuture, Either};
-use futures::FutureExt;
+use futures::future::BoxFuture;
 use object_store::ObjectStore;
-use parquet::arrow::arrow_reader::ArrowReaderMetadata;
-use parquet::arrow::arrow_reader::ArrowReaderOptions;
 use parquet::arrow::async_reader::AsyncFileReader;
 use parquet::arrow::async_reader::MetadataFetch;
 use parquet::arrow::async_reader::MetadataLoader;

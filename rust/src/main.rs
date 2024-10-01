@@ -3,10 +3,11 @@
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
 
+use std::path::PathBuf;
+use std::time::Duration;
+
 use anyhow::{Context, Result};
 use clap::Parser;
-use std::path::PathBuf;
-
 use mimalloc::MiMalloc;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -90,6 +91,7 @@ pub fn main() -> Result<()> {
             .context("Could not initialize provenance database")?;
 
             if args.benchmark {
+                let mut durations = Vec::new();
                 for i in 0..100 {
                     tracing::debug!("Iteration {i}/100");
                     let start_time = std::time::Instant::now();
@@ -108,8 +110,17 @@ pub fn main() -> Result<()> {
                     for batch in df.collect().await? {
                         tracing::debug!("{:?}", batch)
                     }
+                    durations.push(start_time.elapsed());
                     tracing::info!("Iteration {i}/100 took {:?}", start_time.elapsed());
                 }
+                let mean: Duration = durations.iter().sum::<Duration>() / (durations.len() as u32);
+                let variance = durations
+                    .iter()
+                    .map(|d| (d.as_secs_f64() - mean.as_secs_f64()).powi(2))
+                    .sum::<f64>()
+                    / f64::from(durations.len() as u32);
+                let stddev = Duration::from_secs_f64(variance.sqrt());
+                log::info!("Mean: {mean:?}, stddev: {stddev:?}");
             } else {
                 log::info!("Starting server");
                 swh_provenance::grpc_server::serve(db, graph, args.bind, statsd_client).await?

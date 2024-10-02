@@ -5,6 +5,7 @@
 
 /// Parquet backend for the Provenance service
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
@@ -17,9 +18,12 @@ mod pooled_reader;
 use pooled_reader::ParquetFileReaderPool;
 mod caching_parquet_reader;
 use caching_parquet_reader::CachingParquetFileReaderFactory;
+mod transaction;
+pub use transaction::{TemporaryTable, Transaction};
 
 pub struct ProvenanceDatabase {
     pub ctx: SessionContext,
+    last_txid: AtomicU64,
 }
 
 impl ProvenanceDatabase {
@@ -98,6 +102,13 @@ impl ProvenanceDatabase {
             .collect::<Result<Vec<_>>>()?;
         }
 
-        Ok(Self { ctx })
+        Ok(Self {
+            ctx,
+            last_txid: AtomicU64::new(0),
+        })
+    }
+
+    pub fn transaction(&self) -> Transaction<'_> {
+        Transaction::new(self, self.last_txid.fetch_add(1, Ordering::Relaxed))
     }
 }

@@ -9,8 +9,8 @@ use std::sync::Arc;
 use anyhow::{anyhow, ensure, Context, Result};
 use ar_row::deserialize::ArRowDeserialize;
 use ar_row_derive::ArRowDeserialize;
-use datafusion::arrow::array::*;
-use datafusion::arrow::datatypes::*;
+use arrow::array::*;
+use arrow::datatypes::*;
 use futures::stream::FuturesUnordered;
 use itertools::Itertools;
 use sentry::integrations::anyhow::capture_anyhow;
@@ -51,33 +51,6 @@ impl<G: SwhGraphWithProperties + Send + Sync + 'static> ProvenanceServiceInner<G
 where
     <G as SwhGraphWithProperties>::Maps: properties::Maps,
 {
-    #[instrument(skip(self, query))]
-    async fn fetch_one<T: ArRowDeserialize>(&self, query: impl AsRef<str>) -> Result<Option<T>> {
-        tracing::debug!("fetch_one: {}", query.as_ref());
-        let mut batches = self
-            .db
-            .ctx
-            .sql(query.as_ref())
-            .await
-            .context("Query failed")?
-            .collect()
-            .await
-            .context("Could not get query result")?;
-        ensure!(
-            batches.len() <= 1,
-            "Expected 0 or 1 batch, got {}",
-            batches.len()
-        );
-        if let Some(batch) = batches.pop() {
-            let mut rows = T::from_record_batch(batch).context("Could not parse query result")?;
-            ensure!(rows.len() == 1, "Expected 1 node, got {}", rows.len());
-            return Ok(Some(rows.pop().unwrap()));
-        }
-
-        // No results
-        Ok(None)
-    }
-
     #[instrument(skip(self, transaction), fields(swhids=swhids.iter().map(AsRef::as_ref).join(", ")))]
     async fn node_id<'a>(
         &self,

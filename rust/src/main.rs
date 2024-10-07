@@ -77,7 +77,7 @@ pub fn main() -> Result<()> {
                     SwhBidirectionalGraph::new(graph_path)
                         .context("Could not load graph")?
                         .init_properties()
-                        .load_properties(|props| props.load_maps::<SwhidPthash>())
+                        .load_properties(|props| props.load_maps::<swh_graph::mph::DynMphf>())
                         .context("Could not load graph maps")
                 })
                 .transpose()?;

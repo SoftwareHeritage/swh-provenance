@@ -11,6 +11,12 @@ use ar_row::deserialize::ArRowDeserialize;
 use ar_row_derive::ArRowDeserialize;
 use datafusion::arrow::array::*;
 use datafusion::arrow::datatypes::*;
+use datafusion::common::{DFSchema, JoinSide};
+use datafusion::datasource::MemTable;
+use datafusion::logical_expr::JoinType;
+use datafusion::physical_plan::joins::utils::{ColumnIndex, JoinFilter};
+use datafusion::physical_plan::joins::NestedLoopJoinExec;
+use datafusion::physical_plan::memory::MemoryExec;
 use futures::stream::FuturesUnordered;
 use itertools::Itertools;
 use sentry::integrations::anyhow::capture_anyhow;
@@ -152,16 +158,18 @@ where
                 let sha1_gits: Vec<_> = parsed_swhids.iter().map(|swhid| &swhid.hash).collect();
 
                 // Insert SWHIDs into a temporary table
+                let query_swhid_schema = Arc::new(Schema::new(vec![
+                    Field::new("swhid_id", DataType::UInt64, false), // used to find
+                    // unknown SWHIDs
+                    Field::new("type", DataType::Utf8, false),
+                    Field::new("sha1_git", DataType::FixedSizeBinary(20), false),
+                ]));
+                /*
                 let query_swhids = transaction
                     .create_table_from_batch(
                         "query_swhid",
                         RecordBatch::try_new(
-                            Arc::new(Schema::new(vec![
-                                Field::new("swhid_id", DataType::UInt64, false), // used to find
-                                // unknown SWHIDs
-                                Field::new("type", DataType::Utf8, false),
-                                Field::new("sha1_git", DataType::FixedSizeBinary(20), false),
-                            ])),
+                            query_swhid_schema.clone(),
                             vec![
                                 Arc::new(UInt64Array::from(Vec::from_iter(
                                     0..(swhids.len() as u64),
@@ -174,22 +182,74 @@ where
                     )
                     .await
                     .context("Could not create query_swhid table")?;
+                */
+
+                let select_nodes_plan = &self
+                    .db
+                    .ctx
+                    .state()
+                    .create_logical_plan("SELECT id, node_type, sha1_git FROM node")
+                    .await
+                    .unwrap(); // FIXME: unwrap
+
+                let join_schema = datafusion::logical_expr::build_join_schema(
+                    &DFSchema::try_from_qualified_schema("query_swhid", &query_swhid_schema)
+                        .unwrap(), // FIXME: unwrap
+                    select_nodes_plan.schema(),
+                    &JoinType::Left,
+                )
+                .unwrap(); // FIXME: unwrap
 
                 // Convert from SWHID to node id using a JOIN, into a new temporary table
-                let query_nodes = transaction.create_table_from_query(
-                    "query_node",
-                    &format!(
-                        "
-                        SELECT id, swhid_id
-                        FROM node
-                        RIGHT JOIN '{query_swhids}'
-                            ON (node.type={query_swhids}.type AND node.sha1_git={query_swhids}.sha1_git)
-                        ",
-                        query_swhids=query_swhids,
-                    )
-                )
+                let query_nodes = transaction.create_table_from_batches(
+                    "query_nodes",
+                        Arc::new(Schema::new(vec![
+                            Field::new("swhid_id", DataType::UInt64, false),
+                            Field::new("node_id", DataType::UInt64, true),
+                        ])),
+                    datafusion::physical_plan::collect_partitioned(Arc::new(NestedLoopJoinExec::try_new(
+                    Arc::new(MemoryExec::try_new(
+                        &[vec![RecordBatch::try_new(
+                            query_swhid_schema.clone(),
+                            vec![
+                                Arc::new(UInt64Array::from(Vec::from_iter(
+                                    0..(swhids.len() as u64),
+                                ))),
+                                Arc::new(StringArray::from(node_types)),
+                                Arc::new(FixedSizeBinaryArray::from(sha1_gits)),
+                            ],
+                        )
+                        .expect("Could not create query_swhid RecordBatch")]],
+                        query_swhid_schema.clone(),
+                        None,
+                    ).unwrap()), // FIXME: unwrap
+                    self.db
+                        .ctx
+                        .state()
+                        .create_physical_plan(
+                            select_nodes_plan
+                        )
+                        .await
+                        .unwrap(), // FIXME: unwrap
+                    Some(JoinFilter::new(self.db.ctx.state().create_physical_expr(
+                        self.db.ctx.state().create_logical_expr(
+                            "node.type={query_swhids}.type AND node.sha1_git={query_swhids}.sha1_git",
+                            &join_schema,
+                        )
+                        .unwrap(), // FIXME: unwrap,
+                        &join_schema
+                    ).unwrap(), // FIXME: unwrap,
+                            vec![
+                            ColumnIndex { index: 0, side: JoinSide::Left }, // swhid_id
+                            ColumnIndex { index: 0, side: JoinSide::Right }, // node_id
+                            ],
+                            join_schema.into(),
+                                 )),
+                    &JoinType::Left,
+                ).unwrap()), // FIXME: unwrap
+                self.db.ctx.task_ctx())
                 .await
-                .context("Failed to get id from SWHID")?;
+                .context("Failed to get id from SWHID")?).await.unwrap(); // FIXME: unwrap
 
                 let mut unknown_swhids = Vec::new();
                 for batch in transaction

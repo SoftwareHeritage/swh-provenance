@@ -6,10 +6,12 @@
 use std::fmt::{Display, Formatter};
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Weak;
+use std::sync::{Arc, Weak};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use datafusion::common::arrow::record_batch::RecordBatch;
+use datafusion::datasource::MemTable;
+use datafusion::arrow::datatypes::*;
 use tracing::{span_enabled, Level};
 
 use super::ProvenanceDatabase;
@@ -39,6 +41,23 @@ impl<'a> Transaction<'a> {
         let table_id = self.last_table_id.fetch_add(1, Ordering::Relaxed);
         let table_name = format!("{}_{}_{}", friendly_name, self.id, table_id);
         self.db.ctx.register_batch(&table_name, data)?;
+        Ok(TemporaryTable {
+            name: table_name,
+            marker: PhantomData,
+        })
+    }
+
+    pub async fn create_table_from_batches(
+        &self,
+        friendly_name: &str,
+        schema: Arc<Schema>,
+        data: Vec<Vec<RecordBatch>>,
+    ) -> Result<TemporaryTable<'a>> {
+        let table_id = self.last_table_id.fetch_add(1, Ordering::Relaxed);
+        let table_name = format!("{}_{}_{}", friendly_name, self.id, table_id);
+        self.db
+            .ctx
+            .register_table(&table_name, Arc::new(MemTable::try_new(schema, data).context("Could not create MemTable")?))?;
         Ok(TemporaryTable {
             name: table_name,
             marker: PhantomData,

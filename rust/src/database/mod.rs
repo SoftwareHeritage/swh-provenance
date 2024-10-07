@@ -9,7 +9,16 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
+use datafusion::common::tree_node::{Transformed, TransformedResult, TreeNode};
+use datafusion::common::DataFusionError;
+use datafusion::config::ConfigOptions;
 use datafusion::datasource::file_format::parquet::ParquetFormatFactory;
+use datafusion::execution::SessionStateBuilder;
+use datafusion::physical_optimizer::PhysicalOptimizerRule;
+use datafusion::physical_plan::expressions::Column;
+use datafusion::physical_plan::joins::{HashJoinExec, NestedLoopJoinExec};
+use datafusion::physical_plan::projection::ProjectionExec;
+use datafusion::physical_plan::{ExecutionPlan, PhysicalExpr};
 use datafusion::prelude::{SessionConfig, SessionContext};
 
 mod caching_parquet_format;
@@ -20,6 +29,88 @@ mod caching_parquet_reader;
 use caching_parquet_reader::CachingParquetFileReaderFactory;
 mod transaction;
 pub use transaction::{TemporaryTable, Transaction};
+
+struct ReplaceHashJoinWithNestedLoopJoin;
+
+impl ReplaceHashJoinWithNestedLoopJoin {
+    fn visit(
+        plan: Arc<dyn ExecutionPlan>,
+    ) -> Result<Transformed<Arc<dyn ExecutionPlan>>, DataFusionError> {
+        if let Some(old_plan) = plan.as_any().downcast_ref() {
+            let HashJoinExec {
+                left,
+                right,
+                on,
+                filter,
+                join_type,
+                projection,
+                null_equals_null,
+                ..
+            } = old_plan;
+            if *null_equals_null {
+                return Err(DataFusionError::NotImplemented(
+                    "ReplaceHashJoinWithNestedLoopJoin does not support null_equals_null=true"
+                        .into(),
+                ));
+            }
+            if on.is_empty() {
+                return Err(DataFusionError::NotImplemented(
+                    "ReplaceHashJoinWithNestedLoopJoin does not support on={on:?}".into(),
+                ));
+            }
+            let mut new_plan: Arc<dyn ExecutionPlan> = Arc::new(NestedLoopJoinExec::try_new(
+                left.clone(),
+                right.clone(),
+                filter.clone(),
+                join_type,
+            )?);
+            // HashJoin has a built-in projection, but NestedLoopJoinExec does not, so we need to
+            // add this extra node in the query plan.
+            if let Some(column_indexes) = projection {
+                let schema = old_plan.schema();
+                let mut expr: Vec<(Arc<dyn PhysicalExpr>, _)> = Vec::new();
+                for &column_index in column_indexes {
+                    /*
+                    let Some(field) = schema.fields.get(column_index) else {
+                        return Err(DataFusionError::Plan(format!(
+                            "Reference to field {} of schema with {} fields",
+                            column_index,
+                            schema.fields.len()
+                        )));
+                    };
+                    */
+                    let field = schema.field(column_index);
+                    expr.push((
+                        Arc::new(Column::new(field.name(), column_index)) as _,
+                        field.name().clone(),
+                    ));
+                }
+                new_plan = Arc::new(ProjectionExec::try_new(expr, new_plan)?)
+            }
+            Ok(Transformed::yes(new_plan))
+        } else {
+            Ok(Transformed::no(plan))
+        }
+    }
+}
+
+impl PhysicalOptimizerRule for ReplaceHashJoinWithNestedLoopJoin {
+    fn optimize(
+        &self,
+        plan: Arc<dyn ExecutionPlan>,
+        config: &ConfigOptions,
+    ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
+        tracing::info!("Running ReplaceHashJoinWithNestedLoopJoin on {plan:#?} with {config:#?}");
+        plan.transform(Self::visit).data()
+    }
+
+    fn name(&self) -> &str {
+        "replace_hash_join_with_nested_loop_join"
+    }
+    fn schema_check(&self) -> bool {
+        true
+    }
+}
 
 pub struct ProvenanceDatabase {
     pub ctx: SessionContext,
@@ -32,7 +123,12 @@ impl ProvenanceDatabase {
 
         let config =
             SessionConfig::new().set_bool("datafusion.execution.parquet.pushdown_filters", true);
-        let ctx = SessionContext::new_with_config(config);
+        let state = SessionStateBuilder::new()
+            .with_default_features()
+            .with_config(config)
+            .with_physical_optimizer_rule(Arc::new(ReplaceHashJoinWithNestedLoopJoin))
+            .build();
+        let ctx = SessionContext::new_with_state(state);
 
         // Use the same underlying ParquetFormatFactory so they share their configuration
         let parquet_format_factory = ctx

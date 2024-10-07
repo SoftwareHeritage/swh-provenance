@@ -158,12 +158,14 @@ where
                         RecordBatch::try_new(
                             Arc::new(Schema::new(vec![
                                 Field::new("swhid_id", DataType::UInt64, false), // used to find
-                                                                                 // unknown SWHIDs
+                                // unknown SWHIDs
                                 Field::new("type", DataType::Utf8, false),
                                 Field::new("sha1_git", DataType::FixedSizeBinary(20), false),
                             ])),
                             vec![
-                                Arc::new(UInt64Array::from(Vec::from_iter(0..(swhids.len() as u64)))),
+                                Arc::new(UInt64Array::from(Vec::from_iter(
+                                    0..(swhids.len() as u64),
+                                ))),
                                 Arc::new(StringArray::from(node_types)),
                                 Arc::new(FixedSizeBinaryArray::from(sha1_gits)),
                             ],
@@ -190,7 +192,18 @@ where
                 .context("Failed to get id from SWHID")?;
 
                 let mut unknown_swhids = Vec::new();
-                for batch in transaction.db().ctx.sql(&format!("SELECT swhid_id FROM '{query_nodes}' WHERE id IS NULL", query_nodes=query_nodes)).await.context("Could not check unknown SWHIDs")?.collect().await? {
+                for batch in transaction
+                    .db()
+                    .ctx
+                    .sql(&format!(
+                        "SELECT swhid_id FROM '{query_nodes}' WHERE id IS NULL",
+                        query_nodes = query_nodes
+                    ))
+                    .await
+                    .context("Could not check unknown SWHIDs")?
+                    .collect()
+                    .await?
+                {
                     assert_eq!(
                         **batch.schema_ref(),
                         Schema::new(vec![Field::new("swhid_id", DataType::UInt64, false)])
@@ -201,7 +214,10 @@ where
                 }
 
                 if !unknown_swhids.is_empty() {
-                    return Ok(Err(tonic::Status::not_found(format!("Unknown SWHIDs: {}", unknown_swhids.into_iter().map(AsRef::as_ref).join(", ")))));
+                    return Ok(Err(tonic::Status::not_found(format!(
+                        "Unknown SWHIDs: {}",
+                        unknown_swhids.into_iter().map(AsRef::as_ref).join(", ")
+                    ))));
                 }
 
                 Ok(Ok(query_nodes))
@@ -357,8 +373,8 @@ where
                 &format!(
                     "
                     SELECT revrel AS id
-                    FROM {node_ids}
-                    INNER JOIN c_in_r ON ({node_ids}.id=c_in_r.cnt)
+                    FROM {node_ids},  c_in_r
+                    WHERE {node_ids}.id=c_in_r.cnt
                     LIMIT 1
                     ",
                     node_ids = node_ids
@@ -372,7 +388,7 @@ where
                 transaction
                     .db()
                     .ctx
-                    .sql(&format!("SELECT id FROM '{revrel}'", revrel=revrel))
+                    .sql(&format!("SELECT id FROM '{revrel}'", revrel = revrel))
                     .await?
                     .collect()
                     .await?

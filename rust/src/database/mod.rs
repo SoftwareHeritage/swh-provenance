@@ -55,7 +55,8 @@ impl ReplaceHashJoinWithNestedLoopJoin {
                         .into(),
                 ));
             }
-            if on.is_empty() {
+            if !on.is_empty() {
+                // FIXME: we really need to implement this
                 return Err(DataFusionError::NotImplemented(
                     "ReplaceHashJoinWithNestedLoopJoin does not support on={on:?}".into(),
                 ));

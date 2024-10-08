@@ -48,6 +48,8 @@ impl ReplaceHashJoinWithNestedLoopJoin {
                 ..
             } = old_plan;
             if *null_equals_null {
+                // FIXME: what is the semantics of NestedLoopJoinExec with regard to nulls?
+                // Does it actually only support null_equals_null=true?
                 return Err(DataFusionError::NotImplemented(
                     "ReplaceHashJoinWithNestedLoopJoin does not support null_equals_null=true"
                         .into(),
@@ -67,19 +69,9 @@ impl ReplaceHashJoinWithNestedLoopJoin {
             // HashJoin has a built-in projection, but NestedLoopJoinExec does not, so we need to
             // add this extra node in the query plan.
             if let Some(column_indexes) = projection {
-                let schema = old_plan.schema();
                 let mut expr: Vec<(Arc<dyn PhysicalExpr>, _)> = Vec::new();
                 for &column_index in column_indexes {
-                    /*
-                    let Some(field) = schema.fields.get(column_index) else {
-                        return Err(DataFusionError::Plan(format!(
-                            "Reference to field {} of schema with {} fields",
-                            column_index,
-                            schema.fields.len()
-                        )));
-                    };
-                    */
-                    let field = schema.field(column_index);
+                    let field = old_plan.join_schema.field(column_index);
                     expr.push((
                         Arc::new(Column::new(field.name(), column_index)) as _,
                         field.name().clone(),
@@ -100,7 +92,6 @@ impl PhysicalOptimizerRule for ReplaceHashJoinWithNestedLoopJoin {
         plan: Arc<dyn ExecutionPlan>,
         config: &ConfigOptions,
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
-        tracing::info!("Running ReplaceHashJoinWithNestedLoopJoin on {plan:#?} with {config:#?}");
         plan.transform(Self::visit).data()
     }
 

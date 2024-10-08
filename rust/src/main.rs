@@ -6,7 +6,7 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use clap::Parser;
 use mimalloc::MiMalloc;
 use tracing_subscriber::layer::SubscriberExt;
@@ -31,7 +31,7 @@ struct Args {
     /// Path to the graph prefix
     graph: Option<PathBuf>,
     /// Path to the provenance database
-    database: PathBuf,
+    database: url::Url,
     #[arg(long, default_value = "[::]:50141")]
     bind: std::net::SocketAddr,
     #[arg(long)]
@@ -84,13 +84,13 @@ pub fn main() -> Result<()> {
 
             log::info!("Loading Database");
             let db = swh_provenance::database::ProvenanceDatabase::new(
-                args.database,
-                args.cache_parquet,
+                &args.database,
             )
             .await
             .context("Could not initialize provenance database")?;
 
             if args.benchmark {
+                /*
                 let mut durations = Vec::new();
                 for i in 0..100 {
                     tracing::debug!("Iteration {i}/100");
@@ -121,6 +121,7 @@ pub fn main() -> Result<()> {
                     / f64::from(durations.len() as u32);
                 let stddev = Duration::from_secs_f64(variance.sqrt());
                 log::info!("Mean: {mean:?}, stddev: {stddev:?}");
+                */
             } else {
                 log::info!("Starting server");
                 swh_provenance::grpc_server::serve(db, graph, args.bind, statsd_client).await?

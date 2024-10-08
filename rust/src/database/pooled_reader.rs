@@ -14,36 +14,38 @@ use parquet::file::metadata::ParquetMetaData;
 /// A collection of [`AsyncFileReader`] that gets the reader back before they are dropped
 ///
 /// This allows reusing readers across requests, so they can cache the metadata.
-#[derive(Default)]
-pub struct ParquetFileReaderPool(Arc<crossbeam_queue::SegQueue<Box<dyn AsyncFileReader + Send>>>);
+pub struct ParquetFileReaderPool<R: Send>(Arc<crossbeam_queue::SegQueue<R>>);
 
-impl ParquetFileReaderPool {
+impl<R: Send> Default for ParquetFileReaderPool<R> {
+    fn default() -> Self {
+        ParquetFileReaderPool(Arc::default())
+    }
+}
+
+impl<R: Send> ParquetFileReaderPool<R> {
     pub fn try_get_reader<E>(
         &self,
-        reader_init: impl FnOnce() -> Result<Box<dyn AsyncFileReader + Send>, E>,
-    ) -> Result<Box<dyn AsyncFileReader + Send>, E> {
+        reader_init: impl FnOnce() -> Result<R, E>,
+    ) -> Result<PooledParquetFileReader<R>, E> {
         let inner_reader = match self.0.pop() {
             None => reader_init()?,
             Some(reader) => reader,
         };
-        Ok(Box::new(PooledParquetFileReader::new(
+        Ok(PooledParquetFileReader::new(
             inner_reader,
             Arc::downgrade(&self.0), // downgrade so orphan readers don't keep the pool in memory
-        )) as _)
+        ))
     }
 }
 
 /// Wrapper for [`AsyncFileReader`] that puts its wrapped reader back into a pool when dropped.
-struct PooledParquetFileReader {
-    inner: Option<Box<dyn AsyncFileReader + Send>>,
-    pool: Weak<crossbeam_queue::SegQueue<Box<dyn AsyncFileReader + Send>>>,
+pub struct PooledParquetFileReader<R: Send> {
+    inner: Option<R>,
+    pool: Weak<crossbeam_queue::SegQueue<R>>,
 }
 
-impl PooledParquetFileReader {
-    fn new(
-        inner: Box<dyn AsyncFileReader + Send>,
-        pool: Weak<crossbeam_queue::SegQueue<Box<dyn AsyncFileReader + Send>>>,
-    ) -> Self {
+impl<R: Send> PooledParquetFileReader<R> {
+    fn new(inner: R, pool: Weak<crossbeam_queue::SegQueue<R>>) -> Self {
         Self {
             inner: Some(inner),
             pool,
@@ -51,7 +53,7 @@ impl PooledParquetFileReader {
     }
 }
 
-impl AsyncFileReader for PooledParquetFileReader {
+impl<R: AsyncFileReader + Send> AsyncFileReader for PooledParquetFileReader<R> {
     fn get_bytes(
         &mut self,
         range: Range<usize>,
@@ -70,7 +72,7 @@ impl AsyncFileReader for PooledParquetFileReader {
     }
 }
 
-impl Drop for PooledParquetFileReader {
+impl<R: Send> Drop for PooledParquetFileReader<R> {
     fn drop(&mut self) {
         // If the pool still exists, put the wrapped reader back into the pool
         if let Some(pool) = self.pool.upgrade() {

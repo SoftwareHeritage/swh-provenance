@@ -363,18 +363,14 @@ where
         }
 
         tracing::debug!("Looking up c_in_r");
-        #[derive(ArRowDeserialize, Clone, Default)]
-        struct AnchorRow {
-            revrel: u64,
-        }
         let revrel = transaction
             .create_table_from_query(
                 "anchors",
                 &format!(
                     "
                     SELECT revrel AS id
-                    FROM {node_ids},  c_in_r
-                    WHERE {node_ids}.id=c_in_r.cnt
+                    FROM {node_ids}
+                    INNER JOIN c_in_r ON ({node_ids}.id=c_in_r.cnt)
                     LIMIT 1
                     ",
                     node_ids = node_ids
@@ -405,8 +401,8 @@ where
 
         /* TODO
         tracing::debug!("Looking up c_in_d + d_in_r");
-        let row: Option<AnchorRow> = self
-            .fetch_one(format!(
+        let revrel = transaction
+            .create_table_from_query((format!(
                 "
                 SELECT first_value(revrel) AS revrel
                 FROM d_in_r
@@ -418,17 +414,29 @@ where
             ))
             .await
             .context("Failed to query c_in_d + d_in_r")?;
-        if let Some(row) = row {
-            let anchor = self.swhid(row.revrel).await?;
+        if span_enabled!(Level::TRACE) {
+            tracing::trace!(
+                "Anchor node ids: {:?}",
+                transaction
+                    .db()
+                    .ctx
+                    .sql(&format!("SELECT id FROM '{revrel}'", revrel = revrel))
+                    .await?
+                    .collect()
+                    .await?
+            )
+        }
+        let mut anchors = self.swhid(&transaction, revrel).await?;
+        if let Some(anchor) = anchors.pop() {
             return Ok(Ok(proto::WhereIsOneResult {
                 swhid,
                 anchor: Some(anchor.to_string()),
                 origin: None,
             }));
         }
+        */
 
         tracing::debug!("Got no result");
-        */
 
         // No result
         Ok(Ok(proto::WhereIsOneResult {

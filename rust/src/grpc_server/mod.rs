@@ -29,7 +29,8 @@ use swh_graph::graph::SwhGraphWithProperties;
 use swh_graph::properties;
 use swh_graph::properties::NodeIdFromSwhidError;
 
-use crate::database::{ProvenanceDatabase, Sha1Git};
+use crate::database::types::Sha1Git;
+use crate::database::{ProvenanceDatabase, Table};
 
 pub type NodeId = u64;
 
@@ -115,6 +116,207 @@ fn projection_mask(
     Ok(ProjectionMask::roots(schema, column_indices))
 }
 
+/// Queries the ``keys`` from the c_in_r/c_in_d/d_in_r table.
+///
+/// ``keys`` must be sorted.
+#[instrument(skip(table), fields(table=%table.path()))]
+async fn query_x_in_y_table<'a>(
+    table: &'a Table,
+    expected_schema: Arc<Schema>,
+    key_column: &'static str,
+    value_column: &'static str,
+    keys: Arc<Vec<u64>>,
+) -> Result<impl Stream<Item = Result<RecordBatch>> + 'a> {
+    Ok(table
+        // Get Parquet reader builders configured to only read pages that *probably* contain
+        // one of the keys in the query, using indices.
+        .filtered_record_batch_stream_builder(key_column, Arc::clone(&keys))
+        .await?
+        // Further configure the reader builders to only output to only return rows that
+        // actually contain one of the keys in the input; then build readers and stream
+        // their results.
+        .map(move |reader_builder| {
+            let reader_builder = reader_builder?;
+            ensure!(
+                reader_builder.schema().fields() == expected_schema.fields(),
+                "Unexpected schema: got {:#?} instead of {:#?}",
+                reader_builder.schema().fields(),
+                expected_schema.fields()
+            );
+            let keys = Arc::clone(&keys);
+            let row_filter = RowFilter::new(vec![Box::new(ArrowPredicateFn::new(
+                // Don't read the other columns yet, we don't need them for filtering
+                projection_mask(reader_builder.parquet_schema(), [key_column])
+                    .context("Could not project table for filtering")?,
+                move |batch| {
+                    let mut matches =
+                        arrow::array::builder::BooleanBufferBuilder::new(batch.num_rows());
+                    for (i, key) in batch
+                        .column_by_name(key_column)
+                        .expect("Missing key column")
+                        .as_primitive_opt::<UInt64Type>()
+                        .expect("key column is not a UInt64Array")
+                        .into_iter()
+                        .enumerate()
+                    {
+                        let key = key.expect("Null key in table");
+                        matches.append(keys.binary_search(&key).is_ok());
+                    }
+                    Ok(arrow::array::BooleanArray::new(matches.finish(), None))
+                },
+            ))]);
+            let projection =
+                projection_mask(reader_builder.parquet_schema(), [key_column, value_column])
+                    .context("Could not project {} table for reading")?;
+            Ok(reader_builder
+                .with_row_filter(row_filter)
+                .with_projection(projection)
+                .build()
+                .context("Could not build reader")?
+                .map(|batch| batch.context("Could not read batch")))
+        })
+        .try_flatten_unordered(Some(1024))) // arbitrary limit
+}
+async fn node_ids_from_swhids(table: &Table, swhids: &[impl AsRef<str>]) -> Result<Result<Vec<u64>, tonic::Status>> {
+    // Parse SWHIDs
+    let mut parsed_swhids = Vec::new();
+    for swhid in swhids {
+        let swhid = swhid.as_ref();
+        let Ok(parsed_swhid) = SWHID::from_str(swhid) else {
+            return Ok(Err(tonic::Status::invalid_argument(format!(
+                "{} is not a valid SWHID",
+                swhid
+            ))));
+        };
+        parsed_swhids.push(parsed_swhid);
+    }
+
+    // Split SWHIDs into columns
+    let node_types: Vec<_> = parsed_swhids
+        .iter()
+        .map(|swhid| swhid.node_type.to_str())
+        .collect();
+    let mut sha1_gits: Vec<_> = parsed_swhids
+        .iter()
+        .map(|swhid| Sha1Git(swhid.hash))
+        .collect();
+    sha1_gits.sort_unstable();
+    let sha1_gits = Arc::new(sha1_gits);
+    let sha1_gits_set: HashSet<_> = sha1_gits.iter().map(|sha1_git| sha1_git.0).collect();
+    if sha1_gits.len() != sha1_gits_set.len() {
+        return Ok(Err(tonic::Status::unimplemented(
+            "Duplicated SWHIDs in input",
+        ))); // TODO
+    }
+
+    let expected_schema = Arc::new(Schema::new(vec![
+        Field::new("id", DataType::UInt64, false),
+        Field::new(
+            "type",
+            DataType::Dictionary(Box::new(DataType::Int8), Box::new(DataType::Utf8)),
+            false,
+        ),
+        Field::new("sha1_git", DataType::FixedSizeBinary(20), false),
+    ]));
+
+    // Get Parquet reader builders configured to only read pages that *probably* contain
+    // one of the SWHIDs in the query, using indices.
+    // TODO: use node_type to prune based on statistics too
+    let readers = table
+        .filtered_record_batch_stream_builder("sha1_git", Arc::clone(&sha1_gits))
+        .await?;
+
+    // Further configure the reader builders to only output to only return rows that
+    // actually contain one of the SWHIds in the input; then build readers and stream
+    // their results.
+    let mut batches = readers
+        .map(|reader_builder| {
+            let reader_builder = reader_builder?;
+            ensure!(
+                reader_builder.schema().fields() == expected_schema.fields(),
+                "Unexpected schema for nodes tables: got {:#?} instead of {:#?}",
+                reader_builder.schema().fields(),
+                expected_schema.fields()
+            );
+            let sha1_gits = Arc::clone(&sha1_gits);
+            let row_filter = RowFilter::new(vec![Box::new(ArrowPredicateFn::new(
+                // Don't read the 'id' column yet, we don't need it for filtering
+                projection_mask(reader_builder.parquet_schema(), ["type", "sha1_git"])
+                    .context("Could not project nodes table")?,
+                move |batch| {
+                    // TODO: check 'type' column
+                    let mut matches =
+                        arrow::array::builder::BooleanBufferBuilder::new(batch.num_rows());
+                    for (i, sha1_git) in batch
+                        .column_by_name("sha1_git")
+                        .expect("Missing column sha1_git")
+                        .as_fixed_size_binary_opt()
+                        .expect("'sha1_git' column is not a FixedSizeBinaryArray")
+                        .into_iter()
+                        .enumerate()
+                    {
+                        // Can't panic because we check the schema before applying this row
+                        // filter
+                        let sha1_git: [u8; 20] = sha1_git
+                            .expect("null sha1_git in nodes table")
+                            .try_into()
+                            .expect("unexpected sha1_git length in nodes table");
+                        matches.append(sha1_gits.binary_search(&Sha1Git(sha1_git)).is_ok());
+                    }
+                    Ok(arrow::array::BooleanArray::new(matches.finish(), None))
+                },
+            ))]);
+            Ok(reader_builder
+                .with_row_filter(row_filter)
+                .build()
+                .context("Could not build reader")?
+                .map(|batch| batch.context("Could not read batch")))
+        })
+        .try_flatten_unordered(Some(1024)); // arbitrary limit
+
+    // Read 'id' from batches and check which SWHIDs are not in the table
+    let mut node_ids = Vec::new();
+    let mut unknown_swhids: HashSet<_> = parsed_swhids.into_iter().collect();
+    while let Some(batch) = batches.next().await {
+        let batch = batch?;
+        tracing::trace!("Got batch with {} rows", batch.num_rows());
+        node_ids.extend(
+            batch
+                .project(&[0])
+                // can't panic, we checked the schema
+                .expect("Could not project batch to 'id' column")
+                .column(0)
+                .as_primitive_opt::<UInt64Type>()
+                // can't panic, we checked the schema
+                .expect("Could not cast node ids to UInt64Array")
+                .into_iter()
+                // can't panic, we checked the schema
+                .map(|node_id| node_id.expect("Node id is null")),
+        );
+        let swhids_batch = &batch.project(&[1, 2]).expect(
+            "Could not remove 'id' column before passing batch to decode_swhids_from_batch",
+        );
+        for swhid in decode_swhids_from_batch(swhids_batch)? {
+            ensure!(
+                unknown_swhids.remove(&swhid),
+                "Database returned SWHID not in query: {swhid}"
+            );
+        }
+    }
+
+    if !unknown_swhids.is_empty() {
+        return Ok(Err(tonic::Status::not_found(format!(
+            "Unknown SWHIDs: {}",
+            unknown_swhids
+                .into_iter()
+                .map(|swhid| swhid.to_string())
+                .join(", ")
+        ))));
+    }
+
+    Ok(Ok(node_ids))
+}
+
 struct ProvenanceServiceInner<G: SwhGraphWithProperties + Send + Sync + 'static>
 where
     <G as SwhGraphWithProperties>::Maps: properties::Maps,
@@ -128,10 +330,7 @@ where
     <G as SwhGraphWithProperties>::Maps: properties::Maps,
 {
     #[instrument(skip(self), fields(swhids=swhids.iter().map(AsRef::as_ref).join(", ")))]
-    async fn node_id<'a>(
-        &self,
-        swhids: &[impl AsRef<str>],
-    ) -> Result<Result<Vec<RecordBatch>, tonic::Status>> {
+    async fn node_id(&self, swhids: &[impl AsRef<str>]) -> Result<Result<Vec<u64>, tonic::Status>> {
         tracing::debug!(
             "Getting node id for {:?}",
             swhids.iter().map(AsRef::as_ref).collect::<Vec<_>>()
@@ -165,149 +364,9 @@ where
                     }
                 }
 
-                // Insert node ids in a new temporary table
-                Ok(Ok(vec![RecordBatch::try_new(
-                    Arc::new(Schema::new(vec![Field::new("id", DataType::UInt64, false)])),
-                    vec![Arc::new(UInt64Array::from(node_ids))],
-                )
-                .expect("Could not build query_node RecordBatch")]))
+                Ok(Ok(node_ids))
             }
-            None => {
-                // Parse SWHIDs
-                let mut parsed_swhids = Vec::new();
-                for swhid in swhids {
-                    let swhid = swhid.as_ref();
-                    let Ok(parsed_swhid) = SWHID::from_str(swhid) else {
-                        return Ok(Err(tonic::Status::invalid_argument(format!(
-                            "{} is not a valid SWHID",
-                            swhid
-                        ))));
-                    };
-                    parsed_swhids.push(parsed_swhid);
-                }
-
-                // Split SWHIDs into columns
-                let node_types: Vec<_> = parsed_swhids
-                    .iter()
-                    .map(|swhid| swhid.node_type.to_str())
-                    .collect();
-                let mut sha1_gits: Vec<_> = parsed_swhids
-                    .iter()
-                    .map(|swhid| Sha1Git(swhid.hash))
-                    .collect();
-                sha1_gits.sort_unstable();
-                let sha1_gits = Arc::new(sha1_gits);
-                let sha1_gits_set: HashSet<_> =
-                    sha1_gits.iter().map(|sha1_git| sha1_git.0).collect();
-                if sha1_gits.len() != sha1_gits_set.len() {
-                    return Ok(Err(tonic::Status::unimplemented(
-                        "Duplicated SWHIDs in input",
-                    ))); // TODO
-                }
-
-                let expected_schema = Arc::new(Schema::new(vec![
-                    Field::new("id", DataType::UInt64, false),
-                    Field::new(
-                        "type",
-                        DataType::Dictionary(Box::new(DataType::Int8), Box::new(DataType::Utf8)),
-                        false,
-                    ),
-                    Field::new("sha1_git", DataType::FixedSizeBinary(20), false),
-                ]));
-
-                // Get Parquet reader builders configured to only read pages that *probably* contain
-                // one of the SWHIDs in the query, using indices.
-                // TODO: use node_type to prune based on statistics too
-                let readers = self
-                    .db
-                    .node
-                    .filtered_record_batch_stream_builder("sha1_git", sha1_gits.as_ref())
-                    .await?;
-
-                // Further configure the reader builders to only output to only return rows that
-                // actually contain one of the SWHIds in the input; then build readers and stream
-                // their results.
-                let mut batches = readers
-                    .map(|reader_builder| {
-                        let reader_builder = reader_builder?;
-                        ensure!(
-                            reader_builder.schema().fields() == expected_schema.fields(),
-                            "Unexpected schema for nodes tables: got {:#?} instead of {:#?}",
-                            reader_builder.schema().fields(),
-                            expected_schema.fields()
-                        );
-                        let sha1_gits = Arc::clone(&sha1_gits);
-                        let row_filter = RowFilter::new(vec![Box::new(ArrowPredicateFn::new(
-                            // Don't read the 'id' column yet, we don't need it for filtering
-                            projection_mask(reader_builder.parquet_schema(), ["type", "sha1_git"])
-                                .context("Could not project nodes table")?,
-                            move |batch| {
-                                // TODO: check 'type' column
-                                let mut matches = arrow::array::builder::BooleanBufferBuilder::new(
-                                    batch.num_rows(),
-                                );
-                                for (i, sha1_git) in batch
-                                    .column_by_name("sha1_git")
-                                    .expect("Missing column sha1_git")
-                                    .as_fixed_size_binary_opt()
-                                    .expect("'sha1_git' column is not a FixedSizeBinaryArray")
-                                    .into_iter()
-                                    .enumerate()
-                                {
-                                    // Can't panic because we check the schema before applying this row
-                                    // filter
-                                    let sha1_git: [u8; 20] = sha1_git
-                                        .expect("null sha1_git in nodes table")
-                                        .try_into()
-                                        .expect("unexpected sha1_git length in nodes table");
-                                    matches.append(
-                                        sha1_gits.binary_search(&Sha1Git(sha1_git)).is_ok(),
-                                    );
-                                }
-                                Ok(arrow::array::BooleanArray::new(matches.finish(), None))
-                            },
-                        ))]);
-                        Ok(reader_builder
-                            .with_row_filter(row_filter)
-                            .build()
-                            .context("Could not build reader")?
-                            .map(|batch| batch.context("Could not read batch")))
-                    })
-                    .try_flatten_unordered(Some(1024)); // arbitrary limit
-
-                // Read 'id' from batches and check which SWHIDs are not in the table
-                let mut node_id_batches = Vec::new();
-                let mut unknown_swhids: HashSet<_> = parsed_swhids.into_iter().collect();
-                while let Some(batch) = batches.next().await {
-                    let batch = batch?;
-                    tracing::trace!("Got batch with {} rows", batch.num_rows());
-                    node_id_batches.push(
-                        batch
-                            .project(&[0])
-                            .expect("Could not project batch to 'id' column"),
-                    );
-                    let swhids_batch = &batch.project(&[1, 2])
-                            .expect("Could not remove 'id' column before passing batch to decode_swhids_from_batch");
-                    for swhid in decode_swhids_from_batch(swhids_batch)? {
-                        ensure!(
-                            unknown_swhids.remove(&swhid),
-                            "Database returned SWHID not in query: {swhid}"
-                        );
-                    }
-                }
-
-                if !unknown_swhids.is_empty() {
-                    return Ok(Err(tonic::Status::not_found(format!(
-                        "Unknown SWHIDs: {}",
-                        unknown_swhids
-                            .into_iter()
-                            .map(|swhid| swhid.to_string())
-                            .join(", ")
-                    ))));
-                }
-
-                Ok(Ok(node_id_batches))
-            }
+            None => node_ids_from_swhids(&self.db.node, swhids).await,
         }
     }
 
@@ -385,48 +444,29 @@ where
         &self,
         swhid: String,
     ) -> Result<Result<proto::WhereIsOneResult, tonic::Status>> {
-        let node_ids = self.node_id(&[&swhid]).await??;
+        let node_ids = Arc::new(self.node_id(&[&swhid]).await??);
 
         if span_enabled!(Level::TRACE) {
             tracing::trace!("Query node ids: {:?}", node_ids)
         }
 
-        todo!("whereis");
-
-        /*
         tracing::debug!("Looking up c_in_r");
-        #[derive(ArRowDeserialize, Clone, Default)]
-        struct AnchorRow {
-            revrel: u64,
-        }
-        let revrel = transaction
-            .create_table_from_query(
-                "anchors",
-                &format!(
-                    "
-                    SELECT revrel AS id
-                    FROM {node_ids},  c_in_r
-                    WHERE {node_ids}.id=c_in_r.cnt
-                    LIMIT 1
-                    ",
-                    node_ids = node_ids
-                ),
-            )
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("cnt", DataType::UInt64, false),
+            Field::new("revrel", DataType::UInt64, false),
+            Field::new("path", DataType::Binary, false),
+        ]));
+        let c_in_r_batches = query_x_in_y_table(&self.db.c_in_r, schema, "cnt", "revrel", node_ids)
             .await
-            .context("Failed to query c_in_r")?;
+            .context("Could not query c_in_r")?
+            .collect::<FuturesUnordered<_>>()
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>>>()?;
         if span_enabled!(Level::TRACE) {
-            tracing::trace!(
-                "Anchor node ids: {:?}",
-                transaction
-                    .db()
-                    .ctx
-                    .sql(&format!("SELECT id FROM '{revrel}'", revrel = revrel))
-                    .await?
-                    .collect()
-                    .await?
-            )
+            tracing::trace!("Anchor node ids: {:?}", c_in_r_batches,)
         }
-        let mut anchors = self.swhid(&transaction, revrel).await?;
+        let mut anchors = self.swhid(c_in_r_batches).await?;
         if let Some(anchor) = anchors.pop() {
             return Ok(Ok(proto::WhereIsOneResult {
                 swhid,
@@ -466,7 +506,7 @@ where
         Ok(Ok(proto::WhereIsOneResult {
             swhid,
             ..Default::default()
-        })) */
+        }))
     }
 }
 

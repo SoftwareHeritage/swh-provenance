@@ -107,9 +107,8 @@ impl Table {
         &'a self,
         column: &'a str,
         keys: Arc<Vec<K>>,
-    ) -> Result<
-        impl Stream<Item = Result<ParquetRecordBatchStreamBuilder<impl AsyncFileReader>>> + 'a,
-    > {
+        builder_configurator: Arc<impl ReaderBuilderConfigurator>,
+    ) -> Result<impl Stream<Item = Result<RecordBatch>> + 'a> {
         let column_idx: usize = self
             .schema
             .index_of(column)
@@ -119,8 +118,9 @@ impl Table {
             .await
             .map(move |reader| {
                 let keys = Arc::clone(&keys);
+                let builder_configurator = Arc::clone(&builder_configurator);
                 async move {
-                    let reader = reader?;
+                    let reader = reader.context("Could not get AsyncFileReader")?;
                     let mut stream_builder = ParquetRecordBatchStreamBuilder::new_with_options(
                         reader,
                         ArrowReaderOptions::new().with_page_index(true),
@@ -128,7 +128,8 @@ impl Table {
                     .await
                     .context("Could not open stream")?;
                     if keys.is_empty() {
-                        return Ok(stream_builder.with_row_groups(vec![])); // shortcut
+                        // shortcut, return nothing
+                        return Ok(stream_builder.with_row_groups(vec![]).build().context("Could not build empty record stream")?);
                     }
                     let parquet_metadata = Arc::clone(stream_builder.metadata());
                     let column_index = parquet_metadata.column_index();
@@ -394,12 +395,37 @@ impl Table {
                         row_selection.skipped_row_count(),
                         row_selection.row_count()
                     );
-                    Ok(stream_builder
+                    let stream_builder = stream_builder
                         .with_row_groups(selected_row_groups)
-                        .with_row_selection(row_selection))
+                        .with_row_selection(row_selection);
+                    Ok(builder_configurator.configure(stream_builder).context("Could not finish configuring ParquetRecordBatchStreamBuilder")?.build().context("Could not build ParquetRecordBatchStream")?)
+
                 }
             })
             .collect::<FuturesUnordered<_>>()
-            .await)
+            .await
+            .try_collect::<Vec<_>>().await
+            .and_then(|v| Ok(futures::stream::iter(v.into_iter())))?
+            .map(|stream| -> Result<_> {
+                Ok(stream.map(|batch_result| Ok(batch_result.context("Could not read batch")?)))
+            })
+            .try_flatten_unordered(Some(1024))
+        )
+    }
+}
+
+pub trait ReaderBuilderConfigurator: Send + Sync + 'static {
+    fn configure<R: AsyncFileReader>(
+        &self,
+        reader_builder: ParquetRecordBatchStreamBuilder<R>,
+    ) -> Result<ParquetRecordBatchStreamBuilder<R>>;
+}
+
+impl ReaderBuilderConfigurator for () {
+    fn configure<R: AsyncFileReader>(
+        &self,
+        reader_builder: ParquetRecordBatchStreamBuilder<R>,
+    ) -> Result<ParquetRecordBatchStreamBuilder<R>> {
+        Ok(reader_builder)
     }
 }

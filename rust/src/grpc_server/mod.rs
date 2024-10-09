@@ -31,15 +31,13 @@ use swh_graph::properties::NodeIdFromSwhidError;
 
 use crate::database::types::Sha1Git;
 use crate::database::{ProvenanceDatabase, Table};
+use crate::proto;
 use crate::proto::provenance_service_server::ProvenanceServiceServer;
 use crate::queries::ProvenanceService;
-use crate::proto;
 
 pub type NodeId = u64;
 
-
 mod metrics;
-
 
 pub struct ProvenanceServiceWrapper<G: SwhGraphWithProperties + Send + Sync + 'static>(
     Arc<ProvenanceService<G>>,
@@ -71,23 +69,38 @@ impl<G: SwhGraphWithProperties + Send + Sync + 'static>
 where
     <G as SwhGraphWithProperties>::Maps: properties::Maps,
 {
-    #[instrument(skip(self, request), err(level = Level::INFO))]
-    async fn where_is_one(
-        &self,
+    //#[instrument(skip(self, request), err(level = Level::INFO))]
+    fn where_is_one<'life0, 'async_trait>(
+        &'life0 self,
         request: Request<proto::WhereIsOneRequest>,
-    ) -> TonicResult<proto::WhereIsOneResult> {
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<Output = TonicResult<proto::WhereIsOneResult>>
+                + Send
+                + 'async_trait,
+        >,
+    >
+    where
+        Self: 'async_trait,
+        'life0: 'async_trait,
+    {
+        use futures::FutureExt;
         tracing::info!("{:?}", request.get_ref());
 
-        match self.0.whereis(request.into_inner().swhid).await {
-            Ok(Ok(result)) => Ok(Response::new(result)),
-            Ok(Err(e)) => Err(e), // client error
-            Err(e) => {
-                // server error
-                tracing::error!("{:?}", e);
-                capture_anyhow(&e); // redundant with tracing::error!
-                Err(tonic::Status::internal(e.to_string()))
-            }
-        }
+        Box::pin(
+            self.0
+                .whereis(request.into_inner().swhid)
+                .map(|result| match result {
+                    Ok(Ok(result)) => Ok(Response::new(result)),
+                    Ok(Err(e)) => Err(e), // client error
+                    Err(e) => {
+                        // server error
+                        tracing::error!("{:?}", e);
+                        capture_anyhow(&e); // redundant with tracing::error!
+                        Err(tonic::Status::internal(e.to_string()))
+                    }
+                }),
+        )
     }
 
     // TODO: When impl_trait_in_assoc_type is stabilized, replace this with:
@@ -101,32 +114,33 @@ where
         &self,
         request: Request<proto::WhereAreOneRequest>,
     ) -> TonicResult<Self::WhereAreOneStream> {
-        tracing::info!("{:?}", request.get_ref());
+        todo!() /*
+                tracing::info!("{:?}", request.get_ref());
 
-        let whereis_service = self.clone(); // Need to clone because we return from this function
-                                            // before the work is done
-        Ok(Response::new(Box::new(
-            request
-                .into_inner()
-                .swhid
-                .into_iter()
-                .map(move |swhid| {
-                    let whereis_service: ProvenanceServiceWrapper<G> = whereis_service.clone(); // ditto
-                    async move {
-                        match whereis_service.0.whereis(swhid).await {
-                            Ok(Ok(result)) => Ok(result),
-                            Ok(Err(e)) => Err(e), // client error
-                            Err(e) => {
-                                // server error
-                                tracing::error!("{:?}", e);
-                                capture_anyhow(&e); // redundant with tracing::error!
-                                Err(tonic::Status::internal(e.to_string()))
+                let whereis_service = self.clone(); // Need to clone because we return from this function
+                                                    // before the work is done
+                Ok(Response::new(Box::new(
+                    request
+                        .into_inner()
+                        .swhid
+                        .into_iter()
+                        .map(move |swhid| {
+                            let whereis_service: ProvenanceServiceWrapper<G> = whereis_service.clone(); // ditto
+                            async move {
+                                match whereis_service.0.whereis(swhid).await {
+                                    Ok(Ok(result)) => Ok(result),
+                                    Ok(Err(e)) => Err(e), // client error
+                                    Err(e) => {
+                                        // server error
+                                        tracing::error!("{:?}", e);
+                                        capture_anyhow(&e); // redundant with tracing::error!
+                                        Err(tonic::Status::internal(e.to_string()))
+                                    }
+                                }
                             }
-                        }
-                    }
-                })
-                .collect::<FuturesUnordered<_>>(), // Run each request concurrently
-        )))
+                        })
+                        .collect::<FuturesUnordered<_>>(), // Run each request concurrently
+                ))) */
     }
 }
 

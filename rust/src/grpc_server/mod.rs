@@ -16,6 +16,8 @@ use futures::stream::FuturesUnordered;
 use futures::{Stream, StreamExt, TryStreamExt};
 use itertools::Itertools;
 use parquet::arrow::arrow_reader::{ArrowPredicateFn, RowFilter};
+use parquet::arrow::ProjectionMask;
+use parquet::schema::types::SchemaDescriptor;
 use sentry::integrations::anyhow::capture_anyhow;
 use swh_graph::SWHID;
 use tonic::transport::Server;
@@ -93,6 +95,24 @@ fn decode_swhids_from_batch(batch: &RecordBatch) -> Result<impl Iterator<Item = 
             }
         }),
     )
+}
+
+fn projection_mask(
+    schema: &SchemaDescriptor,
+    columns: impl IntoIterator<Item = impl AsRef<str>>,
+) -> Result<ProjectionMask> {
+    let column_indices = columns
+        .into_iter()
+        .map(|column_name| {
+            let column_name = column_name.as_ref();
+            schema
+                .columns()
+                .iter()
+                .position(|column| column.name() == column_name)
+                .with_context(|| format!("{:?} has no column named {}", schema, column_name))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    Ok(ProjectionMask::roots(schema, column_indices))
 }
 
 struct ProvenanceServiceInner<G: SwhGraphWithProperties + Send + Sync + 'static>
@@ -209,9 +229,8 @@ where
                         );
                         let sha1_gits_set = Arc::clone(&sha1_gits_set);
                         let row_filter = RowFilter::new(vec![Box::new(ArrowPredicateFn::new(
-                            // TODO: only project 'type' and 'sha1_git', so we don't unnecessarily decode
-                            // the 'id' column
-                            parquet::arrow::ProjectionMask::all(),
+                            projection_mask(reader_builder.parquet_schema(), ["type", "sha1_git"])
+                                .context("Could not project nodes table")?,
                             move |batch| {
                                 // TODO: check 'type' column
                                 let mut matches = arrow::array::builder::BooleanBufferBuilder::new(

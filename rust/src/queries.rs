@@ -415,7 +415,12 @@ where
     }
 
     #[instrument(skip(self, node_id_batches))]
-    async fn swhid(&self, node_id_batches: Vec<RecordBatch>) -> Result<Vec<SWHID>> {
+    async fn swhid(
+        &self,
+        node_id_batches: Vec<RecordBatch>,
+        col1: &'static str,
+        col2: &'static str,
+    ) -> Result<Vec<(SWHID, Option<SWHID>)>> {
         tracing::debug!("Getting SWHIDs from node ids");
         match &self.graph {
             Some(graph) => {
@@ -424,18 +429,39 @@ where
                     Vec::with_capacity(node_id_batches.iter().map(|batch| batch.num_rows()).sum());
                 for batch in node_id_batches {
                     swhids.extend(
-                        batch
-                            .column_by_name("id")
-                            .context("Could not get 'id' column from batch")?
-                            .as_primitive_opt::<UInt64Type>()
-                            .context("Could not cast 'id' column as UInt64Array")?
-                            .into_iter()
-                            .flatten()
-                            .map(|node_id| {
+                        std::iter::zip(
+                            batch
+                                .column_by_name(col1)
+                                .with_context(|| {
+                                    format!("Could not get '{}' column from batch", col1)
+                                })?
+                                .as_primitive_opt::<UInt64Type>()
+                                .with_context(|| {
+                                    format!("Could not cast '{}' column as UInt64Array", col1)
+                                })?
+                                .into_iter(),
+                            batch
+                                .column_by_name(col2)
+                                .with_context(|| {
+                                    format!("Could not get '{}' column from batch", col2)
+                                })?
+                                .as_primitive_opt::<UInt64Type>()
+                                .with_context(|| {
+                                    format!("Could not cast '{}' column as UInt64Array", col2)
+                                })?
+                                .into_iter(),
+                        )
+                        .map(|(id1, id2)| {
+                            let Some(id1) = id1 else {panic!("Got null value for '{}'", col1)};
+                            (
                                 graph
                                     .properties()
-                                    .swhid(node_id.try_into().expect("Node id overflowed usize"))
-                            }),
+                                    .swhid(id1.try_into().expect("Node id overflowed usize")),
+                                id2.map(|id2| graph
+                                    .properties()
+                                    .swhid(id2.try_into().expect("Node id overflowed usize"))),
+                            )
+                        }),
                     );
                 }
                 Ok(swhids)
@@ -497,11 +523,11 @@ where
         if span_enabled!(Level::TRACE) {
             tracing::trace!("Anchor node ids: {:?}", c_in_r_batches,)
         }
-        let mut anchors = self.swhid(c_in_r_batches).await?;
-        if let Some(anchor) = anchors.pop() {
+        let mut anchors = self.swhid(c_in_r_batches, "cnt", "revrel").await?;
+        if let Some((cnt, revrel)) = anchors.pop() {
             return Ok(Ok(proto::WhereIsOneResult {
-                swhid,
-                anchor: Some(anchor.to_string()),
+                swhid: cnt.to_string(),
+                anchor: revrel.map(|revrel| revrel.to_string()),
                 origin: None,
             }));
         }

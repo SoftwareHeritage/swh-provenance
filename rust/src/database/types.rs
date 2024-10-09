@@ -60,43 +60,8 @@ impl IndexKey for Sha1Git {
         column_offset_index: &ParquetOffsetIndex,
         row_group_indices: I,
     ) -> Result<Option<BooleanBuffer>> {
-        let min_key = keys
-            .iter()
-            .min()
-            .cloned()
-            .context("check_page_index got empty set of keys")?;
-        let max_key = keys
-            .iter()
-            .max()
-            .cloned()
-            .context("check_page_index got empty set of keys")?;
-
-        let data_page_mins = statistics_converter
-            .data_page_mins(column_page_index, column_offset_index, row_group_indices)
-            .context("Could not get row group statistics")?;
-        let data_page_maxes = statistics_converter
-            .data_page_maxes(column_page_index, column_offset_index, row_group_indices)
-            .context("Could not get row group statistics")?;
-        Ok(Some(
-            arrow::compute::and(
-                // Discard row groups whose smallest value is greater than the largest key
-                &BooleanArray::from_unary(
-                    data_page_mins
-                        .as_fixed_size_binary_opt()
-                        .context("Could not interpret statistics as FixedSizeBinaryArray")?,
-                    |data_page_min| data_page_min <= &max_key.0[..],
-                ),
-                // Discard row groups whose largest value is less than the smallest key
-                &BooleanArray::from_unary(
-                    data_page_maxes
-                        .as_fixed_size_binary_opt()
-                        .context("Could not interpret statistics as FixedSizeBinaryArray")?,
-                    |data_page_max| data_page_max >= &min_key.0[..],
-                ),
-            )
-            .context("Could not build boolean array")?
-            .into_parts().0,
-        ))
+        // ditto
+        Ok(None)
     }
 }
 
@@ -123,6 +88,9 @@ impl IndexKey for u64 {
         let row_group_maxes = statistics_converter
             .row_group_maxes(row_groups_metadata)
             .context("Could not get row group statistics")?;
+        if row_group_mins.nulls().is_some() || row_group_maxes.nulls().is_some() {
+            unimplemented!("missing column statistics for u64 column chunk")
+        }
         Ok(Some(
             arrow::compute::and(
                 // Discard row groups whose smallest value is greater than the largest key
@@ -141,7 +109,8 @@ impl IndexKey for u64 {
                 ),
             )
             .context("Could not build boolean array")?
-            .into_parts().0,
+            .into_parts()
+            .0,
         ))
     }
     fn check_page_index<'a, I: IntoIterator<Item = &'a usize> + Copy>(
@@ -168,6 +137,9 @@ impl IndexKey for u64 {
         let data_page_maxes = statistics_converter
             .data_page_maxes(column_page_index, column_offset_index, row_group_indices)
             .context("Could not get row group statistics")?;
+        if data_page_mins.nulls().is_some() || data_page_maxes.nulls().is_some() {
+            unimplemented!("missing column statistics for u64 page")
+        }
         Ok(Some(
             arrow::compute::and(
                 // Discard row groups whose smallest value is greater than the largest key
@@ -186,7 +158,8 @@ impl IndexKey for u64 {
                 ),
             )
             .context("Could not build boolean array")?
-            .into_parts().0,
+            .into_parts()
+            .0,
         ))
     }
 }

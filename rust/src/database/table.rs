@@ -265,25 +265,22 @@ impl Table {
                                             .checked_add(num_rows_in_row_group)
                                             .context("Number of rows in file overflowed usize")?;
 
-                                    let selected_pages_locations: Vec<_> = offset_index[row_group_idx]
+                                    let mut page_locations_iter = offset_index[row_group_idx]
                                         [column_idx]
-                                        .page_locations()
-                                        .iter()
-                                        .filter(|_| selected_pages_iter.next().expect("check_page_index returned an array smaller than the number of pages"))
-                                        .cloned()
-                                        .collect();
-
-                                    let ranges_within_row_group = RowSelection::default()
-                                        .scan_ranges(&selected_pages_locations);
-                                    selected_ranges.extend(
-                                        ranges_within_row_group.into_iter().map(
-                                            |Range { start, end }| Range {
-                                                start: start + current_row_group_first_row_idx,
-                                                end: end + current_row_group_first_row_idx,
-                                            },
-                                        ),
-                                    );
-
+                                        .page_locations().iter().peekable();
+                                    while let Some(page_location) = page_locations_iter.next() {
+                                        if selected_pages_iter.next().expect("check_page_index returned an array smaller than the number of pages") {
+                                            assert!(page_location.first_row_index < row_group_meta.num_rows(), "page_location.first_row_index is greater or equal to the number of rows in its row group");
+                                            let page_first_row_index = usize::try_from(page_location.first_row_index).context("page_location.first_row_index overflowed usize")?;
+                                            if let Some(next_page_location) = page_locations_iter.peek() {
+                                                let next_page_first_row_index = usize::try_from(next_page_location.first_row_index).context("next_page_location.first_row_index overflowed usize")?;
+                                                selected_ranges.push((current_row_group_first_row_idx+page_first_row_index)..(current_row_group_first_row_idx+next_page_first_row_index))
+                                            } else {
+                                                // last page of the row group
+                                                selected_ranges.push((current_row_group_first_row_idx+page_first_row_index)..next_row_group_first_row_idx);
+                                            }
+                                        }
+                                    }
                                     current_row_group_first_row_idx = next_row_group_first_row_idx;
                                 }
 

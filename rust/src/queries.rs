@@ -104,7 +104,7 @@ fn projection_mask(
 /// Queries the ``keys`` from the c_in_r/c_in_d/d_in_r table.
 ///
 /// ``keys`` must be sorted.
-#[instrument(skip(table), fields(table=%table.path()))]
+#[instrument(skip(table, expected_schema, key_column, value_column), fields(table=%table.path()))]
 async fn query_x_in_y_table<'a>(
     table: &'a Table,
     expected_schema: Arc<Schema>,

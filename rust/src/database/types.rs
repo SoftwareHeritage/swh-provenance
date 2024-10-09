@@ -147,14 +147,14 @@ impl IndexKey for u64 {
                     data_page_mins
                         .as_primitive_opt::<UInt64Type>()
                         .context("Could not interpret statistics as UInt64Array")?,
-                    |data_page_min| data_page_min < max_key,
+                    |data_page_min| true || data_page_min <= max_key,
                 ),
                 // Discard row groups whose largest value is less than the smallest key
                 &BooleanArray::from_unary(
                     data_page_maxes
                         .as_primitive_opt::<UInt64Type>()
                         .context("Could not interpret statistics as UInt64Array")?,
-                    |data_page_max| data_page_max > min_key,
+                    |data_page_max| true || data_page_max >= min_key,
                 ),
             )
             .context("Could not build boolean array")?

@@ -215,12 +215,19 @@ where
                     Field::new("sha1_git", DataType::FixedSizeBinary(20), false),
                 ]));
 
+                // Get Parquet reader builders configured to only read pages that *probably* contain
+                // one of the SWHIDs in the query, using indices.
                 // TODO: use node_type to prune based on statistics too
-                let mut batches = self
+                let readers = self
                     .db
                     .node
                     .filtered_record_batch_stream_builder("sha1_git", sha1_gits.as_ref())
-                    .await?
+                    .await?;
+
+                // Further configure the reader builders to only output to only return rows that
+                // actually contain one of the SWHIds in the input; then build readers and stream
+                // their results.
+                let mut batches = readers
                     .map(|reader_builder| {
                         let reader_builder = reader_builder?;
                         ensure!(
@@ -231,6 +238,7 @@ where
                         );
                         let sha1_gits = Arc::clone(&sha1_gits);
                         let row_filter = RowFilter::new(vec![Box::new(ArrowPredicateFn::new(
+                            // Don't read the 'id' column yet, we don't need it for filtering
                             projection_mask(reader_builder.parquet_schema(), ["type", "sha1_git"])
                                 .context("Could not project nodes table")?,
                             move |batch| {
@@ -252,7 +260,9 @@ where
                                         .expect("null sha1_git in nodes table")
                                         .try_into()
                                         .expect("unexpected sha1_git length in nodes table");
-                                    matches.append(sha1_gits.binary_search(&Sha1Git(sha1_git)).is_ok());
+                                    matches.append(
+                                        sha1_gits.binary_search(&Sha1Git(sha1_git)).is_ok(),
+                                    );
                                 }
                                 Ok(arrow::array::BooleanArray::new(matches.finish(), None))
                             },
@@ -265,6 +275,7 @@ where
                     })
                     .try_flatten_unordered(Some(1024)); // arbitrary limit
 
+                // Read 'id' from batches and check which SWHIDs are not in the table
                 let mut node_id_batches = Vec::new();
                 let mut unknown_swhids: HashSet<_> = parsed_swhids.into_iter().collect();
                 while let Some(batch) = batches.next().await {

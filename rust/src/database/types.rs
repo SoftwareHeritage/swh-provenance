@@ -84,14 +84,14 @@ impl IndexKey for Sha1Git {
                     data_page_mins
                         .as_fixed_size_binary_opt()
                         .context("Could not interpret statistics as FixedSizeBinaryArray")?,
-                    |data_page_min| data_page_min < &max_key.0[..],
+                    |data_page_min| data_page_min <= &max_key.0[..],
                 ),
                 // Discard row groups whose largest value is less than the smallest key
                 &BooleanArray::from_unary(
                     data_page_maxes
                         .as_fixed_size_binary_opt()
                         .context("Could not interpret statistics as FixedSizeBinaryArray")?,
-                    |data_page_max| data_page_max > &min_key.0[..],
+                    |data_page_max| data_page_max >= &min_key.0[..],
                 ),
             )
             .context("Could not build boolean array")?
@@ -130,14 +130,14 @@ impl IndexKey for u64 {
                     row_group_mins
                         .as_primitive_opt::<UInt64Type>()
                         .context("Could not interpret statistics as UInt64Array")?,
-                    |row_group_min| row_group_min < max_key,
+                    |row_group_min| row_group_min <= max_key,
                 ),
                 // Discard row groups whose largest value is less than the smallest key
                 &BooleanArray::from_unary(
                     row_group_maxes
                         .as_primitive_opt::<UInt64Type>()
                         .context("Could not interpret statistics as UInt64Array")?,
-                    |row_group_max| row_group_max > min_key,
+                    |row_group_max| row_group_max >= min_key,
                 ),
             )
             .context("Could not build boolean array")?

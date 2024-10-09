@@ -33,7 +33,7 @@ pub trait IndexKey: parquet::data_type::AsBytes + Hash + Eq + Clone {
     ) -> Result<Option<arrow::array::BooleanArray>>;
 }
 
-#[derive(Hash, PartialEq, Eq, Clone, Debug)]
+#[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct Sha1Git(pub [u8; 20]);
 impl parquet::data_type::AsBytes for Sha1Git {
     fn as_bytes(&self) -> &[u8] {

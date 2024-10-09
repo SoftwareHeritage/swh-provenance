@@ -191,12 +191,14 @@ where
                     .iter()
                     .map(|swhid| swhid.node_type.to_str())
                     .collect();
-                let sha1_gits: Vec<_> = parsed_swhids
+                let mut sha1_gits: Vec<_> = parsed_swhids
                     .iter()
                     .map(|swhid| Sha1Git(swhid.hash))
                     .collect();
-                let sha1_gits_set: Arc<HashSet<_>> =
-                    Arc::new(sha1_gits.iter().map(|sha1_git| sha1_git.0).collect());
+                sha1_gits.sort_unstable();
+                let sha1_gits = Arc::new(sha1_gits);
+                let sha1_gits_set: HashSet<_> =
+                    sha1_gits.iter().map(|sha1_git| sha1_git.0).collect();
                 if sha1_gits.len() != sha1_gits_set.len() {
                     return Ok(Err(tonic::Status::unimplemented(
                         "Duplicated SWHIDs in input",
@@ -227,7 +229,7 @@ where
                             reader_builder.schema().fields(),
                             expected_schema.fields()
                         );
-                        let sha1_gits_set = Arc::clone(&sha1_gits_set);
+                        let sha1_gits = Arc::clone(&sha1_gits);
                         let row_filter = RowFilter::new(vec![Box::new(ArrowPredicateFn::new(
                             projection_mask(reader_builder.parquet_schema(), ["type", "sha1_git"])
                                 .context("Could not project nodes table")?,
@@ -250,7 +252,7 @@ where
                                         .expect("null sha1_git in nodes table")
                                         .try_into()
                                         .expect("unexpected sha1_git length in nodes table");
-                                    matches.append(sha1_gits_set.contains(&sha1_git));
+                                    matches.append(sha1_gits.binary_search(&Sha1Git(sha1_git)).is_ok());
                                 }
                                 Ok(arrow::array::BooleanArray::new(matches.finish(), None))
                             },

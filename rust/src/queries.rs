@@ -414,44 +414,31 @@ where
         }
     }
 
-    #[instrument(skip(self, node_ids))]
-    async fn swhid(&self, node_ids: Vec<RecordBatch>) -> Result<Vec<SWHID>> {
+    #[instrument(skip(self, node_id_batches))]
+    async fn swhid(&self, node_id_batches: Vec<RecordBatch>) -> Result<Vec<SWHID>> {
         tracing::debug!("Getting SWHIDs from node ids");
         match &self.graph {
             Some(graph) => {
                 // Convert from node id to SWHID using the graph
-                todo!("node to swhid");
-                /*
-                let batches = transaction
-                    .db()
-                    .ctx
-                    .sql(&format!("SELECT id FROM '{node_ids}'", node_ids = node_ids))
-                    .await?
-                    .collect()
-                    .await?;
-                let mut node_ids: Vec<u64> = Vec::new();
-                for batch in batches {
-                    assert_eq!(
-                        **batch.schema_ref(),
-                        Schema::new(vec![Field::new("id", DataType::UInt64, false)])
-                    );
-                    // Unwrap won't panic because we checked the schema does not allow NULLs
-                    node_ids.extend(
+                let mut swhids =
+                    Vec::with_capacity(node_id_batches.iter().map(|batch| batch.num_rows()).sum());
+                for batch in node_id_batches {
+                    swhids.extend(
                         batch
-                            .column(0)
-                            .as_primitive::<UInt64Type>()
+                            .column_by_name("id")
+                            .context("Could not get 'id' column from batch")?
+                            .as_primitive_opt::<UInt64Type>()
+                            .context("Could not cast 'id' column as UInt64Array")?
                             .into_iter()
-                            .map(Option::<u64>::unwrap),
+                            .flatten()
+                            .map(|node_id| {
+                                graph
+                                    .properties()
+                                    .swhid(node_id.try_into().expect("Node id overflowed usize"))
+                            }),
                     );
                 }
-                Ok(node_ids
-                    .into_iter()
-                    .map(|node_id| {
-                        graph
-                            .properties()
-                            .swhid(node_id.try_into().expect("Node id overflowed usize"))
-                    })
-                    .collect())*/
+                Ok(swhids)
             }
             None => {
                 // Convert from node id to SWHID using a JOIN

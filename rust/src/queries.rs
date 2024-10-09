@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use anyhow::{anyhow, ensure, Context, Result};
+use anyhow::{anyhow, bail, ensure, Context, Result};
 use arrow::array::*;
 use arrow::datatypes::*;
 use futures::stream::FuturesUnordered;
@@ -153,15 +153,36 @@ async fn query_x_in_y_table<'a>(
             &self,
             reader_builder: ParquetRecordBatchStreamBuilder<R>,
         ) -> Result<ParquetRecordBatchStreamBuilder<R>> {
-            // Further configure the reader builders to only output to only return rows that
-            // actually contain one of the keys in the input; then build readers and stream
-            // their results.
+            let mut schema_projection = Vec::new();
+            for field in self.expected_schema.fields() {
+                let Some((column_idx, _)) = reader_builder.schema().column_with_name(field.name())
+                else {
+                    bail!("Missing column {} in table", field.name())
+                };
+                schema_projection.push(column_idx);
+            }
+            let projected_schema = reader_builder
+                .schema()
+                .project(&schema_projection)
+                .expect("could not project schema");
             ensure!(
-                reader_builder.schema().fields() == self.expected_schema.fields(),
+                projected_schema.fields() == self.expected_schema.fields(),
                 "Unexpected schema: got {:#?} instead of {:#?}",
-                reader_builder.schema().fields(),
+                projected_schema.fields(),
                 self.expected_schema.fields()
             );
+
+            // discard 'revrel_author_date' and 'path' columns
+            let projection = projection_mask(
+                reader_builder.parquet_schema(),
+                [self.key_column, self.value_column],
+            )
+            .context("Could not project {} table for reading")?;
+            let reader_builder = reader_builder.with_projection(projection);
+
+            // Further configure the reader builders to only return rows that
+            // actually contain one of the keys in the input; then build readers and stream
+            // their results.
             let row_filter = RowFilter::new(vec![Box::new(Predicate {
                 // Don't read the other columns yet, we don't need them for filtering
                 projection: projection_mask(reader_builder.parquet_schema(), [self.key_column])
@@ -169,14 +190,7 @@ async fn query_x_in_y_table<'a>(
                 key_column: self.key_column,
                 keys: Arc::clone(&self.keys),
             })]);
-            let projection = projection_mask(
-                reader_builder.parquet_schema(),
-                [self.key_column, self.value_column],
-            )
-            .context("Could not project {} table for reading")?;
-            Ok(reader_builder
-                .with_row_filter(row_filter)
-                .with_projection(projection))
+            Ok(reader_builder.with_row_filter(row_filter))
         }
     }
     Ok(table

@@ -157,50 +157,53 @@ impl Table {
                     )
                     .context("Could not check row group statistics")?;
 
-                    let mut selected_row_groups = Vec::new();
-                    for (row_group_idx, (row_group_meta, row_group_matches_statistics)) in
-                        parquet_metadata
-                            .row_groups()
-                            .iter()
-                            .zip(row_groups_match_statistics.into_iter())
-                            .enumerate()
-                    {
-                        // Prune row group using statistics
-                        match row_group_matches_statistics {
-                            // statistics cannot be evaluated, so we can't rule out this row group
-                            // contains some of the keys
-                            None => row_groups_selected_by_statistics += 1, // TODO: use separate metric?
-                            // there may be a key in this row group
-                            Some(true) => row_groups_selected_by_statistics += 1,
-                            // we know for sure there is no key in this row group
-                            Some(false) => {
+                    let selected_row_groups = if let Some(row_groups_match_statistics) = row_groups_match_statistics {
+                        let mut selected_row_groups = Vec::new();
+                        for (row_group_idx, (row_group_meta, row_group_matches_statistics)) in
+                            parquet_metadata
+                                .row_groups()
+                                .iter()
+                                .zip(row_groups_match_statistics.into_iter())
+                                .enumerate()
+                        {
+                            // Prune row group using statistics
+                            if row_group_matches_statistics {
+                                // there may be a key in this row group
+                                row_groups_selected_by_statistics += 1
+                            } else {
+                                // we know for sure there is no key in this row group
                                 row_groups_pruned_by_statistics += 1;
                                 continue; // shortcut
                             }
-                        }
 
-                        // TODO: filter out keys that didn't match the statistics, to reduce the
-                        // runtime and number of false positives in checking the bloom filter
+                            // TODO: filter out keys that didn't match the statistics, to reduce the
+                            // runtime and number of false positives in checking the bloom filter
 
-                        // Prune row groups using Bloom Filters
-                        if let Some(bloom_filter) = stream_builder
-                            .get_row_group_column_bloom_filter(row_group_idx, column_idx)
-                            .await
-                            .context("Could not get Bloom Filter")?
-                        {
-                            let mut keys_in_group =
-                                keys.iter().filter(|&key| bloom_filter.check(key));
-                            if keys_in_group.next().is_none() {
-                                // None of the keys matched the Bloom Filter
-                                row_groups_pruned_by_bloom_filters += 1;
-                                continue; // shortcut
+                            // Prune row groups using Bloom Filters
+                            if let Some(bloom_filter) = stream_builder
+                                .get_row_group_column_bloom_filter(row_group_idx, column_idx)
+                                .await
+                                .context("Could not get Bloom Filter")?
+                            {
+                                let mut keys_in_group =
+                                    keys.iter().filter(|&key| bloom_filter.check(key));
+                                if keys_in_group.next().is_none() {
+                                    // None of the keys matched the Bloom Filter
+                                    row_groups_pruned_by_bloom_filters += 1;
+                                    continue; // shortcut
+                                }
+                                // At least one key matched the Bloom Filter
+                                row_groups_selected_by_bloom_filters += 1;
                             }
-                            // At least one key matched the Bloom Filter
-                            row_groups_selected_by_bloom_filters += 1;
-                        }
 
-                        selected_row_groups.push(row_group_idx);
-                    }
+                            selected_row_groups.push(row_group_idx);
+                        }
+                        selected_row_groups
+                    } else {
+                        // We don't know how to filter on row group statistics, so we
+                        // unconditionally select every row group
+                        (0..parquet_metadata.row_groups().len()).into_iter().collect()
+                    };
 
                     // TODO: remove keys that did not match any of the bloom filters
 
@@ -238,9 +241,6 @@ impl Table {
                                 ].into_iter(), num_rows_in_selected_row_groups)
                             }
                             Some(selected_pages) => {
-                                let (selected_pages, None) = selected_pages.into_parts() else {
-                                    bail!("check_page_index returned a null buffer");
-                                };
                                 // TODO: exit early if no page is selected
 
                                 let mut selected_pages_iter = selected_pages.iter();
@@ -398,7 +398,7 @@ impl Table {
                     let stream_builder = stream_builder
                         .with_row_groups(selected_row_groups)
                         .with_row_selection(row_selection);
-                    Ok(builder_configurator.configure(stream_builder).context("Could not finish configuring ParquetRecordBatchStreamBuilder")?.build().context("Could not build ParquetRecordBatchStream")?)
+                    Ok::<_, anyhow::Error>(builder_configurator.configure(stream_builder).context("Could not finish configuring ParquetRecordBatchStreamBuilder")?.build().context("Could not build ParquetRecordBatchStream")?)
 
                 }
             })

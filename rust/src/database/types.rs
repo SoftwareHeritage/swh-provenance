@@ -7,6 +7,7 @@ use std::hash::Hash;
 
 use anyhow::{Context, Result};
 use arrow::array::*;
+use arrow::buffer::BooleanBuffer;
 use arrow::datatypes::*;
 use parquet::arrow::arrow_reader::statistics::StatisticsConverter;
 use parquet::file::metadata::RowGroupMetaData;
@@ -14,11 +15,13 @@ use parquet::file::metadata::{ParquetColumnIndex, ParquetOffsetIndex};
 
 pub trait IndexKey: parquet::data_type::AsBytes + Hash + Eq + Clone {
     /// Returns whether the key may be in the column chunk based on its statistics
+    ///
+    /// Returns `None` when it cannot prune (ie. when all rows would be selected)
     fn check_column_chunk(
         keys: &[Self],
         statistics_converter: &StatisticsConverter,
         row_groups_metadata: &[RowGroupMetaData],
-    ) -> Result<BooleanArray>;
+    ) -> Result<Option<BooleanBuffer>>;
     /// Given a page index, returns page ids within the index that may contain this key, as a
     /// boolean array.
     ///
@@ -29,7 +32,7 @@ pub trait IndexKey: parquet::data_type::AsBytes + Hash + Eq + Clone {
         column_page_index: &ParquetColumnIndex,
         column_offset_index: &ParquetOffsetIndex,
         row_group_indices: I,
-    ) -> Result<Option<arrow::array::BooleanArray>>;
+    ) -> Result<Option<BooleanBuffer>>;
 }
 
 #[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
@@ -44,11 +47,11 @@ impl IndexKey for Sha1Git {
         keys: &[Self],
         statistics_converter: &StatisticsConverter,
         row_groups_metadata: &[RowGroupMetaData],
-    ) -> Result<BooleanArray> {
+    ) -> Result<Option<BooleanBuffer>> {
         // Should we even bother implementing this? Assuming a random distribution of SWHIDs among
         // row groups, and the default row group size, it's very unlikely we can prune a row group
         // based on statistics.
-        Ok(BooleanArray::new_null(row_groups_metadata.len()))
+        Ok(None)
     }
     fn check_page_index<'a, I: IntoIterator<Item = &'a usize> + Copy>(
         keys: &[Self],
@@ -56,7 +59,7 @@ impl IndexKey for Sha1Git {
         column_page_index: &ParquetColumnIndex,
         column_offset_index: &ParquetOffsetIndex,
         row_group_indices: I,
-    ) -> Result<Option<arrow::array::BooleanArray>> {
+    ) -> Result<Option<BooleanBuffer>> {
         let min_key = keys
             .iter()
             .min()
@@ -91,7 +94,8 @@ impl IndexKey for Sha1Git {
                     |data_page_max| data_page_max > &min_key.0[..],
                 ),
             )
-            .context("Could not build boolean array")?,
+            .context("Could not build boolean array")?
+            .into_parts().0,
         ))
     }
 }
@@ -101,7 +105,7 @@ impl IndexKey for u64 {
         keys: &[Self],
         statistics_converter: &StatisticsConverter,
         row_groups_metadata: &[RowGroupMetaData],
-    ) -> Result<BooleanArray> {
+    ) -> Result<Option<BooleanBuffer>> {
         let min_key = keys
             .iter()
             .min()
@@ -119,23 +123,26 @@ impl IndexKey for u64 {
         let row_group_maxes = statistics_converter
             .row_group_maxes(row_groups_metadata)
             .context("Could not get row group statistics")?;
-        Ok(arrow::compute::and(
-            // Discard row groups whose smallest value is greater than the largest key
-            &BooleanArray::from_unary(
-                row_group_mins
-                    .as_primitive_opt::<UInt64Type>()
-                    .context("Could not interpret statistics as UInt64Array")?,
-                |row_group_min| row_group_min < max_key,
-            ),
-            // Discard row groups whose largest value is less than the smallest key
-            &BooleanArray::from_unary(
-                row_group_maxes
-                    .as_primitive_opt::<UInt64Type>()
-                    .context("Could not interpret statistics as UInt64Array")?,
-                |row_group_max| row_group_max > min_key,
-            ),
-        )
-        .context("Could not build boolean array")?)
+        Ok(Some(
+            arrow::compute::and(
+                // Discard row groups whose smallest value is greater than the largest key
+                &BooleanArray::from_unary(
+                    row_group_mins
+                        .as_primitive_opt::<UInt64Type>()
+                        .context("Could not interpret statistics as UInt64Array")?,
+                    |row_group_min| row_group_min < max_key,
+                ),
+                // Discard row groups whose largest value is less than the smallest key
+                &BooleanArray::from_unary(
+                    row_group_maxes
+                        .as_primitive_opt::<UInt64Type>()
+                        .context("Could not interpret statistics as UInt64Array")?,
+                    |row_group_max| row_group_max > min_key,
+                ),
+            )
+            .context("Could not build boolean array")?
+            .into_parts().0,
+        ))
     }
     fn check_page_index<'a, I: IntoIterator<Item = &'a usize> + Copy>(
         keys: &[Self],
@@ -143,7 +150,7 @@ impl IndexKey for u64 {
         column_page_index: &ParquetColumnIndex,
         column_offset_index: &ParquetOffsetIndex,
         row_group_indices: I,
-    ) -> Result<Option<arrow::array::BooleanArray>> {
+    ) -> Result<Option<BooleanBuffer>> {
         let min_key = keys
             .iter()
             .min()
@@ -178,7 +185,8 @@ impl IndexKey for u64 {
                     |data_page_max| data_page_max > min_key,
                 ),
             )
-            .context("Could not build boolean array")?,
+            .context("Could not build boolean array")?
+            .into_parts().0,
         ))
     }
 }

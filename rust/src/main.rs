@@ -6,7 +6,7 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use mimalloc::MiMalloc;
 use tracing_subscriber::layer::SubscriberExt;
@@ -83,11 +83,9 @@ pub fn main() -> Result<()> {
                 .transpose()?;
 
             log::info!("Loading Database");
-            let db = swh_provenance::database::ProvenanceDatabase::new(
-                &args.database,
-            )
-            .await
-            .context("Could not initialize provenance database")?;
+            let db = swh_provenance::database::ProvenanceDatabase::new(&args.database)
+                .await
+                .context("Could not initialize provenance database")?;
 
             if args.benchmark {
                 /*

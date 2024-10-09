@@ -148,7 +148,10 @@ impl Table {
                         .checked_add(num_rows_in_row_group)
                         .context("Number of rows in file overflowed usize")?;
                     let mut keys_in_group: Vec<_> = keys.iter().cloned().collect();
-                    let mut group_row_selection = RowSelection::from_consecutive_ranges([current_row_group_first_row_idx..next_row_group_first_row_idx].into_iter(), next_row_group_first_row_idx);
+                    let mut group_row_selection = RowSelection::from_consecutive_ranges(
+                        [current_row_group_first_row_idx..next_row_group_first_row_idx].into_iter(),
+                        next_row_group_first_row_idx,
+                    );
 
                     // Prune row group using statistics
                     if let Some(column_chunk_statistics) =
@@ -211,8 +214,8 @@ impl Table {
                                 row_groups_pruned_by_page_index += 1;
                                 continue; // shortcut
                             }
-                            let offset_index =
-                                offset_index.expect("column_index is present but offset_index is not");
+                            let offset_index = offset_index
+                                .expect("column_index is present but offset_index is not");
                             let candidate_pages_locations: Box<[_]> = offset_index[row_group_idx]
                                 [column_idx]
                                 .page_locations()
@@ -226,13 +229,12 @@ impl Table {
 
                             let ranges_within_row_group =
                                 RowSelection::default().scan_ranges(&candidate_pages_locations);
-                            let ranges_within_selected_file =
-                                ranges_within_row_group
-                                    .into_iter()
-                                    .map(|Range { start, end }| Range {
-                                        start: start + current_row_group_first_row_idx,
-                                        end: end + current_row_group_first_row_idx,
-                                    });
+                            let ranges_within_selected_file = ranges_within_row_group
+                                .into_iter()
+                                .map(|Range { start, end }| Range {
+                                    start: start + current_row_group_first_row_idx,
+                                    end: end + current_row_group_first_row_idx,
+                                });
                             group_row_selection = RowSelection::from_consecutive_ranges(
                                 ranges_within_selected_file,
                                 // max row id in the selection:
@@ -249,10 +251,26 @@ impl Table {
                         row_groups_pruned_by_page_index += 1;
                     }
                 }
-                tracing::trace!("Statistics pruned {}, selected {} row groups", row_groups_pruned_by_statistics, row_groups_selected_by_statistics);
-                tracing::trace!("Bloom Filters pruned {}, selected {} row groups", row_groups_pruned_by_bloom_filters, row_groups_selected_by_bloom_filters);
-                tracing::trace!("Page Index pruned {}, selected {} row groups", row_groups_pruned_by_page_index, row_groups_selected_by_page_index);
-                tracing::trace!("Page Index pruned {}, selected {} rows", row_selection.skipped_row_count(), row_selection.row_count());
+                tracing::trace!(
+                    "Statistics pruned {}, selected {} row groups",
+                    row_groups_pruned_by_statistics,
+                    row_groups_selected_by_statistics
+                );
+                tracing::trace!(
+                    "Bloom Filters pruned {}, selected {} row groups",
+                    row_groups_pruned_by_bloom_filters,
+                    row_groups_selected_by_bloom_filters
+                );
+                tracing::trace!(
+                    "Page Index pruned {}, selected {} row groups",
+                    row_groups_pruned_by_page_index,
+                    row_groups_selected_by_page_index
+                );
+                tracing::trace!(
+                    "Page Index pruned {}, selected {} rows",
+                    row_selection.skipped_row_count(),
+                    row_selection.row_count()
+                );
                 Ok(stream_builder
                     .with_row_groups(row_groups_to_read)
                     .with_row_selection(row_selection))

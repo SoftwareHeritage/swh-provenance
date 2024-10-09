@@ -178,12 +178,18 @@ where
                 let sha1_gits_set: Arc<HashSet<_>> =
                     Arc::new(sha1_gits.iter().map(|sha1_git| sha1_git.0).collect());
                 if sha1_gits.len() != sha1_gits_set.len() {
-                    return Ok(Err(tonic::Status::unimplemented("Duplicated SWHIDs in input"))); // TODO
+                    return Ok(Err(tonic::Status::unimplemented(
+                        "Duplicated SWHIDs in input",
+                    ))); // TODO
                 }
 
                 let expected_schema = Arc::new(Schema::new(vec![
                     Field::new("id", DataType::UInt64, false),
-                    Field::new("type", DataType::Dictionary(Box::new(DataType::Int8), Box::new(DataType::Utf8)), false),
+                    Field::new(
+                        "type",
+                        DataType::Dictionary(Box::new(DataType::Int8), Box::new(DataType::Utf8)),
+                        false,
+                    ),
                     Field::new("sha1_git", DataType::FixedSizeBinary(20), false),
                 ]));
 
@@ -251,7 +257,10 @@ where
                     let swhids_batch = &batch.project(&[1, 2])
                             .expect("Could not remove 'id' column before passing batch to decode_swhids_from_batch");
                     for swhid in decode_swhids_from_batch(swhids_batch)? {
-                        ensure!(unknown_swhids.remove(&swhid), "Database returned SWHID not in query: {swhid}");
+                        ensure!(
+                            unknown_swhids.remove(&swhid),
+                            "Database returned SWHID not in query: {swhid}"
+                        );
                     }
                 }
 

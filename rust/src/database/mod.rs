@@ -7,8 +7,7 @@
 
 use std::sync::Arc;
 
-use anyhow::{bail, ensure, Context, Result};
-use object_store::path::Path;
+use anyhow::{Context, Result};
 use url::Url;
 
 mod pooled_reader;

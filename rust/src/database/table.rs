@@ -17,7 +17,6 @@ use parquet::arrow::arrow_reader::statistics::StatisticsConverter;
 use parquet::arrow::arrow_reader::{ArrowReaderOptions, RowSelection};
 use parquet::arrow::async_reader::AsyncFileReader;
 use parquet::arrow::ParquetRecordBatchStreamBuilder;
-use parquet::bloom_filter::Sbbf;
 use parquet::schema::types::SchemaDescriptor;
 
 use super::reader::FileReader;

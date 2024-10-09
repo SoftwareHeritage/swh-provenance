@@ -6,6 +6,16 @@
 #![doc = include_str!("../README.md")]
 
 pub mod database;
+#[cfg(feature = "grpc-server")]
 pub mod grpc_server;
+pub mod queries;
 pub mod sentry;
 pub mod statsd;
+
+pub mod proto {
+    tonic::include_proto!("swh.provenance");
+
+    pub(crate) const FILE_DESCRIPTOR_SET: &[u8] =
+        tonic::include_file_descriptor_set!("swhprovenance_descriptor");
+}
+

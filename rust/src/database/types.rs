@@ -5,7 +5,7 @@
 
 use std::hash::Hash;
 
-use anyhow::{bail, ensure, Context, Result};
+use anyhow::{Context, Result};
 use arrow::array::*;
 use arrow::datatypes::*;
 use parquet::arrow::arrow_reader::statistics::StatisticsConverter;
@@ -57,9 +57,6 @@ impl IndexKey for Sha1Git {
         column_offset_index: &ParquetOffsetIndex,
         row_group_indices: I,
     ) -> Result<Option<arrow::array::BooleanArray>> {
-        use parquet::file::page_index::index::Index::*;
-        use parquet::file::page_index::index::*;
-
         let min_key = keys
             .iter()
             .min()
@@ -147,9 +144,6 @@ impl IndexKey for u64 {
         column_offset_index: &ParquetOffsetIndex,
         row_group_indices: I,
     ) -> Result<Option<arrow::array::BooleanArray>> {
-        use parquet::file::page_index::index::Index::*;
-        use parquet::file::page_index::index::*;
-
         let min_key = keys
             .iter()
             .min()

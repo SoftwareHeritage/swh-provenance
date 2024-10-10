@@ -452,14 +452,18 @@ where
                                 .into_iter(),
                         )
                         .map(|(id1, id2)| {
-                            let Some(id1) = id1 else {panic!("Got null value for '{}'", col1)};
+                            let Some(id1) = id1 else {
+                                panic!("Got null value for '{}'", col1)
+                            };
                             (
                                 graph
                                     .properties()
                                     .swhid(id1.try_into().expect("Node id overflowed usize")),
-                                id2.map(|id2| graph
-                                    .properties()
-                                    .swhid(id2.try_into().expect("Node id overflowed usize"))),
+                                id2.map(|id2| {
+                                    graph
+                                        .properties()
+                                        .swhid(id2.try_into().expect("Node id overflowed usize"))
+                                }),
                             )
                         }),
                     );

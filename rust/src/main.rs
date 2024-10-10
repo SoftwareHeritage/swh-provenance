@@ -65,22 +65,44 @@ pub fn main() -> Result<()> {
         .build()
         .unwrap()
         .block_on(async {
-            let graph = args
-                .graph
-                .map(|graph_path| {
-                    log::info!("Loading graph");
-                    SwhBidirectionalGraph::new(graph_path)
-                        .context("Could not load graph")?
-                        .init_properties()
-                        .load_properties(|props| props.load_maps::<swh_graph::mph::DynMphf>())
-                        .context("Could not load graph maps")
+            if args.graph.is_some() {
+                log::info!("Loading graph and database");
+            } else {
+                log::info!("Loading database");
+            }
+            let (graph, db) = tokio::join!(
+                tokio::task::spawn_blocking(|| {
+                    let graph = args
+                        .graph
+                        .map(|graph_path| {
+                            SwhBidirectionalGraph::new(graph_path)
+                                .context("Could not load graph")?
+                                .init_properties()
+                                .load_properties(|props| {
+                                    props.load_maps::<swh_graph::mph::DynMphf>()
+                                })
+                                .context("Could not load graph maps")
+                        })
+                        .transpose()
+                        .context("Could not load graph");
+                    if graph.is_ok() {
+                        log::info!("Graph loaded");
+                    }
+                    graph
+                }),
+                tokio::task::spawn(async move {
+                    let db = swh_provenance::database::ProvenanceDatabase::new(&args.database)
+                        .await
+                        .context("Could not initialize provenance database");
+                    if db.is_ok() {
+                        log::info!("Database loaded");
+                    }
+                    db
                 })
-                .transpose()?;
+            );
 
-            log::info!("Loading Database");
-            let db = swh_provenance::database::ProvenanceDatabase::new(&args.database)
-                .await
-                .context("Could not initialize provenance database")?;
+            let graph = graph.expect("Could not join graph load task")?;
+            let db = db.expect("Could not join graph load task")?;
 
             log::info!("Starting server");
             swh_provenance::grpc_server::serve(db, graph, args.bind, statsd_client).await?;

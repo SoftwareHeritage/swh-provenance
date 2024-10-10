@@ -10,12 +10,13 @@ use object_store::{ObjectMeta, ObjectStore};
 use parquet::arrow::async_reader::AsyncFileReader;
 use parquet::arrow::async_reader::ParquetObjectReader;
 
+use super::caching_parquet_reader::CachingParquetFileReader;
 use super::pooled_reader::ParquetFileReaderPool;
 
 pub struct FileReader {
     store: Arc<dyn ObjectStore>,
     object_meta: Arc<ObjectMeta>,
-    pool: ParquetFileReaderPool<ParquetObjectReader>,
+    pool: ParquetFileReaderPool<CachingParquetFileReader<ParquetObjectReader>>,
 }
 
 impl FileReader {
@@ -29,11 +30,11 @@ impl FileReader {
 
     pub async fn reader(&self) -> Result<impl AsyncFileReader> {
         self.pool.try_get_reader(|| {
-            Ok(
+            Ok(CachingParquetFileReader::new(
                 ParquetObjectReader::new(Arc::clone(&self.store), (*self.object_meta).clone())
                     .with_preload_column_index(true)
                     .with_preload_offset_index(true),
-            )
+            ))
         })
     }
 }

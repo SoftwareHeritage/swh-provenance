@@ -16,10 +16,12 @@ use object_store::ObjectStore;
 use parquet::arrow::arrow_reader::statistics::StatisticsConverter;
 use parquet::arrow::arrow_reader::{ArrowReaderOptions, RowSelection};
 use parquet::arrow::async_reader::AsyncFileReader;
+use parquet::arrow::async_reader::ParquetRecordBatchStream;
 use parquet::arrow::ParquetRecordBatchStreamBuilder;
 use parquet::schema::types::SchemaDescriptor;
 use tokio::task::JoinSet;
 
+use super::metrics::TableScanInitMetrics;
 use super::reader::FileReader;
 use super::types::IndexKey;
 
@@ -121,7 +123,8 @@ impl Table {
             .schema
             .index_of(column)
             .with_context(|| format!("Unknown column {}", column))?;
-        Ok(self
+
+        let (metrics, reader_streams): (Vec<_>, Vec<ParquetRecordBatchStream<_>>) = self
             .readers()
             .await
             .collect::<Vec<_>>()
@@ -131,27 +134,32 @@ impl Table {
                 let keys = Arc::clone(&keys);
                 let builder_configurator = Arc::clone(&builder_configurator);
                 async move {
+                    let mut metrics = TableScanInitMetrics::default();
+                    let total_timer_guard = metrics.total_time.timer();
+
                     let reader = reader.context("Could not get AsyncFileReader")?;
-                    let mut stream_builder = ParquetRecordBatchStreamBuilder::new_with_options(
-                        reader,
-                        ArrowReaderOptions::new().with_page_index(true),
-                    )
-                    .await
-                    .context("Could not open stream")?;
+                    let mut stream_builder = {
+                        let _timer_guard = metrics.open_builder_time.timer();
+                        ParquetRecordBatchStreamBuilder::new_with_options(
+                            reader,
+                            ArrowReaderOptions::new().with_page_index(true),
+                        )
+                        .await
+                        .context("Could not open stream")?
+                    };
+
                     if keys.is_empty() {
                         // shortcut, return nothing
-                        return stream_builder.with_row_groups(vec![]).build().context("Could not build empty record stream");
+                        drop(total_timer_guard);
+                        return Ok((metrics, stream_builder.with_row_groups(vec![]).build().context("Could not build empty record stream")?));
                     }
-                    let parquet_metadata = Arc::clone(stream_builder.metadata());
+
+                    let parquet_metadata = {
+                        let _timer_guard = metrics.read_metadata_time.timer();
+                        Arc::clone(stream_builder.metadata())
+                    };
                     let column_index = parquet_metadata.column_index();
                     let offset_index = parquet_metadata.offset_index();
-
-                    let mut row_groups_pruned_by_statistics = 0;
-                    let mut row_groups_selected_by_statistics = 0;
-                    let mut row_groups_pruned_by_bloom_filters = 0;
-                    let mut row_groups_selected_by_bloom_filters = 0;
-                    let row_groups_pruned_by_page_index = 0;
-                    let row_groups_selected_by_page_index = 0;
 
                     let schema = Arc::clone(stream_builder.schema());
                     let parquet_schema = SchemaDescriptor::new(stream_builder.parquet_schema().root_schema_ptr()); // clone
@@ -161,12 +169,15 @@ impl Table {
                         &parquet_schema,
                     )
                     .context("Could not build statistics converter")?;
-                    let row_groups_match_statistics = IndexKey::check_column_chunk(
-                        &keys,
-                        &statistics_converter,
-                        parquet_metadata.row_groups(),
-                    )
-                    .context("Could not check row group statistics")?;
+                    let row_groups_match_statistics = {
+                        let _timer_guard = metrics.eval_row_groups_statistics_time.timer();
+                        IndexKey::check_column_chunk(
+                            &keys,
+                            &statistics_converter,
+                            parquet_metadata.row_groups(),
+                        )
+                        .context("Could not check row group statistics")?
+                    };
 
                     let selected_row_groups = if let Some(row_groups_match_statistics) = row_groups_match_statistics {
                         let mut selected_row_groups = Vec::new();
@@ -177,10 +188,10 @@ impl Table {
                             // Prune row group using statistics
                             if row_group_matches_statistics {
                                 // there may be a key in this row group
-                                row_groups_selected_by_statistics += 1
+                                metrics.row_groups_selected_by_statistics += 1
                             } else {
                                 // we know for sure there is no key in this row group
-                                row_groups_pruned_by_statistics += 1;
+                                metrics.row_groups_pruned_by_statistics += 1;
                                 continue; // shortcut
                             }
 
@@ -188,20 +199,25 @@ impl Table {
                             // runtime and number of false positives in checking the bloom filter
 
                             // Prune row groups using Bloom Filters
-                            if let Some(bloom_filter) = stream_builder
-                                .get_row_group_column_bloom_filter(row_group_idx, column_idx)
-                                .await
-                                .context("Could not get Bloom Filter")?
                             {
-                                let mut keys_in_group =
-                                    keys.iter().filter(|&key| bloom_filter.check(key));
-                                if keys_in_group.next().is_none() {
-                                    // None of the keys matched the Bloom Filter
-                                    row_groups_pruned_by_bloom_filters += 1;
-                                    continue; // shortcut
+                                let timer_guard = metrics.eval_bloom_filter_time.timer();
+                                if let Some(bloom_filter) = stream_builder
+                                    .get_row_group_column_bloom_filter(row_group_idx, column_idx)
+                                    .await
+                                    .context("Could not get Bloom Filter")?
+                                {
+                                    drop(timer_guard);
+                                    let _timer_guard = metrics.eval_bloom_filter_time.timer();
+                                    let mut keys_in_group =
+                                        keys.iter().filter(|&key| bloom_filter.check(key));
+                                    if keys_in_group.next().is_none() {
+                                        // None of the keys matched the Bloom Filter
+                                        metrics.row_groups_pruned_by_bloom_filters += 1;
+                                        continue; // shortcut
+                                    }
+                                    // At least one key matched the Bloom Filter
+                                    metrics.row_groups_selected_by_bloom_filters += 1;
                                 }
-                                // At least one key matched the Bloom Filter
-                                row_groups_selected_by_bloom_filters += 1;
                             }
 
                             selected_row_groups.push(row_group_idx);
@@ -217,6 +233,7 @@ impl Table {
 
                     // Prune pages using page index
                     let row_selection = if let Some(column_index) = column_index {
+                        let _timer_guard = metrics.eval_page_index_time.timer();
                         let offset_index =
                             offset_index.expect("column_index is present but offset_index is not");
 
@@ -315,30 +332,13 @@ impl Table {
                             num_rows_in_selected_row_groups,
                         )
                     };
-                    tracing::trace!(
-                        "Statistics pruned {}, selected {} row groups",
-                        row_groups_pruned_by_statistics,
-                        row_groups_selected_by_statistics
-                    );
-                    tracing::trace!(
-                        "Bloom Filters pruned {}, selected {} row groups",
-                        row_groups_pruned_by_bloom_filters,
-                        row_groups_selected_by_bloom_filters
-                    );
-                    tracing::trace!(
-                        "Page Index pruned {}, selected {} row groups",
-                        row_groups_pruned_by_page_index,
-                        row_groups_selected_by_page_index
-                    );
-                    tracing::trace!(
-                        "Page Index pruned {}, selected {} rows",
-                        row_selection.skipped_row_count(),
-                        row_selection.row_count()
-                    );
+                    metrics.rows_pruned_by_page_index = row_selection.skipped_row_count();
+                    metrics.row_selected_by_page_index = row_selection.row_count();
                     let stream_builder = stream_builder
                         .with_row_groups(selected_row_groups)
                         .with_row_selection(row_selection);
-                    builder_configurator.configure(stream_builder).context("Could not finish configuring ParquetRecordBatchStreamBuilder")?.build().context("Could not build ParquetRecordBatchStream")
+                    drop(total_timer_guard);
+                    Ok((metrics, builder_configurator.configure(stream_builder).context("Could not finish configuring ParquetRecordBatchStreamBuilder")?.build().context("Could not build ParquetRecordBatchStream")?))
 
                 }
             })
@@ -346,13 +346,19 @@ impl Table {
             .join_all()
             .await
             .into_iter()
-            .collect::<Result<Vec<_>>>()
-            .map(|v| futures::stream::iter(v.into_iter()))?
+            .collect::<Result<Vec<_>>>()?
+            .into_iter()
+            .unzip();
+
+        let metrics: TableScanInitMetrics = metrics.into_iter().sum();
+
+        tracing::debug!("Metrics: {:#?}", metrics);
+
+        Ok(futures::stream::iter(reader_streams.into_iter())
             .map(|stream| -> Result<_> {
                 Ok(stream.map(|batch_result| batch_result.context("Could not read batch")))
             })
-            .try_flatten_unordered(Some(1024))
-        )
+            .try_flatten_unordered(Some(1024)))
     }
 }
 

@@ -550,31 +550,8 @@ where
             }));
         }
 
-        /* TODO
+        /* TODO:
         tracing::debug!("Looking up c_in_d + d_in_r");
-        let row: Option<AnchorRow> = self
-            .fetch_one(format!(
-                "
-                SELECT first_value(revrel) AS revrel
-                FROM d_in_r
-                INNER JOIN c_in_d USING (dir)
-                INNER JOIN {node_ids} ON ({node_ids}.id=c_in_d.cnt)
-                GROUP BY {node_ids}.id
-                ",
-                node_ids = node_ids
-            ))
-            .await
-            .context("Failed to query c_in_d + d_in_r")?;
-        if let Some(row) = row {
-            let anchor = self.swhid(row.revrel).await?;
-            return Ok(Ok(proto::WhereIsOneResult {
-                swhid,
-                anchor: Some(anchor.to_string()),
-                origin: None,
-            }));
-        }
-
-        tracing::debug!("Got no result");
         */
 
         // No result

@@ -46,9 +46,9 @@ impl parquet::data_type::AsBytes for Sha1Git {
 }
 impl IndexKey for Sha1Git {
     fn check_column_chunk(
-        keys: &[Self],
-        statistics_converter: &StatisticsConverter,
-        row_groups_metadata: &[RowGroupMetaData],
+        _keys: &[Self],
+        _statistics_converter: &StatisticsConverter,
+        _row_groups_metadata: &[RowGroupMetaData],
     ) -> Result<Option<BooleanBuffer>> {
         // Should we even bother implementing this? Assuming a random distribution of SWHIDs among
         // row groups, and the default row group size, it's very unlikely we can prune a row group
@@ -56,11 +56,11 @@ impl IndexKey for Sha1Git {
         Ok(None)
     }
     fn check_page_index<'a, I: IntoIterator<Item = &'a usize> + Copy>(
-        keys: &[Self],
-        statistics_converter: &StatisticsConverter<'a>,
-        column_page_index: &ParquetColumnIndex,
-        column_offset_index: &ParquetOffsetIndex,
-        row_group_indices: I,
+        _keys: &[Self],
+        _statistics_converter: &StatisticsConverter<'a>,
+        _column_page_index: &ParquetColumnIndex,
+        _column_offset_index: &ParquetOffsetIndex,
+        _row_group_indices: I,
     ) -> Result<Option<BooleanBuffer>> {
         // ditto
         Ok(None)

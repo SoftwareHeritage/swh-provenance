@@ -48,7 +48,7 @@ impl Table {
         let file_metadata: Vec<_> = files
             .iter()
             .map(|file| {
-                let file = Arc::clone(&file);
+                let file = Arc::clone(file);
                 async move {
                     file.reader()
                         .await
@@ -70,10 +70,9 @@ impl Table {
         let last_file_metadata = file_metadata
             .pop()
             .ok_or_else(|| anyhow!("No files in {}", path))?;
-        for (object_meta, other_file_metadata) in std::iter::zip(
-            objects_meta.iter(),
-            file_metadata.into_iter().map(|file_metadata| file_metadata),
-        ) {
+        for (object_meta, other_file_metadata) in
+            std::iter::zip(objects_meta.iter(), file_metadata.into_iter())
+        {
             ensure!(
                 last_file_metadata.schema_descr() == other_file_metadata.schema_descr(),
                 "Schema of {} and {} differ: {:?} != {:?}",
@@ -111,6 +110,7 @@ impl Table {
     }
 
     /// Returns all rows in which the given column contains any of the given keys
+    #[allow(clippy::single_range_in_vec_init)] // false positive
     pub async fn filtered_record_batch_stream_builder<'a, K: IndexKey>(
         &'a self,
         column: &'static str,
@@ -140,7 +140,7 @@ impl Table {
                     .context("Could not open stream")?;
                     if keys.is_empty() {
                         // shortcut, return nothing
-                        return Ok(stream_builder.with_row_groups(vec![]).build().context("Could not build empty record stream")?);
+                        return stream_builder.with_row_groups(vec![]).build().context("Could not build empty record stream");
                     }
                     let parquet_metadata = Arc::clone(stream_builder.metadata());
                     let column_index = parquet_metadata.column_index();
@@ -153,7 +153,7 @@ impl Table {
                     let row_groups_pruned_by_page_index = 0;
                     let row_groups_selected_by_page_index = 0;
 
-                    let schema = Arc::clone(&stream_builder.schema());
+                    let schema = Arc::clone(stream_builder.schema());
                     let parquet_schema = SchemaDescriptor::new(stream_builder.parquet_schema().root_schema_ptr()); // clone
                     let statistics_converter = StatisticsConverter::try_new(
                         column,
@@ -170,11 +170,8 @@ impl Table {
 
                     let selected_row_groups = if let Some(row_groups_match_statistics) = row_groups_match_statistics {
                         let mut selected_row_groups = Vec::new();
-                        for (row_group_idx, (row_group_meta, row_group_matches_statistics)) in
-                            parquet_metadata
-                                .row_groups()
-                                .iter()
-                                .zip(row_groups_match_statistics.into_iter())
+                        for (row_group_idx, row_group_matches_statistics) in
+                                row_groups_match_statistics.into_iter()
                                 .enumerate()
                         {
                             // Prune row group using statistics
@@ -213,7 +210,7 @@ impl Table {
                     } else {
                         // We don't know how to filter on row group statistics, so we
                         // unconditionally select every row group
-                        (0..parquet_metadata.row_groups().len()).into_iter().collect()
+                        (0..parquet_metadata.row_groups().len()).collect()
                     };
 
                     // TODO: remove keys that did not match any of the bloom filters
@@ -239,8 +236,8 @@ impl Table {
                         let selected_pages = IndexKey::check_page_index(
                             &keys,
                             &statistics_converter,
-                            &column_index,
-                            &offset_index,
+                            column_index,
+                            offset_index,
                             &selected_row_groups,
                         )?;
                         match selected_pages {
@@ -341,7 +338,7 @@ impl Table {
                     let stream_builder = stream_builder
                         .with_row_groups(selected_row_groups)
                         .with_row_selection(row_selection);
-                    Ok::<_, anyhow::Error>(builder_configurator.configure(stream_builder).context("Could not finish configuring ParquetRecordBatchStreamBuilder")?.build().context("Could not build ParquetRecordBatchStream")?)
+                    builder_configurator.configure(stream_builder).context("Could not finish configuring ParquetRecordBatchStreamBuilder")?.build().context("Could not build ParquetRecordBatchStream")
 
                 }
             })
@@ -352,7 +349,7 @@ impl Table {
             .collect::<Result<Vec<_>>>()
             .map(|v| futures::stream::iter(v.into_iter()))?
             .map(|stream| -> Result<_> {
-                Ok(stream.map(|batch_result| Ok(batch_result.context("Could not read batch")?)))
+                Ok(stream.map(|batch_result| batch_result.context("Could not read batch")))
             })
             .try_flatten_unordered(Some(1024))
         )

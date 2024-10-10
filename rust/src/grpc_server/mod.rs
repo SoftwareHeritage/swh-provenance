@@ -16,7 +16,7 @@ use tracing::{instrument, Level};
 use swh_graph::graph::SwhGraphWithProperties;
 use swh_graph::properties;
 
-use crate::database::{ProvenanceDatabase};
+use crate::database::ProvenanceDatabase;
 use crate::proto;
 use crate::proto::provenance_service_server::ProvenanceServiceServer;
 use crate::queries::ProvenanceService;

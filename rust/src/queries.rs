@@ -130,13 +130,11 @@ async fn query_x_in_y_table<'a>(
             batch: RecordBatch,
         ) -> Result<BooleanArray, arrow::error::ArrowError> {
             let mut matches = arrow::array::builder::BooleanBufferBuilder::new(batch.num_rows());
-            for (i, key) in batch
+            for key in batch
                 .column_by_name(self.key_column)
                 .expect("Missing key column")
                 .as_primitive_opt::<UInt64Type>()
                 .expect("key column is not a UInt64Array")
-                .into_iter()
-                .enumerate()
             {
                 let key = key.expect("Null key in table");
                 matches.append(self.keys.binary_search(&key).is_ok());
@@ -203,7 +201,7 @@ async fn query_x_in_y_table<'a>(
             Ok(reader_builder)
         }
     }
-    Ok(table
+    table
         // Get Parquet reader builders configured to only read pages that *probably* contain
         // one of the keys in the query, using indices.
         .filtered_record_batch_stream_builder(
@@ -218,7 +216,7 @@ async fn query_x_in_y_table<'a>(
             }),
         )
         .await
-        .context("Could not start reading from table")?)
+        .context("Could not start reading from table")
 }
 async fn node_ids_from_swhids(
     table: &Table,
@@ -238,7 +236,7 @@ async fn node_ids_from_swhids(
     }
 
     // Split SWHIDs into columns
-    let node_types: Vec<_> = parsed_swhids
+    let _node_types: Vec<_> = parsed_swhids
         .iter()
         .map(|swhid| swhid.node_type.to_str())
         .collect();
@@ -292,13 +290,11 @@ async fn node_ids_from_swhids(
                     // TODO: check 'type' column
                     let mut matches =
                         arrow::array::builder::BooleanBufferBuilder::new(batch.num_rows());
-                    for (i, sha1_git) in batch
+                    for sha1_git in batch
                         .column_by_name("sha1_git")
                         .expect("Missing column sha1_git")
                         .as_fixed_size_binary_opt()
                         .expect("'sha1_git' column is not a FixedSizeBinaryArray")
-                        .into_iter()
-                        .enumerate()
                     {
                         // Can't panic because we check the schema before applying this row
                         // filter

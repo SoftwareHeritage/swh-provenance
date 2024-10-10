@@ -13,7 +13,9 @@ use parquet::arrow::arrow_reader::statistics::StatisticsConverter;
 use parquet::file::metadata::RowGroupMetaData;
 use parquet::file::metadata::{ParquetColumnIndex, ParquetOffsetIndex};
 
-pub trait IndexKey: parquet::data_type::AsBytes + Hash + Eq + Clone {
+pub trait IndexKey:
+    parquet::data_type::AsBytes + Hash + Eq + Clone + Send + Sync + 'static
+{
     /// Returns whether the key may be in the column chunk based on its statistics
     ///
     /// Returns `None` when it cannot prune (ie. when all rows would be selected)

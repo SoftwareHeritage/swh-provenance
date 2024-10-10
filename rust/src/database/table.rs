@@ -10,6 +10,7 @@ use anyhow::{anyhow, bail, ensure, Context, Result};
 use arrow::array::*;
 use arrow::datatypes::*;
 use futures::stream::FuturesUnordered;
+use futures::FutureExt;
 use futures::{Stream, StreamExt, TryStreamExt};
 use object_store::path::Path;
 use object_store::ObjectStore;
@@ -18,12 +19,13 @@ use parquet::arrow::arrow_reader::{ArrowReaderOptions, RowSelection};
 use parquet::arrow::async_reader::AsyncFileReader;
 use parquet::arrow::ParquetRecordBatchStreamBuilder;
 use parquet::schema::types::SchemaDescriptor;
+use tokio::task::JoinSet;
 
 use super::reader::FileReader;
 use super::types::IndexKey;
 
 pub struct Table {
-    pub files: Box<[FileReader]>,
+    pub files: Box<[Arc<FileReader>]>,
     schema: Arc<Schema>,
     path: Path,
 }
@@ -38,23 +40,30 @@ impl Table {
             .with_context(|| format!("Could not list {} in {}", path, store))?;
         let files: Vec<_> = objects_meta
             .iter()
-            .map(|object_meta| FileReader::new(Arc::clone(&store), Arc::clone(object_meta)))
-            .collect::<FuturesUnordered<_>>()
-            .collect()
+            .map(|object_meta| {
+                FileReader::new(Arc::clone(&store), Arc::clone(object_meta)).map(Arc::new)
+            })
+            .collect::<JoinSet<_>>()
+            .join_all()
             .await;
         let file_metadata: Vec<_> = files
             .iter()
-            .map(|file| async {
-                file.reader()
-                    .await
-                    .context("Could not get reader")?
-                    .get_metadata()
-                    .await
-                    .context("Could not get file metadata")
+            .map(|file| {
+                let file = Arc::clone(&file);
+                async move {
+                    file.reader()
+                        .await
+                        .context("Could not get reader")?
+                        .get_metadata()
+                        .await
+                        .context("Could not get file metadata")
+                }
             })
-            .collect::<FuturesUnordered<_>>()
-            .try_collect()
-            .await?;
+            .collect::<JoinSet<_>>()
+            .join_all()
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>>>()?;
         let mut file_metadata: Vec<_> = file_metadata
             .iter()
             .map(|file_metadata| file_metadata.file_metadata())
@@ -103,12 +112,12 @@ impl Table {
     }
 
     /// Returns all rows in which the given column contains any of the given keys
-    pub async fn filtered_record_batch_stream_builder<'a, K: IndexKey + 'a>(
+    pub async fn filtered_record_batch_stream_builder<'a, K: IndexKey>(
         &'a self,
-        column: &'a str,
+        column: &'static str,
         keys: Arc<Vec<K>>,
         builder_configurator: Arc<impl ReaderBuilderConfigurator>,
-    ) -> Result<impl Stream<Item = Result<RecordBatch>> + 'a> {
+    ) -> Result<impl Stream<Item = Result<RecordBatch>> + 'static> {
         let column_idx: usize = self
             .schema
             .index_of(column)
@@ -116,6 +125,9 @@ impl Table {
         Ok(self
             .readers()
             .await
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
             .map(move |reader| {
                 let keys = Arc::clone(&keys);
                 let builder_configurator = Arc::clone(&builder_configurator);
@@ -399,10 +411,12 @@ impl Table {
 
                 }
             })
-            .collect::<FuturesUnordered<_>>()
+            .collect::<JoinSet<_>>()
+            .join_all()
             .await
-            .try_collect::<Vec<_>>().await
-            .and_then(|v| Ok(futures::stream::iter(v.into_iter())))?
+            .into_iter()
+            .collect::<Result<Vec<_>>>()
+            .map(|v| futures::stream::iter(v.into_iter()))?
             .map(|stream| -> Result<_> {
                 Ok(stream.map(|batch_result| Ok(batch_result.context("Could not read batch")?)))
             })

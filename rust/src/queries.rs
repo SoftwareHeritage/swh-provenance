@@ -18,6 +18,7 @@ use parquet::arrow::async_reader::AsyncFileReader;
 use parquet::arrow::{ParquetRecordBatchStreamBuilder, ProjectionMask};
 use parquet::schema::types::SchemaDescriptor;
 use swh_graph::SWHID;
+use tokio::task::JoinSet;
 use tracing::{instrument, span_enabled, Level};
 
 use swh_graph::graph::SwhGraphWithProperties;

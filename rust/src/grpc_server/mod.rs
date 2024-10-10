@@ -3,34 +3,20 @@
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
 
-use std::collections::HashSet;
-use std::str::FromStr;
 use std::sync::Arc;
 
-use anyhow::{anyhow, ensure, Context, Result};
-use ar_row::deserialize::ArRowDeserialize;
-use ar_row_derive::ArRowDeserialize;
-use arrow::array::*;
-use arrow::datatypes::*;
+use anyhow::Result;
 use futures::stream::FuturesUnordered;
-use futures::{Stream, StreamExt, TryStreamExt};
-use itertools::Itertools;
-use parquet::arrow::arrow_reader::{ArrowPredicateFn, RowFilter};
-use parquet::arrow::ProjectionMask;
-use parquet::schema::types::SchemaDescriptor;
 use sentry::integrations::anyhow::capture_anyhow;
-use swh_graph::SWHID;
 use tonic::transport::Server;
 use tonic::{Request, Response};
 use tonic_middleware::MiddlewareFor;
-use tracing::{instrument, span_enabled, Level};
+use tracing::{instrument, Level};
 
 use swh_graph::graph::SwhGraphWithProperties;
 use swh_graph::properties;
-use swh_graph::properties::NodeIdFromSwhidError;
 
-use crate::database::types::Sha1Git;
-use crate::database::{ProvenanceDatabase, Table};
+use crate::database::{ProvenanceDatabase};
 use crate::proto;
 use crate::proto::provenance_service_server::ProvenanceServiceServer;
 use crate::queries::ProvenanceService;
@@ -74,7 +60,6 @@ where
         &self,
         request: Request<proto::WhereIsOneRequest>,
     ) -> TonicResult<proto::WhereIsOneResult> {
-        use futures::FutureExt;
         tracing::info!("{:?}", request.get_ref());
 
         match self.0.whereis(request.into_inner().swhid).await {

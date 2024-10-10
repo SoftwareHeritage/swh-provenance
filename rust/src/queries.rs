@@ -11,14 +11,13 @@ use anyhow::{anyhow, bail, ensure, Context, Result};
 use arrow::array::*;
 use arrow::datatypes::*;
 use futures::stream::FuturesUnordered;
-use futures::{Stream, StreamExt, TryStreamExt};
+use futures::{Stream, StreamExt};
 use itertools::Itertools;
 use parquet::arrow::arrow_reader::{ArrowPredicate, ArrowPredicateFn, RowFilter};
 use parquet::arrow::async_reader::AsyncFileReader;
 use parquet::arrow::{ParquetRecordBatchStreamBuilder, ProjectionMask};
 use parquet::schema::types::SchemaDescriptor;
 use swh_graph::SWHID;
-use tokio::task::JoinSet;
 use tracing::{instrument, span_enabled, Level};
 
 use swh_graph::graph::SwhGraphWithProperties;

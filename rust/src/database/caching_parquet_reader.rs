@@ -3,20 +3,10 @@
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
 
-use std::collections::HashSet;
 use std::ops::Range;
 use std::sync::Arc;
 
-use dashmap::DashMap;
-use datafusion::datasource::physical_plan::parquet::DefaultParquetFileReaderFactory;
-use datafusion::datasource::physical_plan::{FileMeta, ParquetFileReaderFactory};
-use datafusion::error::Result;
-use datafusion::physical_plan::metrics::ExecutionPlanMetricsSet;
-use futures::future::{BoxFuture, Either};
-use futures::FutureExt;
-use object_store::ObjectStore;
-use parquet::arrow::arrow_reader::ArrowReaderMetadata;
-use parquet::arrow::arrow_reader::ArrowReaderOptions;
+use futures::future::BoxFuture;
 use parquet::arrow::async_reader::AsyncFileReader;
 use parquet::arrow::async_reader::MetadataFetch;
 use parquet::arrow::async_reader::MetadataLoader;

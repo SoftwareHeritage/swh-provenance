@@ -4,16 +4,14 @@
 // See top-level LICENSE file for more information
 
 use std::path::PathBuf;
-use std::time::Duration;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use clap::Parser;
 use mimalloc::MiMalloc;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
 use swh_graph::graph::SwhBidirectionalGraph;
-use swh_graph::mph::SwhidPthash;
 
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc; // Allocator recommended by Datafusion

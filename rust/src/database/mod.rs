@@ -10,6 +10,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use url::Url;
 
+mod caching_parquet_reader;
 mod pooled_reader;
 mod reader;
 mod table;

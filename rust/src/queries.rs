@@ -104,7 +104,9 @@ fn projection_mask(
 
 /// Queries the ``keys`` from the c_in_r/c_in_d/d_in_r table.
 ///
-/// ``keys`` must be sorted.
+/// `keys` must be sorted.
+///
+/// `limit` is per-file, so it is an upper bound to the number of results.
 #[instrument(skip(table, expected_schema, key_column, value_column), fields(table=%table.path()))]
 async fn query_x_in_y_table<'a>(
     table: &'a Table,
@@ -112,6 +114,7 @@ async fn query_x_in_y_table<'a>(
     key_column: &'static str,
     value_column: &'static str,
     keys: Arc<Vec<u64>>,
+    limit: Option<usize>,
 ) -> Result<impl Stream<Item = Result<RecordBatch>> + Send + 'a> {
     struct Predicate {
         projection: ProjectionMask,
@@ -148,11 +151,12 @@ async fn query_x_in_y_table<'a>(
         key_column: &'static str,
         value_column: &'static str,
         keys: Arc<Vec<u64>>,
+        limit: Option<usize>,
     }
     impl ReaderBuilderConfigurator for Configurator {
         fn configure<R: AsyncFileReader>(
             &self,
-            reader_builder: ParquetRecordBatchStreamBuilder<R>,
+            mut reader_builder: ParquetRecordBatchStreamBuilder<R>,
         ) -> Result<ParquetRecordBatchStreamBuilder<R>> {
             let mut schema_projection = Vec::new();
             for field in self.expected_schema.fields() {
@@ -179,7 +183,7 @@ async fn query_x_in_y_table<'a>(
                 [self.key_column, self.value_column],
             )
             .context("Could not project {} table for reading")?;
-            let reader_builder = reader_builder.with_projection(projection);
+            reader_builder = reader_builder.with_projection(projection);
 
             // Further configure the reader builders to only return rows that
             // actually contain one of the keys in the input; then build readers and stream
@@ -191,7 +195,13 @@ async fn query_x_in_y_table<'a>(
                 key_column: self.key_column,
                 keys: Arc::clone(&self.keys),
             })]);
-            Ok(reader_builder.with_row_filter(row_filter))
+            reader_builder = reader_builder.with_row_filter(row_filter);
+
+            if let Some(limit) = self.limit {
+                reader_builder = reader_builder.with_limit(limit);
+            }
+
+            Ok(reader_builder)
         }
     }
     Ok(table
@@ -205,6 +215,7 @@ async fn query_x_in_y_table<'a>(
                 key_column,
                 value_column,
                 keys,
+                limit,
             }),
         )
         .await
@@ -518,13 +529,15 @@ where
             Field::new("revrel", DataType::UInt64, false),
             Field::new("path", DataType::Binary, false),
         ]));
-        let c_in_r_batches = query_x_in_y_table(&self.db.c_in_r, schema, "cnt", "revrel", node_ids)
-            .await
-            .context("Could not query c_in_r")?
-            .collect::<FuturesUnordered<_>>()
-            .await
-            .into_iter()
-            .collect::<Result<Vec<_>>>()?;
+        let limit = Some(1);
+        let c_in_r_batches =
+            query_x_in_y_table(&self.db.c_in_r, schema, "cnt", "revrel", node_ids, limit)
+                .await
+                .context("Could not query c_in_r")?
+                .collect::<FuturesUnordered<_>>()
+                .await
+                .into_iter()
+                .collect::<Result<Vec<_>>>()?;
         if span_enabled!(Level::TRACE) {
             tracing::trace!("Anchor node ids: {:?}", c_in_r_batches,)
         }

@@ -3616,9 +3616,9 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "sux"
-version = "0.4.4"
+version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3310c1fa3aa69943b4128702b8b7c10e37921461aed569b3ac1814de9f4c3bb7"
+checksum = "d691c5dc6815e876cc5ea2d662ae825aea08270347416d3ffa175c598221e17e"
 dependencies = [
  "ambassador",
  "anyhow",
@@ -3712,11 +3712,13 @@ dependencies = [
  "parquet",
  "prost 0.13.3",
  "prost-types 0.13.3",
+ "rdst",
  "sentry",
  "sentry-tracing",
  "serde",
  "serde_derive",
  "serde_json",
+ "sux",
  "swh-graph",
  "tokio",
  "tokio-stream",

@@ -19,7 +19,9 @@ use parquet::arrow::async_reader::AsyncFileReader;
 use parquet::arrow::async_reader::ParquetRecordBatchStream;
 use parquet::arrow::ParquetRecordBatchStreamBuilder;
 use parquet::schema::types::SchemaDescriptor;
+use sux::traits::IndexedDict;
 use tokio::task::JoinSet;
+use tracing::instrument;
 
 use super::metrics::TableScanInitMetrics;
 use super::reader::FileReader;
@@ -32,13 +34,21 @@ pub struct Table {
 }
 
 impl Table {
-    pub async fn new(store: Arc<dyn ObjectStore>, path: Path) -> Result<Self> {
+    #[instrument(name="Table::new", skip(store, ef_index_column, path), fields(name=%path.filename().unwrap()))]
+    pub async fn new(
+        store: Arc<dyn ObjectStore>,
+        path: Path,
+        ef_index_column: Option<&'static str>,
+    ) -> Result<Self> {
+        tracing::trace!("Fetching object metadata");
         let objects_meta: Vec<_> = store
             .list(Some(&path))
-            .map(|object_meta_res| object_meta_res.map(Arc::new))
+            .map(|object_meta_res| object_meta_name="Table::new", res.map(Arc::new))
             .try_collect()
             .await
             .with_context(|| format!("Could not list {} in {}", path, store))?;
+
+        tracing::trace!("Opening files");
         let files: Vec<_> = objects_meta
             .iter()
             .map(|object_meta| {
@@ -47,18 +57,18 @@ impl Table {
             .collect::<JoinSet<_>>()
             .join_all()
             .await;
+
+        tracing::trace!("Reading file metadata");
         let file_metadata: Vec<_> = files
             .iter()
-            .map(|file| {
-                let file = Arc::clone(file);
-                async move {
-                    file.reader()
-                        .await
-                        .context("Could not get reader")?
-                        .get_metadata()
-                        .await
-                        .context("Could not get file metadata")
-                }
+            .map(Arc::clone)
+            .map(|file| async move {
+                file.reader()
+                    .await
+                    .context("Could not get reader")?
+                    .get_metadata()
+                    .await
+                    .context("Could not get file metadata")
             })
             .collect::<JoinSet<_>>()
             .join_all()
@@ -69,6 +79,8 @@ impl Table {
             .iter()
             .map(|file_metadata| file_metadata.file_metadata())
             .collect();
+
+        tracing::trace!("Checking schemas are consistent");
         let last_file_metadata = file_metadata
             .pop()
             .ok_or_else(|| anyhow!("No files in {}", path))?;
@@ -84,6 +96,22 @@ impl Table {
                 other_file_metadata
             );
         }
+
+        if let Some(ef_index_column) = ef_index_column {
+            tracing::trace!("Building file-level index");
+            files
+                .iter()
+                .map(Arc::clone)
+                .map(|file| async move { file.load_ef_index(ef_index_column).await })
+                .collect::<JoinSet<_>>()
+                .join_all()
+                .await
+                .into_iter()
+                .collect::<Result<Vec<()>>>()
+                .context("Could not build file-level Elias-Fano index")?;
+        }
+
+        tracing::trace!("Done");
         Ok(Self {
             files: files.into(),
             schema: Arc::new(
@@ -124,20 +152,68 @@ impl Table {
             .index_of(column)
             .with_context(|| format!("Unknown column {}", column))?;
 
-        let (metrics, reader_streams): (Vec<_>, Vec<ParquetRecordBatchStream<_>>) = self
-            .readers()
-            .await
-            .collect::<Vec<_>>()
-            .await
-            .into_iter()
-            .map(move |reader| {
-                let keys = Arc::clone(&keys);
-                let builder_configurator = Arc::clone(&builder_configurator);
+        // Filter out whole files based on the file-level Elias-Fano index
+        let readers_and_metrics = self
+            .files
+            .iter()
+            .map(|file_reader| {
+                let file_reader = Arc::clone(file_reader);
+                let keys = keys.clone();
                 async move {
                     let mut metrics = TableScanInitMetrics::default();
+                    let timer_guard = metrics.ef_file_index_eval_time.timer();
+                    let Some(ef_index) = file_reader.ef_index(column) else {
+                        // can't check the index, so we have to assume the keys may be in the file.
+                        log::warn!("Missing Elias-Fano file-level index on column {}", column);
+                        drop(timer_guard);
+                        let reader = file_reader.reader().await?;
+                        return Ok((keys, Some(reader), metrics))
+                    };
+                    let keys_in_file: Vec<K> = keys
+                        .iter()
+                        .filter(|key| match key.as_ef_key() {
+                            Some(key) => ef_index.contains(key),
+                            None => true, // assume it may be in the file
+                        })
+                        .cloned()
+                        .collect();
+                    if keys_in_file.is_empty() {
+                        // Skip the file altogether
+                        metrics.files_pruned_by_ef_index += 1;
+                        drop(timer_guard);
+                        Ok((Arc::new(vec![]), None, metrics))
+                    } else {
+                        metrics.files_selected_by_ef_index += 1;
+                        drop(timer_guard);
+                        let reader = file_reader.reader().await?;
+                        Ok((Arc::new(keys_in_file), Some(reader), metrics))
+                    }
+                }
+            })
+            .collect::<JoinSet<_>>()
+            .join_all()
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>>>()?;
+
+        let mut selected_readers_and_metrics = Vec::new();
+        let mut pruned_metrics = Vec::new();
+        for (keys, reader, metrics) in readers_and_metrics {
+            if let Some(reader) = reader {
+                selected_readers_and_metrics.push((keys, reader, metrics));
+            } else {
+                // Keep them for later
+                pruned_metrics.push(metrics);
+            }
+        }
+
+        let (selected_metrics, reader_streams): (Vec<_>, Vec<ParquetRecordBatchStream<_>>) = selected_readers_and_metrics
+            .into_iter()
+            .map(move |(keys, reader, mut metrics)| {
+                let builder_configurator = Arc::clone(&builder_configurator);
+                async move {
                     let total_timer_guard = metrics.total_time.timer();
 
-                    let reader = reader.context("Could not get AsyncFileReader")?;
                     let mut stream_builder = {
                         let _timer_guard = metrics.open_builder_time.timer();
                         ParquetRecordBatchStreamBuilder::new_with_options(
@@ -350,7 +426,7 @@ impl Table {
             .into_iter()
             .unzip();
 
-        let metrics: TableScanInitMetrics = metrics.into_iter().sum();
+        let metrics: TableScanInitMetrics = [pruned_metrics.into_iter().sum(), selected_metrics.into_iter().sum()].into_iter().sum();
 
         tracing::debug!("Scan init metrics: {:#?}", metrics);
 
@@ -361,7 +437,11 @@ impl Table {
                 // reading a Parquet file mixes some CPU-bound code with the IO-bound code.
                 // tokio::spawn should make it run in its own thread so it does not block too much.
                 while let Some(batch_result) = reader_stream.next().await {
-                    if tx.send(batch_result.context("Could not read batch")).await.is_err() {
+                    if tx
+                        .send(batch_result.context("Could not read batch"))
+                        .await
+                        .is_err()
+                    {
                         // receiver dropped
                         break;
                     }

@@ -16,6 +16,9 @@ use parquet::file::metadata::{ParquetColumnIndex, ParquetOffsetIndex};
 pub trait IndexKey:
     parquet::data_type::AsBytes + Hash + Eq + Clone + Send + Sync + 'static
 {
+    /// Returns this key as a value in the file-level Elias-Fano index, if it supports it.
+    fn as_ef_key(&self) -> Option<usize>;
+
     /// Returns whether the key may be in the column chunk based on its statistics
     ///
     /// Returns `None` when it cannot prune (ie. when all rows would be selected)
@@ -24,6 +27,7 @@ pub trait IndexKey:
         statistics_converter: &StatisticsConverter,
         row_groups_metadata: &[RowGroupMetaData],
     ) -> Result<Option<BooleanBuffer>>;
+
     /// Given a page index, returns page ids within the index that may contain this key, as a
     /// boolean array.
     ///
@@ -45,6 +49,11 @@ impl parquet::data_type::AsBytes for Sha1Git {
     }
 }
 impl IndexKey for Sha1Git {
+    #[inline(always)]
+    fn as_ef_key(&self) -> Option<usize> {
+        None
+    }
+
     fn check_column_chunk(
         _keys: &[Self],
         _statistics_converter: &StatisticsConverter,
@@ -68,6 +77,11 @@ impl IndexKey for Sha1Git {
 }
 
 impl IndexKey for u64 {
+    #[inline(always)]
+    fn as_ef_key(&self) -> Option<usize> {
+        usize::try_from(*self).ok()
+    }
+
     fn check_column_chunk(
         keys: &[Self],
         statistics_converter: &StatisticsConverter,

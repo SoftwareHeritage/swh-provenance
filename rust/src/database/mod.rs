@@ -31,26 +31,29 @@ impl ProvenanceDatabase {
             .with_context(|| format!("Invalid provenance database URL: {}", base_url))?;
         let store = store.into();
         let (node, c_in_d, d_in_r, c_in_r) = futures::join!(
-            Table::new(Arc::clone(&store), path.child("nodes")),
+            Table::new(Arc::clone(&store), path.child("nodes"), Some("id")),
             Table::new(
                 Arc::clone(&store),
-                path.child("contents_in_frontier_directories")
+                path.child("contents_in_frontier_directories"),
+                Some("cnt"),
             ),
             Table::new(
                 Arc::clone(&store),
-                path.child("frontier_directories_in_revisions")
+                path.child("frontier_directories_in_revisions"),
+                Some("dir"),
             ),
             Table::new(
                 Arc::clone(&store),
-                path.child("contents_in_revisions_without_frontiers")
+                path.child("contents_in_revisions_without_frontiers"),
+                Some("cnt"),
             ),
         );
 
         Ok(Self {
-            node: node?,
-            c_in_d: c_in_d?,
-            d_in_r: d_in_r?,
-            c_in_r: c_in_r?,
+            node: node.context("Could not initialize 'nodes' table")?,
+            c_in_d: c_in_d.context("Could not initialize 'c_in_d' table")?,
+            d_in_r: d_in_r.context("Could not initialize 'd_in_r' table")?,
+            c_in_r: c_in_r.context("Could not initialize 'c_in_r' table")?,
         })
     }
 }

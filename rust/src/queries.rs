@@ -147,7 +147,8 @@ async fn query_x_in_y_table<'a>(
                     .expect("Missing key column")
                     .as_primitive_opt::<UInt64Type>()
                     .expect("key column is not a UInt64Array");
-                if candidates.len() <= 4 { // TODO: tune this constant
+                if candidates.len() <= 4 {
+                    // TODO: tune this constant
                     for candidate in candidates {
                         let candidate = candidate.expect("Null key in table");
                         let is_match = self.keys.iter().any(|key| key == &candidate);
@@ -563,23 +564,29 @@ where
             Field::new("path", DataType::Binary, false),
         ]));
         let limit = 1;
-        let (metrics, c_in_r_stream) =
-            query_x_in_y_table(&self.db.c_in_r, schema, "cnt", "revrel", node_ids, Some(limit))
-                .await
-                .context("Could not query c_in_r")?;
+        let (metrics, c_in_r_stream) = query_x_in_y_table(
+            &self.db.c_in_r,
+            schema,
+            "cnt",
+            "revrel",
+            node_ids,
+            Some(limit),
+        )
+        .await
+        .context("Could not query c_in_r")?;
         tracing::trace!("Got c_in_r_stream");
         let mut remaining_rows = limit;
         let c_in_r_batches = c_in_r_stream
-            .take_while(move |batch| std::future::ready(
-                match batch {
+            .take_while(move |batch| {
+                std::future::ready(match batch {
                     Ok(batch) => {
                         let res = remaining_rows > 0;
                         remaining_rows = remaining_rows.saturating_sub(batch.num_rows());
                         res
-                    },
+                    }
                     Err(_) => true,
-                }
-            ))
+                })
+            })
             .collect::<FuturesUnordered<_>>()
             .await
             .into_iter()

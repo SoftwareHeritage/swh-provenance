@@ -53,6 +53,8 @@ impl std::fmt::Debug for Timing {
 
 #[derive(Debug, Default)]
 pub struct TableScanInitMetrics {
+    pub files_pruned_by_ef_index: u64,
+    pub files_selected_by_ef_index: u64,
     pub row_groups_pruned_by_statistics: u64,
     pub row_groups_selected_by_statistics: u64,
     pub row_groups_pruned_by_bloom_filters: u64,
@@ -62,6 +64,7 @@ pub struct TableScanInitMetrics {
     pub rows_pruned_by_page_index: usize,
     pub rows_selected_by_page_index: usize,
 
+    pub ef_file_index_eval_time: Timing,
     pub open_builder_time: Timing,
     pub read_metadata_time: Timing,
     pub eval_row_groups_statistics_time: Timing,
@@ -77,6 +80,8 @@ impl std::iter::Sum for TableScanInitMetrics {
         let mut sum = Self::default();
         {
             for item in it {
+                sum.files_pruned_by_ef_index += item.files_pruned_by_ef_index;
+                sum.files_selected_by_ef_index += item.files_selected_by_ef_index;
                 sum.row_groups_pruned_by_statistics += item.row_groups_pruned_by_statistics;
                 sum.row_groups_selected_by_statistics += item.row_groups_selected_by_statistics;
                 sum.row_groups_pruned_by_bloom_filters += item.row_groups_pruned_by_bloom_filters;
@@ -88,6 +93,8 @@ impl std::iter::Sum for TableScanInitMetrics {
                 sum.rows_selected_by_page_index += item.rows_selected_by_page_index;
                 sum.open_builder_time.add(item.open_builder_time.get());
                 sum.read_metadata_time.add(item.read_metadata_time.get());
+                sum.ef_file_index_eval_time
+                    .add(item.ef_file_index_eval_time.get());
                 sum.eval_row_groups_statistics_time
                     .add(item.eval_row_groups_statistics_time.get());
                 sum.filter_by_row_groups_statistics_time

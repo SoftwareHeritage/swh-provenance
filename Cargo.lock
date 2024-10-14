@@ -3707,6 +3707,7 @@ dependencies = [
  "itertools 0.13.0",
  "log",
  "mimalloc",
+ "num_cpus",
  "object_store",
  "parquet",
  "prost 0.13.3",

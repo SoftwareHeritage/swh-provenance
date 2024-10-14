@@ -358,7 +358,7 @@ impl Table {
             .map(|stream| -> Result<_> {
                 Ok(stream.map(|batch_result| batch_result.context("Could not read batch")))
             })
-            .try_flatten_unordered(Some(96))) // arbitrary constant
+            .try_flatten_unordered(num_cpus::get()))
     }
 }
 

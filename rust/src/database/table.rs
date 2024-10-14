@@ -333,7 +333,7 @@ impl Table {
                         )
                     };
                     metrics.rows_pruned_by_page_index = row_selection.skipped_row_count();
-                    metrics.row_selected_by_page_index = row_selection.row_count();
+                    metrics.rows_selected_by_page_index = row_selection.row_count();
                     let stream_builder = stream_builder
                         .with_row_groups(selected_row_groups)
                         .with_row_selection(row_selection);
@@ -352,13 +352,13 @@ impl Table {
 
         let metrics: TableScanInitMetrics = metrics.into_iter().sum();
 
-        tracing::debug!("Metrics: {:#?}", metrics);
+        tracing::debug!("Scan init metrics: {:#?}", metrics);
 
         Ok(futures::stream::iter(reader_streams.into_iter())
             .map(|stream| -> Result<_> {
                 Ok(stream.map(|batch_result| batch_result.context("Could not read batch")))
             })
-            .try_flatten_unordered(Some(1024)))
+            .try_flatten_unordered(Some(96))) // arbitrary constant
     }
 }
 

@@ -3,8 +3,9 @@
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
 
+use std::sync::atomic::AtomicU64;
 use std::sync::RwLock;
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 
 /// Returned by [`TableScanInitMetrics`] methods
 pub struct Timer<'a> {
@@ -14,7 +15,10 @@ pub struct Timer<'a> {
 
 impl<'a> Timer<'a> {
     fn new(metric: &'a RwLock<Duration>) -> Self {
-        Timer { metric, started_at: Instant::now() }
+        Timer {
+            metric,
+            started_at: Instant::now(),
+        }
     }
 }
 
@@ -56,7 +60,7 @@ pub struct TableScanInitMetrics {
     pub row_groups_pruned_by_page_index: u64,
     pub row_groups_selected_by_page_index: u64,
     pub rows_pruned_by_page_index: usize,
-    pub row_selected_by_page_index: usize,
+    pub rows_selected_by_page_index: usize,
 
     pub open_builder_time: Timing,
     pub read_metadata_time: Timing,
@@ -76,21 +80,35 @@ impl std::iter::Sum for TableScanInitMetrics {
                 sum.row_groups_pruned_by_statistics += item.row_groups_pruned_by_statistics;
                 sum.row_groups_selected_by_statistics += item.row_groups_selected_by_statistics;
                 sum.row_groups_pruned_by_bloom_filters += item.row_groups_pruned_by_bloom_filters;
-                sum.row_groups_selected_by_bloom_filters += item.row_groups_selected_by_bloom_filters;
+                sum.row_groups_selected_by_bloom_filters +=
+                    item.row_groups_selected_by_bloom_filters;
                 sum.row_groups_pruned_by_page_index += item.row_groups_pruned_by_page_index;
                 sum.row_groups_selected_by_page_index += item.row_groups_selected_by_page_index;
                 sum.rows_pruned_by_page_index += item.rows_pruned_by_page_index;
-                sum.row_selected_by_page_index += item.row_selected_by_page_index;
+                sum.rows_selected_by_page_index += item.rows_selected_by_page_index;
                 sum.open_builder_time.add(item.open_builder_time.get());
                 sum.read_metadata_time.add(item.read_metadata_time.get());
-                sum.eval_row_groups_statistics_time.add(item.eval_row_groups_statistics_time.get());
-                sum.filter_by_row_groups_statistics_time.add(item.filter_by_row_groups_statistics_time.get());
-                sum.read_bloom_filter_time.add(item.read_bloom_filter_time.get());
-                sum.eval_bloom_filter_time.add(item.eval_bloom_filter_time.get());
-                sum.eval_page_index_time.add(item.eval_page_index_time.get());
+                sum.eval_row_groups_statistics_time
+                    .add(item.eval_row_groups_statistics_time.get());
+                sum.filter_by_row_groups_statistics_time
+                    .add(item.filter_by_row_groups_statistics_time.get());
+                sum.read_bloom_filter_time
+                    .add(item.read_bloom_filter_time.get());
+                sum.eval_bloom_filter_time
+                    .add(item.eval_bloom_filter_time.get());
+                sum.eval_page_index_time
+                    .add(item.eval_page_index_time.get());
                 sum.total_time.add(item.total_time.get());
             }
         }
         sum
     }
+}
+
+#[derive(Debug, Default)]
+pub struct TableScanMetrics {
+    pub rows_pruned_by_row_filter: AtomicU64,
+    pub rows_selected_by_row_filter: AtomicU64,
+
+    pub row_filter_eval_time: Timing,
 }

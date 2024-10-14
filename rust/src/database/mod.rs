@@ -11,7 +11,7 @@ use anyhow::{Context, Result};
 use url::Url;
 
 mod caching_parquet_reader;
-mod metrics;
+pub mod metrics;
 mod pooled_reader;
 mod reader;
 mod table;

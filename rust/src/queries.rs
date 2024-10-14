@@ -5,6 +5,7 @@
 
 use std::collections::HashSet;
 use std::str::FromStr;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use anyhow::{anyhow, bail, ensure, Context, Result};
@@ -24,6 +25,7 @@ use swh_graph::graph::SwhGraphWithProperties;
 use swh_graph::properties;
 use swh_graph::properties::NodeIdFromSwhidError;
 
+use crate::database::metrics::TableScanMetrics;
 use crate::database::types::Sha1Git;
 use crate::database::{ProvenanceDatabase, ReaderBuilderConfigurator, Table};
 use crate::proto;
@@ -114,11 +116,17 @@ async fn query_x_in_y_table<'a>(
     value_column: &'static str,
     keys: Arc<Vec<u64>>,
     limit: Option<usize>,
-) -> Result<impl Stream<Item = Result<RecordBatch>> + Send + 'a> {
+) -> Result<(
+    Arc<TableScanMetrics>,
+    impl Stream<Item = Result<RecordBatch>> + Send + 'a,
+)> {
+    let metrics = Arc::new(TableScanMetrics::default());
+
     struct Predicate {
         projection: ProjectionMask,
         key_column: &'static str,
         keys: Arc<Vec<u64>>,
+        metrics: Arc<TableScanMetrics>,
     }
 
     impl ArrowPredicate for Predicate {
@@ -129,7 +137,9 @@ async fn query_x_in_y_table<'a>(
             &mut self,
             batch: RecordBatch,
         ) -> Result<BooleanArray, arrow::error::ArrowError> {
+            let _guard = self.metrics.row_filter_eval_time.timer();
             let mut matches = arrow::array::builder::BooleanBufferBuilder::new(batch.num_rows());
+            let mut num_selected = 0;
             for key in batch
                 .column_by_name(self.key_column)
                 .expect("Missing key column")
@@ -137,9 +147,19 @@ async fn query_x_in_y_table<'a>(
                 .expect("key column is not a UInt64Array")
             {
                 let key = key.expect("Null key in table");
-                matches.append(self.keys.binary_search(&key).is_ok());
+                let is_match = self.keys.binary_search(&key).is_ok();
+                num_selected += is_match as u64;
+                matches.append(is_match);
             }
-            Ok(arrow::array::BooleanArray::new(matches.finish(), None))
+            let matches = matches.finish();
+            self.metrics
+                .rows_selected_by_row_filter
+                .fetch_add(num_selected, Ordering::Relaxed);
+            self.metrics.rows_pruned_by_row_filter.fetch_add(
+                u64::try_from(matches.len()).expect("number of rows overflows u64") - num_selected,
+                Ordering::Relaxed,
+            );
+            Ok(arrow::array::BooleanArray::new(matches, None))
         }
     }
 
@@ -149,6 +169,7 @@ async fn query_x_in_y_table<'a>(
         value_column: &'static str,
         keys: Arc<Vec<u64>>,
         limit: Option<usize>,
+        metrics: Arc<TableScanMetrics>,
     }
     impl ReaderBuilderConfigurator for Configurator {
         fn configure<R: AsyncFileReader>(
@@ -191,6 +212,7 @@ async fn query_x_in_y_table<'a>(
                     .context("Could not project table for filtering")?,
                 key_column: self.key_column,
                 keys: Arc::clone(&self.keys),
+                metrics: Arc::clone(&self.metrics),
             })]);
             reader_builder = reader_builder.with_row_filter(row_filter);
 
@@ -201,22 +223,26 @@ async fn query_x_in_y_table<'a>(
             Ok(reader_builder)
         }
     }
-    table
-        // Get Parquet reader builders configured to only read pages that *probably* contain
-        // one of the keys in the query, using indices.
-        .filtered_record_batch_stream_builder(
-            key_column,
-            Arc::clone(&keys),
-            Arc::new(Configurator {
-                expected_schema,
+    Ok((
+        Arc::clone(&metrics),
+        table
+            // Get Parquet reader builders configured to only read pages that *probably* contain
+            // one of the keys in the query, using indices.
+            .filtered_record_batch_stream_builder(
                 key_column,
-                value_column,
-                keys,
-                limit,
-            }),
-        )
-        .await
-        .context("Could not start reading from table")
+                Arc::clone(&keys),
+                Arc::new(Configurator {
+                    expected_schema,
+                    key_column,
+                    value_column,
+                    keys,
+                    limit,
+                    metrics,
+                }),
+            )
+            .await
+            .context("Could not start reading from table")?,
+    ))
 }
 async fn node_ids_from_swhids(
     table: &Table,
@@ -525,17 +551,19 @@ where
             Field::new("path", DataType::Binary, false),
         ]));
         let limit = Some(1);
-        let c_in_r_batches =
+        let (metrics, c_in_r_stream) =
             query_x_in_y_table(&self.db.c_in_r, schema, "cnt", "revrel", node_ids, limit)
                 .await
-                .context("Could not query c_in_r")?
-                .collect::<FuturesUnordered<_>>()
-                .await
-                .into_iter()
-                .collect::<Result<Vec<_>>>()?;
+                .context("Could not query c_in_r")?;
+        let c_in_r_batches = c_in_r_stream
+            .collect::<FuturesUnordered<_>>()
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>>>()?;
         if span_enabled!(Level::TRACE) {
             tracing::trace!("Anchor node ids: {:?}", c_in_r_batches,)
         }
+        tracing::debug!("Scan metrics: {:#?}", metrics);
         let mut anchors = self.swhid(c_in_r_batches, "cnt", "revrel").await?;
         if let Some((cnt, revrel)) = anchors.pop() {
             return Ok(Ok(proto::WhereIsOneResult {

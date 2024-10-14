@@ -550,13 +550,24 @@ where
             Field::new("revrel", DataType::UInt64, false),
             Field::new("path", DataType::Binary, false),
         ]));
-        let limit = Some(1);
+        let limit = 1;
         let (metrics, c_in_r_stream) =
-            query_x_in_y_table(&self.db.c_in_r, schema, "cnt", "revrel", node_ids, limit)
+            query_x_in_y_table(&self.db.c_in_r, schema, "cnt", "revrel", node_ids, Some(limit))
                 .await
                 .context("Could not query c_in_r")?;
         tracing::trace!("Got c_in_r_stream");
+        let mut remaining_rows = limit;
         let c_in_r_batches = c_in_r_stream
+            .take_while(move |batch| std::future::ready(
+                match batch {
+                    Ok(batch) => {
+                        let res = remaining_rows > 0;
+                        remaining_rows = remaining_rows.saturating_sub(batch.num_rows());
+                        res
+                    },
+                    Err(_) => true,
+                }
+            ))
             .collect::<FuturesUnordered<_>>()
             .await
             .into_iter()

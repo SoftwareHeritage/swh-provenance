@@ -354,11 +354,22 @@ impl Table {
 
         tracing::debug!("Scan init metrics: {:#?}", metrics);
 
-        Ok(futures::stream::iter(reader_streams.into_iter())
-            .map(|stream| -> Result<_> {
-                Ok(stream.map(|batch_result| batch_result.context("Could not read batch")))
-            })
-            .try_flatten_unordered(num_cpus::get()))
+        let (tx, rx) = tokio::sync::mpsc::channel(num_cpus::get() * 2); // arbitrary constant
+        for mut reader_stream in reader_streams {
+            let tx = tx.clone();
+            tokio::spawn(async move {
+                // reading a Parquet file mixes some CPU-bound code with the IO-bound code.
+                // tokio::spawn should make it run in its own thread so it does not block too much.
+                while let Some(batch_result) = reader_stream.next().await {
+                    if tx.send(batch_result.context("Could not read batch")).await.is_err() {
+                        // receiver dropped
+                        break;
+                    }
+                }
+            });
+        }
+
+        Ok(tokio_stream::wrappers::ReceiverStream::new(rx))
     }
 }
 

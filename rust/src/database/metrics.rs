@@ -111,4 +111,5 @@ pub struct TableScanMetrics {
     pub rows_selected_by_row_filter: AtomicU64,
 
     pub row_filter_eval_time: Timing,
+    pub row_filter_eval_loop_time: Timing,
 }

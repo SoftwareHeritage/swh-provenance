@@ -140,16 +140,28 @@ async fn query_x_in_y_table<'a>(
             let _guard = self.metrics.row_filter_eval_time.timer();
             let mut matches = arrow::array::builder::BooleanBufferBuilder::new(batch.num_rows());
             let mut num_selected = 0;
-            for key in batch
-                .column_by_name(self.key_column)
-                .expect("Missing key column")
-                .as_primitive_opt::<UInt64Type>()
-                .expect("key column is not a UInt64Array")
             {
-                let key = key.expect("Null key in table");
-                let is_match = self.keys.binary_search(&key).is_ok();
-                num_selected += is_match as u64;
-                matches.append(is_match);
+                let _guard = self.metrics.row_filter_eval_loop_time.timer();
+                let candidates = batch
+                    .column_by_name(self.key_column)
+                    .expect("Missing key column")
+                    .as_primitive_opt::<UInt64Type>()
+                    .expect("key column is not a UInt64Array");
+                if candidates.len() <= 4 { // TODO: tune this constant
+                    for candidate in candidates {
+                        let candidate = candidate.expect("Null key in table");
+                        let is_match = self.keys.iter().any(|key| key == &candidate);
+                        num_selected += is_match as u64;
+                        matches.append(is_match);
+                    }
+                } else {
+                    for candidate in candidates {
+                        let candidate = candidate.expect("Null key in table");
+                        let is_match = self.keys.binary_search(&candidate).is_ok();
+                        num_selected += is_match as u64;
+                        matches.append(is_match);
+                    }
+                }
             }
             let matches = matches.finish();
             self.metrics

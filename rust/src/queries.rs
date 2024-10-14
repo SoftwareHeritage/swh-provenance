@@ -555,11 +555,13 @@ where
             query_x_in_y_table(&self.db.c_in_r, schema, "cnt", "revrel", node_ids, limit)
                 .await
                 .context("Could not query c_in_r")?;
+        tracing::trace!("Got c_in_r_stream");
         let c_in_r_batches = c_in_r_stream
             .collect::<FuturesUnordered<_>>()
             .await
             .into_iter()
             .collect::<Result<Vec<_>>>()?;
+        tracing::trace!("Got c_in_r_batches");
         if span_enabled!(Level::TRACE) {
             tracing::trace!("Anchor node ids: {:?}", c_in_r_batches,)
         }

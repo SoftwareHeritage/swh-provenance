@@ -43,7 +43,7 @@ impl Table {
         tracing::trace!("Fetching object metadata");
         let objects_meta: Vec<_> = store
             .list(Some(&path))
-            .map(|object_meta_res| object_meta_name="Table::new", res.map(Arc::new))
+            .map(|res| res.map(Arc::new))
             .try_collect()
             .await
             .with_context(|| format!("Could not list {} in {}", path, store))?;

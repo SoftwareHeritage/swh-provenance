@@ -19,7 +19,6 @@ itertools = "0.13.0"
 mimalloc = { version = "0.1", default-features = false }
 num_cpus = "1.16.0"
 rdst = { version = "0.20.14", features = ["multi-threaded"] }
-#rayon = { version = "1.9.0" }
 swh-graph = "6.0.0"
 
 # CLI & logging
@@ -40,6 +39,7 @@ arrow = "53.1.0"
 object_store = { version = "0.11.0", default-features = false }
 parquet = { version = "53.1.0", default-features = false, features = ["arrow", "async", "object_store", "zstd"]}
 url = "2.2"
+parquet_aramid = { git = "https://gitlab.softwareheritage.org/swh/devel/parquet_aramid-rs.git", rev = "2a1f94f9cef297cd640bf3a5d61e9e690d4813b5", features = ["rayon"] }
 
 # Elias-Fano index
 epserde = "0.6.1"

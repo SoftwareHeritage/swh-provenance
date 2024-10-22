@@ -9,15 +9,10 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use parquet_aramid::Table;
 use url::Url;
 
-mod caching_parquet_reader;
-pub mod metrics;
-mod pooled_reader;
-mod reader;
-mod table;
-pub use table::*;
-pub mod types;
+pub(crate) mod types;
 
 pub struct ProvenanceDatabase {
     pub url: Url,

@@ -2732,6 +2732,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "parquet_aramid"
+version = "0.0.0"
+source = "git+https://gitlab.softwareheritage.org/swh/devel/parquet_aramid-rs.git?rev=2a1f94f9cef297cd640bf3a5d61e9e690d4813b5#2a1f94f9cef297cd640bf3a5d61e9e690d4813b5"
+dependencies = [
+ "anyhow",
+ "arrow",
+ "bytes",
+ "crossbeam-queue",
+ "epserde",
+ "futures",
+ "itertools 0.13.0",
+ "num_cpus",
+ "object_store",
+ "parquet",
+ "rdst",
+ "sux",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+ "url",
+]
+
+[[package]]
 name = "partition"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3712,6 +3735,7 @@ dependencies = [
  "num_cpus",
  "object_store",
  "parquet",
+ "parquet_aramid",
  "prost 0.13.3",
  "prost-types 0.13.3",
  "rdst",

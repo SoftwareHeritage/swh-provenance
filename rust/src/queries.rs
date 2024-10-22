@@ -20,14 +20,15 @@ use parquet::arrow::{ParquetRecordBatchStreamBuilder, ProjectionMask};
 use parquet::schema::types::SchemaDescriptor;
 use swh_graph::SWHID;
 use tracing::{instrument, span_enabled, Level};
+use parquet_aramid::metrics::TableScanMetrics;
+use parquet_aramid::{ReaderBuilderConfigurator, Table};
 
 use swh_graph::graph::SwhGraphWithProperties;
 use swh_graph::properties;
 use swh_graph::properties::NodeIdFromSwhidError;
 
-use crate::database::metrics::TableScanMetrics;
 use crate::database::types::Sha1Git;
-use crate::database::{ProvenanceDatabase, ReaderBuilderConfigurator, Table};
+use crate::database::{ProvenanceDatabase};
 use crate::proto;
 
 pub type NodeId = u64;
@@ -281,7 +282,7 @@ async fn node_ids_from_swhids(
         .collect();
     let mut sha1_gits: Vec<_> = parsed_swhids
         .iter()
-        .map(|swhid| Sha1Git(swhid.hash))
+        .map(|swhid| Sha1Git::from(swhid.hash))
         .collect();
     sha1_gits.sort_unstable();
     let sha1_gits = Arc::new(sha1_gits);
@@ -341,7 +342,7 @@ async fn node_ids_from_swhids(
                             .expect("null sha1_git in nodes table")
                             .try_into()
                             .expect("unexpected sha1_git length in nodes table");
-                        matches.append(sha1_gits.binary_search(&Sha1Git(sha1_git)).is_ok());
+                        matches.append(sha1_gits.binary_search(&Sha1Git::from(sha1_git)).is_ok());
                     }
                     Ok(arrow::array::BooleanArray::new(matches.finish(), None))
                 },

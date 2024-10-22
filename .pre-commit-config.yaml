@@ -27,11 +27,11 @@ repos:
     hooks:
       - id: codespell
         name: Check source code spelling
-        args: [-L crate]
+        args: [-L crate, -L ser]
         stages: [commit]
       - id: codespell
         name: Check commit message spelling
-        args: [-L crate]
+        args: [-L crate, -L ser]
         stages: [commit-msg]
 
   - repo: local

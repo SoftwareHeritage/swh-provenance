@@ -3702,6 +3702,8 @@ dependencies = [
  "clap",
  "crossbeam-queue",
  "dashmap",
+ "dsi-progress-logger",
+ "epserde",
  "futures",
  "http-body",
  "itertools 0.13.0",

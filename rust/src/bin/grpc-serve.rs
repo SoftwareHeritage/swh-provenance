@@ -25,8 +25,12 @@ struct Args {
     #[arg(long)]
     /// Path to the graph prefix
     graph: Option<PathBuf>,
+    #[arg(long)]
     /// Path to the provenance database
     database: url::Url,
+    #[arg(long)]
+    /// Path to Elias-Fano indexes, default to `--database` (when it is a file:// URL)
+    indexes: Option<PathBuf>,
     #[arg(long, default_value = "[::]:50141")]
     bind: std::net::SocketAddr,
     #[arg(long)]
@@ -37,6 +41,11 @@ struct Args {
 
 pub fn main() -> Result<()> {
     let args = Args::parse();
+
+    let indexes = args
+        .indexes
+        .or_else(|| args.database.to_file_path().ok())
+        .context("--indexes must be provided when --database is not a file:// URL")?;
 
     let fmt_layer = tracing_subscriber::fmt::layer();
     let filter_layer = tracing_subscriber::EnvFilter::try_from_default_env()
@@ -85,16 +94,20 @@ pub fn main() -> Result<()> {
                         })
                         .transpose()
                         .context("Could not load graph");
-                    if graph.is_ok() {
-                        log::info!("Graph loaded");
+                    match graph {
+                        Ok(Some(_)) => log::info!("Graph loaded"),
+                        Ok(None) => log::warn!("--graph not given, will use slow fallback for node lookup"),
+                        Err(_) => (),
                     }
                     graph
                 }),
                 tokio::task::spawn(async move {
-                    let db = swh_provenance::database::ProvenanceDatabase::new(&args.database)
-                        .await
-                        .context("Could not initialize provenance database");
-                    if db.is_ok() {
+                    let db =
+                        swh_provenance::database::ProvenanceDatabase::new(args.database, &indexes)
+                            .await
+                            .context("Could not initialize provenance database");
+                    if let Ok(ref db) = db {
+                        db.mmap_ef_indexes().context("Could not mmap Elias-Fano indexes")?;
                         log::info!("Database loaded");
                     }
                     db

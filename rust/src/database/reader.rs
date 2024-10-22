@@ -3,12 +3,15 @@
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
 
+use std::borrow::Borrow;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::OnceLock;
 
 use anyhow::{ensure, Context, Result};
 use arrow::array::*;
 use arrow::datatypes::*;
+use epserde::prelude::MemCase;
 use futures::{StreamExt, TryStreamExt};
 use itertools::Itertools;
 use object_store::{ObjectMeta, ObjectStore};
@@ -17,15 +20,49 @@ use parquet::arrow::async_reader::{AsyncFileReader, ParquetObjectReader};
 use parquet::arrow::ParquetRecordBatchStreamBuilder;
 use parquet::arrow::ProjectionMask;
 use rdst::RadixSort;
-use sux::dict::elias_fano::{EfDict, EfSeq, EliasFanoBuilder};
+use sux::dict::elias_fano::{EfDict, EfSeq, EliasFano, EliasFanoBuilder};
+use sux::prelude::{BitFieldVec, BitVec, IndexedDict, SelectZeroAdaptConst, Types};
 
 use super::caching_parquet_reader::CachingParquetFileReader;
 use super::pooled_reader::ParquetFileReaderPool;
 
+type MappedEfDict = EliasFano<
+    SelectZeroAdaptConst<BitVec<&'static [usize]>, &'static [usize], 12, 3>,
+    BitFieldVec<usize, &'static [usize]>,
+>;
+
+pub enum EfIndexValues {
+    /// In memory allocated on the heap
+    Loaded(EfDict), // EfDict = EliasFano<SelectZeroAdaptConst<BitVec<Box<[usize]>>, Box<[usize]>, 12, 3>>
+    /// Memory-mapped from disk
+    Mapped(MemCase<MappedEfDict>),
+}
+
+impl Types for EfIndexValues {
+    type Input = <EfDict as Types>::Input;
+    type Output = <EfDict as Types>::Output;
+}
+
+impl IndexedDict for EfIndexValues {
+    fn index_of(&self, value: impl Borrow<Self::Input>) -> Option<usize> {
+        match self {
+            EfIndexValues::Loaded(values) => values.index_of(value),
+            EfIndexValues::Mapped(values) => values.index_of(value),
+        }
+    }
+
+    fn contains(&self, value: impl Borrow<Self::Input>) -> bool {
+        match self {
+            EfIndexValues::Loaded(values) => values.contains(value),
+            EfIndexValues::Mapped(values) => values.contains(value),
+        }
+    }
+}
+
 /// Stores the list of values of a column in memory, for file-level pruning
 struct EfIndex {
     column_name: &'static str,
-    values: EfDict,
+    values: EfIndexValues,
 }
 
 pub struct FileReader {
@@ -33,16 +70,43 @@ pub struct FileReader {
     object_meta: Arc<ObjectMeta>,
     pool: ParquetFileReaderPool<CachingParquetFileReader<ParquetObjectReader>>,
     ef_index: OnceLock<EfIndex>,
+    base_ef_index_path: PathBuf,
 }
 
 impl FileReader {
-    pub async fn new(store: Arc<dyn ObjectStore>, object_meta: Arc<ObjectMeta>) -> Self {
+    pub async fn new(
+        store: Arc<dyn ObjectStore>,
+        object_meta: Arc<ObjectMeta>,
+        base_ef_index_path: PathBuf,
+    ) -> Self {
         Self {
             store,
             object_meta,
             pool: ParquetFileReaderPool::default(),
             ef_index: OnceLock::new(),
+            base_ef_index_path,
         }
+    }
+
+    pub fn object_meta(&self) -> &ObjectMeta {
+        &self.object_meta
+    }
+
+    /// Returns the base path for EF indexes on this file
+    pub fn base_ef_index_path(&self) -> &Path {
+        &self.base_ef_index_path
+    }
+
+    /// Returns the path for an EF index on this column of this file
+    pub fn ef_index_path(&self, column_name: &'static str) -> PathBuf {
+        let mut path = self.base_ef_index_path.clone();
+        let mut file_name = path
+            .file_name()
+            .expect("Table file has no name")
+            .to_os_string();
+        file_name.push(format!(".index={}.ef", column_name));
+        path.set_file_name(file_name);
+        path
     }
 
     pub async fn reader(&self) -> Result<impl AsyncFileReader> {
@@ -55,7 +119,7 @@ impl FileReader {
         })
     }
 
-    pub fn ef_index(&self, column_name: &'static str) -> Option<&EfDict> {
+    pub fn ef_index(&self, column_name: &'static str) -> Option<&EfIndexValues> {
         let index = self.ef_index.get()?;
         if index.column_name == column_name {
             Some(&index.values)
@@ -64,7 +128,31 @@ impl FileReader {
         }
     }
 
-    pub async fn load_ef_index(&self, column_name: &'static str) -> Result<()> {
+    /// Memory-maps an Elias-Fano index from disk
+    pub fn mmap_ef_index(&self, column_name: &'static str) -> Result<()> {
+        use epserde::prelude::Flags;
+
+        let path = self.ef_index_path(column_name);
+
+        let res = self.ef_index.set(EfIndex {
+            column_name,
+            values: EfIndexValues::Mapped(
+                <EfDict as epserde::deser::Deserialize>::mmap(
+                    &path,
+                    Flags::RANDOM_ACCESS | Flags::TRANSPARENT_HUGE_PAGES,
+                )
+                .with_context(|| {
+                    format!("Could not mmap Elias-Fano index from {}", path.display())
+                })?,
+            ),
+        });
+        if res.is_err() {
+            tracing::warn!("ef_index was already set");
+        }
+        Ok(())
+    }
+
+    pub async fn build_ef_index(&self, column_name: &'static str) -> Result<&EfDict> {
         let reader = self.reader().await.context("Could not get reader")?;
 
         let stream_builder = ParquetRecordBatchStreamBuilder::new_with_options(
@@ -147,19 +235,26 @@ impl FileReader {
             .dedup()
             .collect::<Vec<_>>();
         let max_value = values.last().copied().unwrap_or_else(|| {
-            tracing::warn!("Empty table");
+            tracing::warn!("{} is empty", self.object_meta.location);
             0
         });
         let mut efb = EliasFanoBuilder::new(values.len(), max_value);
         efb.extend(values.into_iter());
         let res = self.ef_index.set(EfIndex {
             column_name,
-            values: efb.build_with_dict(),
+            values: EfIndexValues::Loaded(efb.build_with_dict()),
         });
         if res.is_err() {
             tracing::warn!("ef_index was already set");
         }
 
-        Ok(())
+        // Return the values we just built
+        match self.ef_index(column_name) {
+            None => panic!("Did not build Elias-Fano index"),
+            Some(EfIndexValues::Mapped(_)) => {
+                panic!("Unexpected type for Elias-Fano index")
+            }
+            Some(EfIndexValues::Loaded(ef)) => Ok(ef),
+        }
     }
 }

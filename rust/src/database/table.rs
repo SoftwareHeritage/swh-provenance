@@ -3,6 +3,7 @@
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{anyhow, ensure, Context, Result};
@@ -11,6 +12,7 @@ use arrow::datatypes::*;
 use futures::stream::FuturesUnordered;
 use futures::FutureExt;
 use futures::{Stream, StreamExt, TryStreamExt};
+use itertools::Itertools;
 use object_store::path::Path;
 use object_store::ObjectStore;
 use parquet::arrow::arrow_reader::statistics::StatisticsConverter;
@@ -34,11 +36,11 @@ pub struct Table {
 }
 
 impl Table {
-    #[instrument(name="Table::new", skip(store, ef_index_column, path), fields(name=%path.filename().unwrap()))]
+    #[instrument(name="Table::new", skip(store, path), fields(name=%path.filename().unwrap(), ef_indexes_path=%ef_indexes_path.display()))]
     pub async fn new(
         store: Arc<dyn ObjectStore>,
         path: Path,
-        ef_index_column: Option<&'static str>,
+        ef_indexes_path: PathBuf,
     ) -> Result<Self> {
         tracing::trace!("Fetching object metadata");
         let objects_meta: Vec<_> = store
@@ -52,7 +54,19 @@ impl Table {
         let files: Vec<_> = objects_meta
             .iter()
             .map(|object_meta| {
-                FileReader::new(Arc::clone(&store), Arc::clone(object_meta)).map(Arc::new)
+                FileReader::new(
+                    Arc::clone(&store),
+                    Arc::clone(object_meta),
+                    ef_indexes_path.join(
+                        object_meta
+                            .location
+                            .prefix_match(&path)
+                            .expect("Table file is not in table directory")
+                            .map(|part| part.as_ref().to_owned())
+                            .join("/"),
+                    ),
+                )
+                .map(Arc::new)
             })
             .collect::<JoinSet<_>>()
             .join_all()
@@ -97,20 +111,6 @@ impl Table {
             );
         }
 
-        if let Some(ef_index_column) = ef_index_column {
-            tracing::trace!("Building file-level index");
-            files
-                .iter()
-                .map(Arc::clone)
-                .map(|file| async move { file.load_ef_index(ef_index_column).await })
-                .collect::<JoinSet<_>>()
-                .join_all()
-                .await
-                .into_iter()
-                .collect::<Result<Vec<()>>>()
-                .context("Could not build file-level Elias-Fano index")?;
-        }
-
         tracing::trace!("Done");
         Ok(Self {
             files: files.into(),
@@ -125,6 +125,17 @@ impl Table {
             ),
             path,
         })
+    }
+
+    pub fn mmap_ef_index(&self, ef_index_column: &'static str) -> Result<()> {
+        tracing::trace!("Memory-mapping file-level index for column {} of {}", ef_index_column, self.path);
+        self.files
+            .iter()
+            .map(Arc::clone)
+            .map(|file| file.mmap_ef_index(ef_index_column))
+            .collect::<Result<Vec<()>>>()
+            .context("Could not map file-level Elias-Fano index")?;
+        Ok(())
     }
 
     pub fn path(&self) -> &Path {
@@ -167,7 +178,7 @@ impl Table {
                         log::warn!("Missing Elias-Fano file-level index on column {}", column);
                         drop(timer_guard);
                         let reader = file_reader.reader().await?;
-                        return Ok((keys, Some(reader), metrics))
+                        return Ok((keys, Some(reader), metrics));
                     };
                     let keys_in_file: Vec<K> = keys
                         .iter()
@@ -426,7 +437,12 @@ impl Table {
             .into_iter()
             .unzip();
 
-        let metrics: TableScanInitMetrics = [pruned_metrics.into_iter().sum(), selected_metrics.into_iter().sum()].into_iter().sum();
+        let metrics: TableScanInitMetrics = [
+            pruned_metrics.into_iter().sum(),
+            selected_metrics.into_iter().sum(),
+        ]
+        .into_iter()
+        .sum();
 
         tracing::debug!("Scan init metrics: {:#?}", metrics);
 

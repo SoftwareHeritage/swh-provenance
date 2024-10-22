@@ -1,6 +1,6 @@
 .. _swh-provenance:
 
-.. mdinclude:: README.md
+.. include:: README.rst
 
 .. toctree::
    :maxdepth: 2

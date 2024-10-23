@@ -91,7 +91,8 @@ async fn query_x_in_y_table<'a>(
                     .expect("Missing key column")
                     .as_primitive_opt::<UInt64Type>()
                     .expect("key column is not a UInt64Array");
-                if candidates.len() <= 4 {
+
+                if self.keys.len() <= 4 {
                     // TODO: tune this constant
                     for candidate in candidates {
                         let candidate = candidate.expect("Null key in table");

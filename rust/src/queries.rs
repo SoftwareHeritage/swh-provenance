@@ -29,6 +29,8 @@ use crate::proto;
 
 pub type NodeId = u64;
 
+/// Given a Parquet schema and a list of columns, returns a [`ProjectionMask`] that can be passed
+/// to [`parquet`] to select which columns to read.
 fn projection_mask(
     schema: &SchemaDescriptor,
     columns: impl IntoIterator<Item = impl AsRef<str>>,
@@ -66,6 +68,7 @@ async fn query_x_in_y_table<'a>(
 )> {
     let metrics = Arc::new(TableScanMetrics::default());
 
+    /// Used to filter out rows that do not match the key early, ie. before deserializing the values
     struct Predicate {
         projection: ProjectionMask,
         key_column: &'static str,
@@ -74,18 +77,27 @@ async fn query_x_in_y_table<'a>(
     }
 
     impl ArrowPredicate for Predicate {
+        /// Which columns to deseralize to evaluate this predicate
         fn projection(&self) -> &ProjectionMask {
             &self.projection
         }
+
+        /// Evaluate the predicate for a RecordBatch, returning a batch of booleans
         fn evaluate(
             &mut self,
             batch: RecordBatch,
         ) -> Result<BooleanArray, arrow::error::ArrowError> {
             let _guard = self.metrics.row_filter_eval_time.timer();
-            let mut matches = arrow::array::builder::BooleanBufferBuilder::new(batch.num_rows());
             let mut num_selected = 0;
+
+            // Initialize array of booleans indicating whether each row in the batch should be
+            // deserialized
+            let mut matches = arrow::array::builder::BooleanBufferBuilder::new(batch.num_rows());
+
             {
                 let _guard = self.metrics.row_filter_eval_loop_time.timer();
+
+                // Get the array of cells in the key column of this batch
                 let candidates = batch
                     .column_by_name(self.key_column)
                     .expect("Missing key column")
@@ -94,6 +106,8 @@ async fn query_x_in_y_table<'a>(
 
                 if self.keys.len() <= 4 {
                     // TODO: tune this constant
+                    // If there are few keys, check each candidate exhaustively against every key.
+                    // This is faster than a binary search in this case
                     for candidate in candidates {
                         let candidate = candidate.expect("Null key in table");
                         let is_match = self.keys.iter().any(|key| key == &candidate);
@@ -101,6 +115,9 @@ async fn query_x_in_y_table<'a>(
                         matches.append(is_match);
                     }
                 } else {
+                    // else, rely on keys being sorted, and check each candidate against keys by
+                    // performing a binary search against the keys, which is faster given enough
+                    // keys.
                     for candidate in candidates {
                         let candidate = candidate.expect("Null key in table");
                         let is_match = self.keys.binary_search(&candidate).is_ok();
@@ -109,6 +126,8 @@ async fn query_x_in_y_table<'a>(
                     }
                 }
             }
+
+            // Update metrics with this batch's results
             let matches = matches.finish();
             self.metrics
                 .rows_selected_by_row_filter
@@ -117,10 +136,14 @@ async fn query_x_in_y_table<'a>(
                 u64::try_from(matches.len()).expect("number of rows overflows u64") - num_selected,
                 Ordering::Relaxed,
             );
+
+            // Return for each row, whether it should be deserialized
             Ok(arrow::array::BooleanArray::new(matches, None))
         }
     }
 
+    /// Configures a [`ParquetRecordBatchStreamBuilder`] to read only columns we are interested in,
+    /// only rows matching the given keys, and with a limited number of results.
     struct Configurator {
         expected_schema: Arc<Schema>,
         key_column: &'static str,
@@ -134,6 +157,7 @@ async fn query_x_in_y_table<'a>(
             &self,
             mut reader_builder: ParquetRecordBatchStreamBuilder<R>,
         ) -> Result<ParquetRecordBatchStreamBuilder<R>> {
+            // Check the schema of columns we are going to read matches our expectations
             let mut schema_projection = Vec::new();
             for field in self.expected_schema.fields() {
                 let Some((column_idx, _)) = reader_builder.schema().column_with_name(field.name())
@@ -153,7 +177,7 @@ async fn query_x_in_y_table<'a>(
                 self.expected_schema.fields()
             );
 
-            // discard 'revrel_author_date' and 'path' columns
+            // Only read these two columns (ie. not 'revrel_author_date' or 'path')
             let projection = projection_mask(
                 reader_builder.parquet_schema(),
                 [self.key_column, self.value_column],
@@ -174,6 +198,7 @@ async fn query_x_in_y_table<'a>(
             })]);
             reader_builder = reader_builder.with_row_filter(row_filter);
 
+            // Limit the number of results to return
             if let Some(limit) = self.limit {
                 reader_builder = reader_builder.with_limit(limit);
             }
@@ -181,6 +206,8 @@ async fn query_x_in_y_table<'a>(
             Ok(reader_builder)
         }
     }
+
+    // Return a stream of batches of rows
     Ok((
         Arc::clone(&metrics),
         table
@@ -210,6 +237,8 @@ pub struct ProvenanceService<MAPS: properties::Maps + Send + Sync + 'static> {
 
 impl<MAPS: properties::Maps + Send + Sync + 'static> ProvenanceService<MAPS> {
     /// Given a list of SWHIDs, returns their ids, in any order
+    ///
+    /// TODO: if a SWHID can't be found, return others' node ids, and only error for that one.
     #[instrument(skip(self), fields(swhids=swhids.iter().map(AsRef::as_ref).join(", ")))]
     async fn node_id(&self, swhids: &[impl AsRef<str>]) -> Result<Result<Vec<u64>, tonic::Status>> {
         tracing::debug!(
@@ -304,6 +333,8 @@ impl<MAPS: properties::Maps + Send + Sync + 'static> ProvenanceService<MAPS> {
         }
 
         tracing::debug!("Looking up c_in_r");
+
+        // Start reading from the table
         let schema = Arc::new(Schema::new(vec![
             Field::new("cnt", DataType::UInt64, false),
             Field::new("revrel", DataType::UInt64, false),
@@ -321,6 +352,8 @@ impl<MAPS: properties::Maps + Send + Sync + 'static> ProvenanceService<MAPS> {
         .await
         .context("Could not query c_in_r")?;
         tracing::trace!("Got c_in_r_stream");
+
+        // Read batches of rows, stopping after the first one
         let mut remaining_rows = limit;
         let c_in_r_batches = c_in_r_stream
             .take_while(move |batch| {
@@ -342,7 +375,13 @@ impl<MAPS: properties::Maps + Send + Sync + 'static> ProvenanceService<MAPS> {
             tracing::trace!("Anchor node ids: {:?}", c_in_r_batches,)
         }
         tracing::debug!("Scan metrics: {:#?}", metrics);
+
+        // Translate results' node ids to SWHIDs
+        // Note: c_in_r_batches may have more than one row; the above filter only guarantees there
+        // is at most one RecordBatch.
         let mut anchors = self.swhid(c_in_r_batches, "cnt", "revrel").await?;
+
+        // And return the first result
         if let Some((cnt, revrel)) = anchors.pop() {
             return Ok(Ok(proto::WhereIsOneResult {
                 swhid: cnt.to_string(),

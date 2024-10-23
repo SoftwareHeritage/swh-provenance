@@ -27,6 +27,7 @@ use swh_graph::graph::SwhGraphWithProperties;
 use swh_graph::properties;
 use swh_graph::properties::NodeIdFromSwhidError;
 
+use crate::database::metrics::TableScanMetrics;
 use crate::database::types::Sha1Git;
 use crate::database::{ProvenanceDatabase};
 use crate::proto;
@@ -242,7 +243,7 @@ async fn query_x_in_y_table<'a>(
         table
             // Get Parquet reader builders configured to only read pages that *probably* contain
             // one of the keys in the query, using indices.
-            .filtered_record_batch_stream_builder(
+            .stream_for_keys(
                 key_column,
                 Arc::clone(&keys),
                 Arc::new(Configurator {
@@ -355,13 +356,14 @@ async fn node_ids_from_swhids(
     // one of the SWHIDs in the query, using indices.
     // TODO: use node_type to prune based on statistics too
     let mut batches = table
-        .filtered_record_batch_stream_builder(
+        .stream_for_keys(
             "sha1_git",
             Arc::clone(&sha1_gits),
-            Arc::new(Configurator {
-                expected_schema,
-                sha1_gits,
-            }),
+            // TODO: check both node_type and sha1_git, in case we have a sha1_git
+            // collision between node types (very very unlikely, but still...)
+            Arc::new(FilterFixedSizeBinaryConfigurator::new(
+                "sha1_git", sha1_gits,
+            )),
         )
         .await?;
 

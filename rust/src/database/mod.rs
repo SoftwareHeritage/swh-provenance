@@ -12,6 +12,7 @@ use anyhow::{Context, Result};
 use parquet_aramid::Table;
 use url::Url;
 
+pub(crate) mod metrics;
 pub(crate) mod types;
 
 pub struct ProvenanceDatabase {

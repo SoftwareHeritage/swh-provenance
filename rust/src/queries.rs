@@ -18,10 +18,9 @@ use parquet::arrow::arrow_reader::{ArrowPredicate, ArrowPredicateFn, RowFilter};
 use parquet::arrow::async_reader::AsyncFileReader;
 use parquet::arrow::{ParquetRecordBatchStreamBuilder, ProjectionMask};
 use parquet::schema::types::SchemaDescriptor;
+use parquet_aramid::{ReaderBuilderConfigurator, Table};
 use swh_graph::SWHID;
 use tracing::{instrument, span_enabled, Level};
-use parquet_aramid::metrics::TableScanMetrics;
-use parquet_aramid::{ReaderBuilderConfigurator, Table};
 
 use swh_graph::graph::SwhGraphWithProperties;
 use swh_graph::properties;
@@ -29,7 +28,7 @@ use swh_graph::properties::NodeIdFromSwhidError;
 
 use crate::database::metrics::TableScanMetrics;
 use crate::database::types::Sha1Git;
-use crate::database::{ProvenanceDatabase};
+use crate::database::ProvenanceDatabase;
 use crate::proto;
 
 pub type NodeId = u64;

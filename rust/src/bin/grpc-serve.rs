@@ -96,7 +96,9 @@ pub fn main() -> Result<()> {
                         .context("Could not load graph");
                     match graph {
                         Ok(Some(_)) => log::info!("Graph loaded"),
-                        Ok(None) => log::warn!("--graph not given, will use slow fallback for node lookup"),
+                        Ok(None) => {
+                            log::warn!("--graph not given, will use slow fallback for node lookup")
+                        }
                         Err(_) => (),
                     }
                     graph
@@ -107,7 +109,8 @@ pub fn main() -> Result<()> {
                             .await
                             .context("Could not initialize provenance database");
                     if let Ok(ref db) = db {
-                        db.mmap_ef_indexes().context("Could not mmap Elias-Fano indexes")?;
+                        db.mmap_ef_indexes()
+                            .context("Could not mmap Elias-Fano indexes")?;
                         log::info!("Database loaded");
                     }
                     db

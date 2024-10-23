@@ -3,6 +3,7 @@
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
 
+use std::io::Read;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
@@ -11,7 +12,7 @@ use mimalloc::MiMalloc;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
-use swh_graph::graph::SwhBidirectionalGraph;
+use swh_graph::SwhGraphProperties;
 
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc; // Allocator recommended by Datafusion
@@ -24,7 +25,7 @@ struct Args {
     cache_parquet: bool,
     #[arg(long)]
     /// Path to the graph prefix
-    graph: Option<PathBuf>,
+    graph: PathBuf,
     #[arg(long)]
     /// Path to the provenance database
     database: url::Url,
@@ -74,34 +75,28 @@ pub fn main() -> Result<()> {
         .build()
         .unwrap()
         .block_on(async {
-            if args.graph.is_some() {
-                log::info!("Loading graph and database");
-            } else {
-                log::info!("Loading database");
-            }
-            let (graph, db) = tokio::join!(
-                tokio::task::spawn_blocking(|| {
-                    let graph = args
-                        .graph
-                        .map(|graph_path| {
-                            SwhBidirectionalGraph::new(graph_path)
-                                .context("Could not load graph")?
-                                .init_properties()
-                                .load_properties(|props| {
-                                    props.load_maps::<swh_graph::mph::DynMphf>()
-                                })
-                                .context("Could not load graph maps")
-                        })
-                        .transpose()
-                        .context("Could not load graph");
-                    match graph {
-                        Ok(Some(_)) => log::info!("Graph loaded"),
-                        Ok(None) => {
-                            log::warn!("--graph not given, will use slow fallback for node lookup")
-                        }
-                        Err(_) => (),
-                    }
-                    graph
+            log::info!("Loading graph properties and database");
+            let (graph_properties, db) = tokio::join!(
+                tokio::task::spawn_blocking(|| -> Result<_> {
+                    let graph_path = args.graph;
+                    let node_count_path = graph_path.with_extension("nodes.count.txt");
+                    let mut num_nodes = String::new();
+                    std::fs::File::open(&node_count_path)
+                        .with_context(|| format!("Could not open {}", node_count_path.display()))?
+                        .read_to_string(&mut num_nodes)
+                        .with_context(|| format!("Could not read {}", node_count_path.display()))?;
+                    let num_nodes = num_nodes.strip_suffix('\n').unwrap_or(&num_nodes);
+                    let num_nodes = num_nodes.parse().with_context(|| {
+                        format!(
+                            "Could not parse content of {} as an integer",
+                            node_count_path.display()
+                        )
+                    })?;
+                    let graph_properties = SwhGraphProperties::new(graph_path, num_nodes)
+                        .load_maps::<swh_graph::mph::DynMphf>()
+                        .context("Could not load graph maps")?;
+                    log::info!("Graph loaded");
+                    Ok(graph_properties)
                 }),
                 tokio::task::spawn(async move {
                     let db =
@@ -117,11 +112,12 @@ pub fn main() -> Result<()> {
                 })
             );
 
-            let graph = graph.expect("Could not join graph load task")?;
+            let graph_properties = graph_properties.expect("Could not join graph load task")?;
             let db = db.expect("Could not join graph load task")?;
 
             log::info!("Starting server");
-            swh_provenance::grpc_server::serve(db, graph, args.bind, statsd_client).await?;
+            swh_provenance::grpc_server::serve(db, graph_properties, args.bind, statsd_client)
+                .await?;
 
             Ok(())
         })

@@ -13,11 +13,9 @@ use parquet_aramid::Table;
 use url::Url;
 
 pub(crate) mod metrics;
-pub(crate) mod types;
 
 pub struct ProvenanceDatabase {
     pub url: Url,
-    pub node: Table,
     pub c_in_d: Table,
     pub d_in_r: Table,
     pub c_in_r: Table,
@@ -28,12 +26,7 @@ impl ProvenanceDatabase {
         let (store, path) = object_store::parse_url(&base_url)
             .with_context(|| format!("Invalid provenance database URL: {}", base_url))?;
         let store = store.into();
-        let (node, c_in_d, d_in_r, c_in_r) = futures::join!(
-            Table::new(
-                Arc::clone(&store),
-                path.child("nodes"),
-                base_ef_indexes_path.join("nodes"),
-            ),
+        let (c_in_d, d_in_r, c_in_r) = futures::join!(
             Table::new(
                 Arc::clone(&store),
                 path.child("contents_in_frontier_directories"),
@@ -53,7 +46,6 @@ impl ProvenanceDatabase {
 
         Ok(Self {
             url: base_url,
-            node: node.context("Could not initialize 'nodes' table")?,
             c_in_d: c_in_d.context("Could not initialize 'c_in_d' table")?,
             d_in_r: d_in_r.context("Could not initialize 'd_in_r' table")?,
             c_in_r: c_in_r.context("Could not initialize 'c_in_r' table")?,
@@ -62,10 +54,6 @@ impl ProvenanceDatabase {
 
     pub fn mmap_ef_indexes(&self) -> Result<()> {
         std::thread::scope(|s| {
-            let node = std::thread::Builder::new()
-                .name("load_index_node".to_string())
-                .spawn_scoped(s, || self.node.mmap_ef_index("id"))
-                .expect("could not spawn load_index_node");
             let c_in_d = std::thread::Builder::new()
                 .name("load_index_c_in_d".to_string())
                 .spawn_scoped(s, || self.c_in_d.mmap_ef_index("cnt"))
@@ -79,9 +67,6 @@ impl ProvenanceDatabase {
                 .spawn_scoped(s, || self.c_in_r.mmap_ef_index("cnt"))
                 .expect("could not spawn load_index_c_in_r");
 
-            node.join()
-                .expect("could not join node")
-                .context("Could not mmap index for 'nodes' table")?;
             c_in_d
                 .join()
                 .expect("could not join c_in_d")

@@ -13,47 +13,40 @@ use tonic::{Request, Response};
 use tonic_middleware::MiddlewareFor;
 use tracing::{instrument, Level};
 
-use swh_graph::graph::SwhGraphWithProperties;
 use swh_graph::properties;
 
 use crate::database::ProvenanceDatabase;
 use crate::proto;
 use crate::proto::provenance_service_server::ProvenanceServiceServer;
 use crate::queries::ProvenanceService;
+use crate::GraphProperties;
 
 pub type NodeId = u64;
 
 mod metrics;
 
-pub struct ProvenanceServiceWrapper<G: SwhGraphWithProperties + Send + Sync + 'static>(
-    Arc<ProvenanceService<G>>,
-)
-where
-    <G as SwhGraphWithProperties>::Maps: properties::Maps;
+pub struct ProvenanceServiceWrapper<MAPS: properties::Maps + Sync + Send + 'static>(
+    Arc<ProvenanceService<MAPS>>,
+);
 
-impl<G: SwhGraphWithProperties + Send + Sync + 'static> ProvenanceServiceWrapper<G>
-where
-    <G as SwhGraphWithProperties>::Maps: properties::Maps,
-{
-    pub fn new(db: ProvenanceDatabase, graph: Option<G>) -> Self {
-        Self(Arc::new(ProvenanceService { db, graph }))
+impl<MAPS: properties::Maps + Sync + Send + 'static> ProvenanceServiceWrapper<MAPS> {
+    pub fn new(db: ProvenanceDatabase, graph_properties: GraphProperties<MAPS>) -> Self {
+        Self(Arc::new(ProvenanceService {
+            db,
+            graph_properties,
+        }))
     }
 }
 
-impl<G: SwhGraphWithProperties + Send + Sync + 'static> Clone for ProvenanceServiceWrapper<G>
-where
-    <G as SwhGraphWithProperties>::Maps: properties::Maps,
-{
+impl<MAPS: properties::Maps + Sync + Send + 'static> Clone for ProvenanceServiceWrapper<MAPS> {
     fn clone(&self) -> Self {
         Self(Arc::clone(&self.0))
     }
 }
 
 #[tonic::async_trait]
-impl<G: SwhGraphWithProperties + Send + Sync + 'static>
-    proto::provenance_service_server::ProvenanceService for ProvenanceServiceWrapper<G>
-where
-    <G as SwhGraphWithProperties>::Maps: properties::Maps,
+impl<MAPS: properties::Maps + Sync + Send + 'static>
+    proto::provenance_service_server::ProvenanceService for ProvenanceServiceWrapper<MAPS>
 {
     #[instrument(skip(self, request), err(level = Level::INFO))]
     async fn where_is_one(
@@ -95,7 +88,7 @@ where
                 .swhid
                 .into_iter()
                 .map(move |swhid| {
-                    let whereis_service: ProvenanceServiceWrapper<G> = whereis_service.clone(); // ditto
+                    let whereis_service: ProvenanceServiceWrapper<MAPS> = whereis_service.clone(); // ditto
                     async move {
                         match whereis_service.0.whereis(swhid).await {
                             Ok(Ok(result)) => Ok(result),
@@ -116,18 +109,15 @@ where
 
 type TonicResult<T> = Result<tonic::Response<T>, tonic::Status>;
 
-pub async fn serve<G: SwhGraphWithProperties + Send + Sync + 'static>(
+pub async fn serve<MAPS: properties::Maps + Sync + Send + 'static>(
     db: ProvenanceDatabase,
-    graph: Option<G>,
+    graph_properties: GraphProperties<MAPS>,
     bind_addr: std::net::SocketAddr,
     statsd_client: cadence::StatsdClient,
-) -> Result<(), tonic::transport::Error>
-where
-    <G as SwhGraphWithProperties>::Maps: properties::Maps,
-{
+) -> Result<(), tonic::transport::Error> {
     let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
     health_reporter
-        .set_serving::<ProvenanceServiceServer<ProvenanceServiceWrapper<G>>>()
+        .set_serving::<ProvenanceServiceServer<ProvenanceServiceWrapper<MAPS>>>()
         .await;
 
     #[cfg(not(feature = "sentry"))]
@@ -137,7 +127,7 @@ where
         Server::builder().layer(::sentry::integrations::tower::NewSentryLayer::new_from_top());
     builder
         .add_service(MiddlewareFor::new(
-            ProvenanceServiceServer::new(ProvenanceServiceWrapper::new(db, graph)),
+            ProvenanceServiceServer::new(ProvenanceServiceWrapper::new(db, graph_properties)),
             metrics::MetricsMiddleware::new(statsd_client),
         ))
         .add_service(health_service)

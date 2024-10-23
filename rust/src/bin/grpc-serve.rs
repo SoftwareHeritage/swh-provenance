@@ -12,7 +12,11 @@ use mimalloc::MiMalloc;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
+use swh_graph::mph::SwhidMphf;
+use swh_graph::properties;
 use swh_graph::SwhGraphProperties;
+
+use swh_provenance::database::ProvenanceDatabase;
 
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc; // Allocator recommended by Datafusion
@@ -77,39 +81,8 @@ pub fn main() -> Result<()> {
         .block_on(async {
             log::info!("Loading graph properties and database");
             let (graph_properties, db) = tokio::join!(
-                tokio::task::spawn_blocking(|| -> Result<_> {
-                    let graph_path = args.graph;
-                    let node_count_path = graph_path.with_extension("nodes.count.txt");
-                    let mut num_nodes = String::new();
-                    std::fs::File::open(&node_count_path)
-                        .with_context(|| format!("Could not open {}", node_count_path.display()))?
-                        .read_to_string(&mut num_nodes)
-                        .with_context(|| format!("Could not read {}", node_count_path.display()))?;
-                    let num_nodes = num_nodes.strip_suffix('\n').unwrap_or(&num_nodes);
-                    let num_nodes = num_nodes.parse().with_context(|| {
-                        format!(
-                            "Could not parse content of {} as an integer",
-                            node_count_path.display()
-                        )
-                    })?;
-                    let graph_properties = SwhGraphProperties::new(graph_path, num_nodes)
-                        .load_maps::<swh_graph::mph::DynMphf>()
-                        .context("Could not load graph maps")?;
-                    log::info!("Graph loaded");
-                    Ok(graph_properties)
-                }),
-                tokio::task::spawn(async move {
-                    let db =
-                        swh_provenance::database::ProvenanceDatabase::new(args.database, &indexes)
-                            .await
-                            .context("Could not initialize provenance database");
-                    if let Ok(ref db) = db {
-                        db.mmap_ef_indexes()
-                            .context("Could not mmap Elias-Fano indexes")?;
-                        log::info!("Database loaded");
-                    }
-                    db
-                })
+                tokio::task::spawn_blocking(|| load_graph_properties(args.graph)),
+                tokio::task::spawn(load_database(args.database, indexes)),
             );
 
             let graph_properties = graph_properties.expect("Could not join graph load task")?;
@@ -121,4 +94,46 @@ pub fn main() -> Result<()> {
 
             Ok(())
         })
+}
+
+fn load_graph_properties(
+    graph_path: PathBuf,
+) -> Result<
+    SwhGraphProperties<
+        properties::MappedMaps<impl SwhidMphf>,
+        properties::NoTimestamps,
+        properties::NoPersons,
+        properties::NoContents,
+        properties::NoStrings,
+        properties::NoLabelNames,
+    >,
+> {
+    let node_count_path = graph_path.with_extension("nodes.count.txt");
+    let mut num_nodes = String::new();
+    std::fs::File::open(&node_count_path)
+        .with_context(|| format!("Could not open {}", node_count_path.display()))?
+        .read_to_string(&mut num_nodes)
+        .with_context(|| format!("Could not read {}", node_count_path.display()))?;
+    let num_nodes = num_nodes.strip_suffix('\n').unwrap_or(&num_nodes);
+    let num_nodes = num_nodes.parse().with_context(|| {
+        format!(
+            "Could not parse content of {} as an integer",
+            node_count_path.display()
+        )
+    })?;
+    let graph_properties = SwhGraphProperties::new(graph_path, num_nodes)
+        .load_maps::<swh_graph::mph::DynMphf>()
+        .context("Could not load graph maps")?;
+    log::info!("Graph loaded");
+    Ok(graph_properties)
+}
+
+async fn load_database(database_url: url::Url, indexes_path: PathBuf) -> Result<ProvenanceDatabase> {
+    let db = swh_provenance::database::ProvenanceDatabase::new(database_url, &indexes_path)
+        .await
+        .context("Could not initialize provenance database")?;
+    db.mmap_ef_indexes()
+        .context("Could not mmap Elias-Fano indexes")?;
+    log::info!("Database loaded");
+    Ok(db)
 }

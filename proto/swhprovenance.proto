@@ -17,26 +17,30 @@ service ProvenanceService {
 }
 
 message WhereIsOneRequest {
-    /* Core SWHID of the node to lookup */
-    string swhid = 1;
-    /* FieldMask of which fields are to be returned (e.g., "origin,revision,release").
+    /* FieldMask of which fields are to be returned (e.g., "swhid,anchor,origin").
      * By default, all fields are returned. */
-    optional google.protobuf.FieldMask mask = 8;
+    optional google.protobuf.FieldMask mask = 1;
+
+    /* Core SWHID of the node to lookup */
+    string swhid = 2;
 }
 
 message WhereAreOneRequest {
-    /* Core SWHIDs of the nodes to lookup */
-    repeated string swhid = 1;
-    /* FieldMask of which fields are to be returned (e.g., "origin,revision,release").
+    /* FieldMask of which fields are to be returned (e.g., "swhid,anchor,origin").
      * By default, all fields are returned. */
-    optional google.protobuf.FieldMask mask = 8;
+    optional google.protobuf.FieldMask mask = 1;
+
+    /* Core SWHIDs of the nodes to lookup */
+    repeated string swhid = 2;
 }
 
 message WhereIsOneResult {
     /* Core SWHID of the node whose lookup was requested */
     string swhid = 1;
+
     /* Core SWHID of a revision or release that contains the above node */
     optional string anchor = 2;
+
     /* URL of an origin that contains the anchor */
     optional string origin = 3;
 }

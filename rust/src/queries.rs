@@ -208,6 +208,7 @@ pub struct ProvenanceService<MAPS: properties::Maps + Send + Sync + 'static> {
 }
 
 impl<MAPS: properties::Maps + Send + Sync + 'static> ProvenanceService<MAPS> {
+    /// Given a list of SWHIDs, returns their ids, in any order
     #[instrument(skip(self), fields(swhids=swhids.iter().map(AsRef::as_ref).join(", ")))]
     async fn node_id(&self, swhids: &[impl AsRef<str>]) -> Result<Result<Vec<u64>, tonic::Status>> {
         tracing::debug!(
@@ -239,6 +240,8 @@ impl<MAPS: properties::Maps + Send + Sync + 'static> ProvenanceService<MAPS> {
         Ok(Ok(node_ids))
     }
 
+    /// Given a RecordBatch with a column of `NodeId` and one of `Option<NodeId>`, converts
+    /// all the node ids into SWHIDs and returns the pairs in any order.
     #[instrument(skip(self, node_id_batches))]
     async fn swhid(
         &self,
@@ -287,6 +290,7 @@ impl<MAPS: properties::Maps + Send + Sync + 'static> ProvenanceService<MAPS> {
         Ok(swhids)
     }
 
+    /// Given a content SWHID, returns any of the revision/release that SWHID is in.
     #[instrument(skip(self))]
     pub async fn whereis(
         &self,

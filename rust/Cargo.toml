@@ -39,7 +39,7 @@ arrow = "53.1.0"
 object_store = { version = "0.11.0", default-features = false }
 parquet = { version = "53.1.0", default-features = false, features = ["arrow", "async", "object_store", "zstd"]}
 url = "2.2"
-parquet_aramid = { git = "https://gitlab.softwareheritage.org/swh/devel/parquet_aramid-rs.git", rev = "1abdcbc0a5fc33c7a794f1cadc884e00b0a74bf5", features = ["rayon"] }
+parquet_aramid = { git = "https://gitlab.softwareheritage.org/swh/devel/parquet_aramid-rs.git", rev = "3632b9dc0e7c54ea2ef796d3d7a15b426c7dcac1", features = ["rayon"] }
 
 # Elias-Fano index
 epserde = "0.6.1"

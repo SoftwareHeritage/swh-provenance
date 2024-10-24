@@ -16,6 +16,7 @@ use parquet::arrow::arrow_reader::{ArrowPredicate, RowFilter};
 use parquet::arrow::async_reader::AsyncFileReader;
 use parquet::arrow::{ParquetRecordBatchStreamBuilder, ProjectionMask};
 use parquet::schema::types::SchemaDescriptor;
+use parquet_aramid::metrics::TableScanInitMetrics;
 use parquet_aramid::{ReaderBuilderConfigurator, Table};
 use swh_graph::SWHID;
 use tracing::{instrument, span_enabled, Level};
@@ -63,6 +64,7 @@ async fn query_x_in_y_table<'a>(
     keys: Arc<Vec<u64>>,
     limit: Option<usize>,
 ) -> Result<(
+    TableScanInitMetrics,
     Arc<TableScanMetrics>,
     impl Stream<Item = Result<RecordBatch>> + Send + 'a,
 )> {
@@ -207,27 +209,28 @@ async fn query_x_in_y_table<'a>(
         }
     }
 
-    // Return a stream of batches of rows
-    Ok((
-        Arc::clone(&metrics),
-        table
-            // Get Parquet reader builders configured to only read pages that *probably* contain
-            // one of the keys in the query, using indices.
-            .stream_for_keys(
+    let scan_metrics = Arc::clone(&metrics);
+
+    // Get a stream of batches of rows
+    let (scan_init_metrics, stream) = table
+        // Get Parquet reader builders configured to only read pages that *probably* contain
+        // one of the keys in the query, using indices.
+        .stream_for_keys(
+            key_column,
+            Arc::clone(&keys),
+            Arc::new(Configurator {
+                expected_schema,
                 key_column,
-                Arc::clone(&keys),
-                Arc::new(Configurator {
-                    expected_schema,
-                    key_column,
-                    value_column,
-                    keys,
-                    limit,
-                    metrics,
-                }),
-            )
-            .await
-            .context("Could not start reading from table")?,
-    ))
+                value_column,
+                keys,
+                limit,
+                metrics,
+            }),
+        )
+        .await
+        .context("Could not start reading from table")?;
+
+    Ok((scan_init_metrics, scan_metrics, stream))
 }
 
 pub struct ProvenanceService<MAPS: properties::Maps + Send + Sync + 'static> {
@@ -322,10 +325,19 @@ impl<MAPS: properties::Maps + Send + Sync + 'static> ProvenanceService<MAPS> {
 
     /// Given a content SWHID, returns any of the revision/release that SWHID is in.
     #[instrument(skip(self))]
-    pub async fn whereis(
+    pub async fn where_is_one(
         &self,
         swhid: String,
-    ) -> Result<Result<proto::WhereIsOneResult, tonic::Status>> {
+    ) -> Result<
+        Result<
+            (
+                TableScanInitMetrics,
+                TableScanMetrics,
+                proto::WhereIsOneResult,
+            ),
+            tonic::Status,
+        >,
+    > {
         let node_ids = Arc::new(self.node_id(&[&swhid]).await??);
 
         if span_enabled!(Level::TRACE) {
@@ -341,7 +353,7 @@ impl<MAPS: properties::Maps + Send + Sync + 'static> ProvenanceService<MAPS> {
             Field::new("path", DataType::Binary, false),
         ]));
         let limit = 1;
-        let (metrics, c_in_r_stream) = query_x_in_y_table(
+        let (scan_init_metrics, scan_metrics, c_in_r_stream) = query_x_in_y_table(
             &self.db.c_in_r,
             schema,
             "cnt",
@@ -352,6 +364,7 @@ impl<MAPS: properties::Maps + Send + Sync + 'static> ProvenanceService<MAPS> {
         .await
         .context("Could not query c_in_r")?;
         tracing::trace!("Got c_in_r_stream");
+        tracing::debug!("Scan init metrics: {:#?}", scan_init_metrics);
 
         // Read batches of rows, stopping after the first one
         let mut remaining_rows = limit;
@@ -374,7 +387,8 @@ impl<MAPS: properties::Maps + Send + Sync + 'static> ProvenanceService<MAPS> {
         if span_enabled!(Level::TRACE) {
             tracing::trace!("Anchor node ids: {:?}", c_in_r_batches,)
         }
-        tracing::debug!("Scan metrics: {:#?}", metrics);
+        let scan_metrics = Arc::try_unwrap(scan_metrics).expect("Dangling reference to scan_metrics");
+        tracing::debug!("Scan metrics: {:#?}", scan_metrics);
 
         // Translate results' node ids to SWHIDs
         // Note: c_in_r_batches may have more than one row; the above filter only guarantees there
@@ -383,11 +397,11 @@ impl<MAPS: properties::Maps + Send + Sync + 'static> ProvenanceService<MAPS> {
 
         // And return the first result
         if let Some((cnt, revrel)) = anchors.pop() {
-            return Ok(Ok(proto::WhereIsOneResult {
+            return Ok(Ok((scan_init_metrics, scan_metrics, proto::WhereIsOneResult {
                 swhid: cnt.to_string(),
                 anchor: revrel.map(|revrel| revrel.to_string()),
                 origin: None,
-            }));
+            })));
         }
 
         /* TODO:
@@ -395,9 +409,13 @@ impl<MAPS: properties::Maps + Send + Sync + 'static> ProvenanceService<MAPS> {
         */
 
         // No result
-        Ok(Ok(proto::WhereIsOneResult {
-            swhid,
-            ..Default::default()
-        }))
+        Ok(Ok((
+            scan_init_metrics,
+            scan_metrics,
+            proto::WhereIsOneResult {
+                swhid,
+                ..Default::default()
+            },
+        )))
     }
 }

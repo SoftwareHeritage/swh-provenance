@@ -55,8 +55,8 @@ impl<MAPS: properties::Maps + Sync + Send + 'static>
     ) -> TonicResult<proto::WhereIsOneResult> {
         tracing::info!("{:?}", request.get_ref());
 
-        match self.0.whereis(request.into_inner().swhid).await {
-            Ok(Ok(result)) => Ok(Response::new(result)),
+        match self.0.where_is_one(request.into_inner().swhid).await {
+            Ok(Ok((_scan_init_metrics, _scan_metrics, result))) => Ok(Response::new(result)),
             Ok(Err(e)) => Err(e), // client error
             Err(e) => {
                 // server error
@@ -90,8 +90,8 @@ impl<MAPS: properties::Maps + Sync + Send + 'static>
                 .map(move |swhid| {
                     let whereis_service: ProvenanceServiceWrapper<MAPS> = whereis_service.clone(); // ditto
                     async move {
-                        match whereis_service.0.whereis(swhid).await {
-                            Ok(Ok(result)) => Ok(result),
+                        match whereis_service.0.where_is_one(swhid).await {
+                            Ok(Ok((_scan_init_metrics, _scan_metrics, result))) => Ok(result),
                             Ok(Err(e)) => Err(e), // client error
                             Err(e) => {
                                 // server error

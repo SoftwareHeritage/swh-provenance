@@ -5,10 +5,10 @@
 
 import logging
 import os
+from pathlib import Path
 import shlex
 import shutil
 import subprocess
-from pathlib import Path
 import sys
 
 import aiohttp.test_utils
@@ -43,7 +43,9 @@ def build_rust_grpc_server_cmdline(**config):
         port = aiohttp.test_utils.unused_port()
         logger.debug("Port not configured, using random port %s", port)
 
-    rust_executable_dir = config.get("rust_executable_dir") or default_rust_executable_dir(config)
+    rust_executable_dir = config.get(
+        "rust_executable_dir"
+    ) or default_rust_executable_dir(config)
     print(rust_executable_dir)
     grpc_path = str(rust_executable_dir) + "/swh-provenance-grpc-serve"
     if not os.path.isfile(grpc_path):
@@ -72,7 +74,9 @@ def spawn_rust_grpc_server(**config):
     logger.info("Starting gRPC server: %s", " ".join(shlex.quote(x) for x in cmd))
     env = dict(os.environ)
     if config.get("debug", False):
-        env.setdefault("RUST_LOG", "debug,h2=info,tonic=info")  # h2 and tonic are very verbose at DEBUG level
+        env.setdefault(
+            "RUST_LOG", "debug,h2=info,tonic=info"
+        )  # h2 and tonic are very verbose at DEBUG level
     if "statsd_host" in config:
         env["STATSD_HOST"] = config["statsd_host"]
     if "statsd_port" in config:
@@ -88,4 +92,3 @@ def stop_grpc_server(server: subprocess.Popen, timeout: int = 15):
     except subprocess.TimeoutExpired:
         logger.warning("Server did not terminate, sending kill signal...")
         server.kill()
-

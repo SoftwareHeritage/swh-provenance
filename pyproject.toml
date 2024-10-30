@@ -44,6 +44,11 @@ fallback_version = "0.0.1"
 
 [tool.black]
 target-version = ['py39', 'py310', 'py311', 'py312']
+extend-exclude = '''
+/(
+    | swh/provenance/grpc
+)/
+'''
 
 [tool.isort]
 multi_line_output = 3

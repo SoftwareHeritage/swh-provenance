@@ -6,7 +6,6 @@
 import contextlib
 import logging
 import multiprocessing
-from pathlib import Path
 import socket
 import subprocess
 import threading
@@ -15,7 +14,6 @@ import time
 import grpc
 import pytest
 
-from swh.graph.example_dataset import DATASET_DIR
 from swh.provenance import get_provenance
 from swh.provenance.grpc.swhprovenance_pb2_grpc import ProvenanceServiceStub
 from swh.provenance.grpc_server import (
@@ -129,7 +127,9 @@ def provenance_database_and_graph(tmpdir_factory):
 
 @pytest.fixture(scope="session")
 def provenance_grpc_server_config(
-    provenance_grpc_backend_implementation, provenance_statsd_server, provenance_database_and_graph
+    provenance_grpc_backend_implementation,
+    provenance_statsd_server,
+    provenance_database_and_graph,
 ):
     return {
         "provenance": {

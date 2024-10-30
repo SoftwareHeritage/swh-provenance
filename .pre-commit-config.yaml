@@ -53,3 +53,5 @@ repos:
         stages: [pre-push]
         language: python
         additional_dependencies: [twine, build]
+
+exclude: ^swh/provenance/grpc/

@@ -82,3 +82,7 @@ path = "src/bin/index.rs"
 [[bin]]
 name = "swh-provenance-grpc-serve"
 path = "src/bin/grpc-serve.rs"
+
+[[bin]]
+name = "swh-provenance-gen-test-database"
+path = "src/bin/gen-test-database.rs"

@@ -396,7 +396,8 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
         if span_enabled!(Level::TRACE) {
             tracing::trace!("Anchor node ids: {:?}", c_in_r_batches,)
         }
-        let scan_metrics = Arc::try_unwrap(scan_metrics).expect("Dangling reference to scan_metrics");
+        let scan_metrics =
+            Arc::try_unwrap(scan_metrics).expect("Dangling reference to scan_metrics");
         tracing::debug!("Scan metrics: {:#?}", scan_metrics);
 
         // Translate results' node ids to SWHIDs
@@ -406,11 +407,15 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
 
         // And return the first result
         if let Some((cnt, revrel)) = anchors.pop() {
-            return Ok(Ok((scan_init_metrics, scan_metrics, proto::WhereIsOneResult {
-                swhid: cnt.to_string(),
-                anchor: revrel.map(|revrel| revrel.to_string()),
-                origin: None,
-            })));
+            return Ok(Ok((
+                scan_init_metrics,
+                scan_metrics,
+                proto::WhereIsOneResult {
+                    swhid: cnt.to_string(),
+                    anchor: revrel.map(|revrel| revrel.to_string()),
+                    origin: None,
+                },
+            )));
         }
 
         /* TODO:

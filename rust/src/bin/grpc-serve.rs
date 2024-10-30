@@ -3,23 +3,28 @@
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
 
-use std::io::Read;
+use std::io::BufReader;
 use std::path::PathBuf;
 
-use anyhow::{Context, Result};
-use clap::Parser;
+use anyhow::{anyhow, Context, Result};
+use clap::{Parser, ValueEnum};
 use mimalloc::MiMalloc;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
-use swh_graph::mph::SwhidMphf;
-use swh_graph::properties;
+use swh_graph::graph::SwhBidirectionalGraph;
 use swh_graph::SwhGraphProperties;
-
-use swh_provenance::database::ProvenanceDatabase;
+use swh_graph::properties;
 
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc; // Allocator recommended by Datafusion
+
+/// On-disk format of the graph. This should always be `Webgraph` unless testing.
+#[derive(ValueEnum, Clone, Debug)]
+enum GraphFormat {
+    Webgraph,
+    Json,
+}
 
 #[derive(Parser, Debug)]
 #[command(about = "gRPC server for the Software Heritage Provenance Index", long_about = None)]
@@ -27,6 +32,8 @@ struct Args {
     #[arg(long)]
     /// Keep Parquet metadata in RAM between queries, instead of re-parsing them every time
     cache_parquet: bool,
+    #[arg(long, value_enum, default_value_t = GraphFormat::Webgraph)]
+    graph_format: GraphFormat,
     #[arg(long)]
     /// Path to the graph prefix
     graph: PathBuf,
@@ -80,60 +87,60 @@ pub fn main() -> Result<()> {
         .unwrap()
         .block_on(async {
             log::info!("Loading graph properties and database");
-            let (graph_properties, db) = tokio::join!(
-                tokio::task::spawn_blocking(|| load_graph_properties(args.graph)),
-                tokio::task::spawn(load_database(args.database, indexes)),
-            );
+            match args.graph_format {
+                GraphFormat::Webgraph => {
+                    let (graph, db) = tokio::join!(
+                        tokio::task::spawn_blocking(|| {
+                            swh_provenance::utils::load_graph_properties(args.graph)
+                        }),
+                        tokio::task::spawn(swh_provenance::utils::load_database(
+                            args.database,
+                            indexes
+                        )),
+                    );
 
-            let graph_properties = graph_properties.expect("Could not join graph load task")?;
-            let db = db.expect("Could not join graph load task")?;
+                    let graph = graph.expect("Could not join graph load task")?;
+                    let db = db.expect("Could not join graph load task")?;
 
-            log::info!("Starting server");
-            swh_provenance::grpc_server::serve(db, graph_properties, args.bind, statsd_client)
-                .await?;
+                    log::info!("Starting server");
+                    swh_provenance::grpc_server::serve(db, graph, args.bind, statsd_client).await?;
+                }
+                GraphFormat::Json => {
+                    let (graph, db) = tokio::join!(
+                        tokio::task::spawn_blocking(move || -> Result<_> {
+                            let file = std::fs::File::open(&args.graph).with_context(|| {
+                                format!("Could not open {}", args.graph.display())
+                            })?;
+                            let mut deserializer =
+                                serde_json::Deserializer::from_reader(BufReader::new(file));
+                            swh_graph::serde::deserialize_with_labels_and_maps(&mut deserializer)
+                                .map_err(|e| anyhow!("Could not read JSON graph: {e}"))
+                        }),
+                        tokio::task::spawn(swh_provenance::utils::load_database(
+                            args.database,
+                            indexes
+                        )),
+                    );
+
+                    let graph: SwhBidirectionalGraph<
+                        SwhGraphProperties<
+                            _,
+                            properties::VecTimestamps,
+                            properties::VecPersons,
+                            properties::VecContents,
+                            properties::VecStrings,
+                            properties::VecLabelNames,
+                        >,
+                        _,
+                        _,
+                    > = graph.expect("Could not join graph load task")?;
+                    let db = db.expect("Could not join graph load task")?;
+
+                    log::info!("Starting server");
+                    swh_provenance::grpc_server::serve(db, graph, args.bind, statsd_client).await?;
+                }
+            }
 
             Ok(())
         })
-}
-
-fn load_graph_properties(
-    graph_path: PathBuf,
-) -> Result<
-    SwhGraphProperties<
-        properties::MappedMaps<impl SwhidMphf>,
-        properties::NoTimestamps,
-        properties::NoPersons,
-        properties::NoContents,
-        properties::NoStrings,
-        properties::NoLabelNames,
-    >,
-> {
-    let node_count_path = graph_path.with_extension("nodes.count.txt");
-    let mut num_nodes = String::new();
-    std::fs::File::open(&node_count_path)
-        .with_context(|| format!("Could not open {}", node_count_path.display()))?
-        .read_to_string(&mut num_nodes)
-        .with_context(|| format!("Could not read {}", node_count_path.display()))?;
-    let num_nodes = num_nodes.strip_suffix('\n').unwrap_or(&num_nodes);
-    let num_nodes = num_nodes.parse().with_context(|| {
-        format!(
-            "Could not parse content of {} as an integer",
-            node_count_path.display()
-        )
-    })?;
-    let graph_properties = SwhGraphProperties::new(graph_path, num_nodes)
-        .load_maps::<swh_graph::mph::DynMphf>()
-        .context("Could not load graph maps")?;
-    log::info!("Graph loaded");
-    Ok(graph_properties)
-}
-
-async fn load_database(database_url: url::Url, indexes_path: PathBuf) -> Result<ProvenanceDatabase> {
-    let db = swh_provenance::database::ProvenanceDatabase::new(database_url, &indexes_path)
-        .await
-        .context("Could not initialize provenance database")?;
-    db.mmap_ef_indexes()
-        .context("Could not mmap Elias-Fano indexes")?;
-    log::info!("Database loaded");
-    Ok(db)
 }

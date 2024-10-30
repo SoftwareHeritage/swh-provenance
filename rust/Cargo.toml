@@ -8,7 +8,7 @@ repository = "https://gitlab.softwareheritage.org/swh/devel/swh-provenance"
 license = "GPL-3.0-or-later"
 keywords = ["software-heritage", "graph", "provenance", "grpc"]
 categories = ["compression", "science"]
-rust-version = "1.79"
+rust-version = "1.80"
 
 [dependencies]
 anyhow = { version="1.0.79", features=["backtrace"] }
@@ -19,7 +19,7 @@ itertools = "0.13.0"
 mimalloc = { version = "0.1", default-features = false }
 num_cpus = "1.16.0"
 rdst = { version = "0.20.14", features = ["multi-threaded"] }
-swh-graph = "6.0.0"
+swh-graph = { git = "https://gitlab.softwareheritage.org/swh/devel/swh-graph.git", rev = "028b7c5a739d43fb99a8dea99b9e463bb6725748"  }
 
 # CLI & logging
 cadence = "1.4.0"
@@ -28,18 +28,20 @@ chrono = { version = "0.4.31", features = ["serde"] }
 dsi-progress-logger = "0.2.4"
 log = "0.4.17"
 sentry = { version = "0.32.1", features = ["anyhow", "tower", "tracing"], optional = true }
-sentry-tracing = "0.32.1"
+sentry-tracing = { version = "0.32.1", optional = true }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
 # Database
 async-trait = "0.1.73"
 bytes = "1.7.1"
-arrow = "53.1.0"
 object_store = { version = "0.11.0", default-features = false }
 parquet = { version = "53.1.0", default-features = false, features = ["arrow", "async", "object_store", "zstd"]}
 url = "2.2"
-parquet_aramid = { git = "https://gitlab.softwareheritage.org/swh/devel/parquet_aramid-rs.git", rev = "3632b9dc0e7c54ea2ef796d3d7a15b426c7dcac1", features = ["rayon"] }
+parquet_aramid = { git = "https://gitlab.softwareheritage.org/swh/devel/parquet_aramid-rs.git", rev = "421987afefbf9b893b0c76e49c1cee629191a200", features = ["rayon"] }
+#parquet_aramid = { path = "../../parquet_aramid-rs", features = ["rayon"] }
+swh_graph_provenance = { git = "https://gitlab.softwareheritage.org/swh/devel/swh-graph.git", rev = "028b7c5a739d43fb99a8dea99b9e463bb6725748"  }
+dataset-writer = { version = "1.1.0", features = ["parquet"] } # to generate test databases
 
 # Elias-Fano index
 epserde = "0.6.1"
@@ -71,6 +73,7 @@ tonic-build = "0.11.0"
 [features]
 default = ["sentry", "grpc-server"]
 grpc-server = []
+sentry = ["dep:sentry", "dep:sentry-tracing"]
 
 [[bin]]
 name = "swh-provenance-index"

@@ -7,21 +7,24 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use anyhow::{anyhow, bail, ensure, Context, Result};
-use arrow::array::*;
-use arrow::datatypes::*;
 use futures::stream::FuturesUnordered;
 use futures::{Stream, StreamExt};
 use itertools::Itertools;
-use parquet::arrow::arrow_reader::{ArrowPredicate, RowFilter};
-use parquet::arrow::async_reader::AsyncFileReader;
-use parquet::arrow::{ParquetRecordBatchStreamBuilder, ProjectionMask};
-use parquet::schema::types::SchemaDescriptor;
 use parquet_aramid::metrics::TableScanInitMetrics;
+use parquet_aramid::{
+    arrow,
+    arrow::array::*,
+    arrow::datatypes::*,
+    parquet::arrow::arrow_reader::{ArrowPredicate, RowFilter},
+    parquet::arrow::async_reader::AsyncFileReader,
+    parquet::arrow::{ParquetRecordBatchStreamBuilder, ProjectionMask},
+    parquet::schema::types::SchemaDescriptor,
+};
 use parquet_aramid::{ReaderBuilderConfigurator, Table};
 use swh_graph::SWHID;
 use tracing::{instrument, span_enabled, Level};
 
-use swh_graph::properties;
+use swh_graph::graph::SwhGraphWithProperties;
 use swh_graph::properties::NodeIdFromSwhidError;
 
 use crate::database::metrics::TableScanMetrics;
@@ -79,7 +82,7 @@ async fn query_x_in_y_table<'a>(
     }
 
     impl ArrowPredicate for Predicate {
-        /// Which columns to deseralize to evaluate this predicate
+        /// Which columns to deserialize to evaluate this predicate
         fn projection(&self) -> &ProjectionMask {
             &self.projection
         }
@@ -233,12 +236,16 @@ async fn query_x_in_y_table<'a>(
     Ok((scan_init_metrics, scan_metrics, stream))
 }
 
-pub struct ProvenanceService<MAPS: properties::Maps + Send + Sync + 'static> {
+pub struct ProvenanceService<
+    G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync + 'static,
+> {
     pub db: ProvenanceDatabase,
-    pub graph_properties: super::GraphProperties<MAPS>,
+    pub graph: G,
 }
 
-impl<MAPS: properties::Maps + Send + Sync + 'static> ProvenanceService<MAPS> {
+impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync + 'static>
+    ProvenanceService<G>
+{
     /// Given a list of SWHIDs, returns their ids, in any order
     ///
     /// TODO: if a SWHID can't be found, return others' node ids, and only error for that one.
@@ -252,7 +259,7 @@ impl<MAPS: properties::Maps + Send + Sync + 'static> ProvenanceService<MAPS> {
         let mut node_ids = Vec::<u64>::new();
         for swhid in swhids {
             let swhid = swhid.as_ref();
-            match self.graph_properties.node_id_from_string_swhid(swhid) {
+            match self.graph.properties().node_id_from_string_swhid(swhid) {
                 Ok(node_id) => node_ids.push(node_id.try_into().expect("Node id overflowed u64")),
                 Err(NodeIdFromSwhidError::InvalidSwhid(_)) => {
                     return Ok(Err(tonic::Status::invalid_argument(format!(
@@ -310,10 +317,12 @@ impl<MAPS: properties::Maps + Send + Sync + 'static> ProvenanceService<MAPS> {
                         panic!("Got null value for '{}'", col1)
                     };
                     (
-                        self.graph_properties
+                        self.graph
+                            .properties()
                             .swhid(id1.try_into().expect("Node id overflowed usize")),
                         id2.map(|id2| {
-                            self.graph_properties
+                            self.graph
+                                .properties()
                                 .swhid(id2.try_into().expect("Node id overflowed usize"))
                         }),
                     )

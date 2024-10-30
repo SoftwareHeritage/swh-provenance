@@ -5,15 +5,14 @@
 
 #![doc = include_str!("../README.md")]
 
-use swh_graph::properties;
-use swh_graph::SwhGraphProperties;
-
 pub mod database;
+mod graph;
 #[cfg(feature = "grpc-server")]
 pub mod grpc_server;
 pub mod queries;
 pub mod sentry;
 pub mod statsd;
+pub mod utils;
 
 pub mod proto {
     tonic::include_proto!("swh.provenance");
@@ -21,12 +20,3 @@ pub mod proto {
     pub(crate) const FILE_DESCRIPTOR_SET: &[u8] =
         tonic::include_file_descriptor_set!("swhprovenance_descriptor");
 }
-
-type GraphProperties<MAPS> = SwhGraphProperties<
-    MAPS,
-    properties::NoTimestamps,
-    properties::NoPersons,
-    properties::NoContents,
-    properties::NoStrings,
-    properties::NoLabelNames,
->;

@@ -12,6 +12,7 @@ pub mod grpc_server;
 pub mod queries;
 pub mod sentry;
 pub mod statsd;
+pub mod test_databases;
 pub mod utils;
 
 pub mod proto {

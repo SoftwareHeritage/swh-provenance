@@ -45,26 +45,22 @@ Provenance can be looked for:
 
 For each object:
 
-    Input: SWHID (core SWHID of an artifact found in the user code base)
+- Input: SWHID (core SWHID of an artifact found in the user code base)
+- Output: SWHID or origin URI where input SWHID was found + context information,
+  a subset of:
+    - snapshot (snp SWHID)
+    - release (rel)
+    - revision (rev)
+    - path (filesystem-style path)
+- Non-functional requirements:
+    - the returned object should be as high as possible; i.e. prefer an
+      Origin (if any), then a Snapshot, then a Release, then a Revision,
+    - the returned object should be the best possible answer, if possible;
+      the definition of "best answer" being something like:
+      "*an* origin in which the oldest revision (in the sense of the
+      revision with the oldest commit date) in which this object has been
+      found."
 
-    Output: SWHID or origin URI where input SWHID was found + context information
-        Context information, a subset of:
-            snapshot (snp SWHID)
-            release (rel)
-            revision (rev)
-            path (filesystem-style path)
-
-    Non-functional requirements:
-      - the returned object should be as high as possible; i.e. prefer an
-        Origin (if any), then a Snapshot, then a Release, then a Revision,
-      - the returned object should be the best possible answer, if possible;
-        the definition of "best answer" being something like:
-
-          *an* origin in which the oldest revision (in the sense of the
-          revision with the oldest commit date) in which this object has been
-          found.
-
-##
 This documents the backend provenance service; it is not meant to be
 used directly but rather via the Public API; please refer to its
 [description](https://archive.softwareheritage.org/api/1/) for more

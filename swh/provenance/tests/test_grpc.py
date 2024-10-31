@@ -18,6 +18,7 @@ def test_grpc_whereis1(provenance_grpc_stub):
         anchor="swh:1:rev:0000000000000000000000000000000000000003",
     )
 
+
 @pytest.mark.xfail(reason="c-in-d + d-in-r lookup is not implemented yet")
 def test_grpc_whereis2(provenance_grpc_stub):
     # Uses c-in-d + d-in-r, as the only path from revisions to cnt:0004 is through dir:0006,

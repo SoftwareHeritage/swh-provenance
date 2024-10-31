@@ -9,9 +9,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use dataset_writer::{
-    ParallelDatasetWriter, ParquetTableWriter, ParquetTableWriterConfig, TableWriter,
-};
+use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter};
 use sux::prelude::BitVec;
 use swh_graph::graph::*;
 use swh_graph::graph_builder::BuiltGraph;
@@ -21,7 +19,6 @@ use swh_graph_provenance::filters::NodeFilter;
 use swh_graph_provenance::x_in_y_dataset::{
     cnt_in_dir_schema, cnt_in_dir_writer_properties, cnt_in_revrel_schema,
     cnt_in_revrel_writer_properties, dir_in_revrel_schema, dir_in_revrel_writer_properties,
-    CntInDirTableBuilder, DirInRevrelTableBuilder,
 };
 
 pub fn gen_graph() -> BuiltGraph {
@@ -214,6 +211,37 @@ pub fn gen_graph() -> BuiltGraph {
 pub fn gen_database(path: PathBuf) -> Result<()> {
     let graph = gen_graph();
 
+    // Build a placedholder for max_leaf_timestamps.bin, which normally contains
+    // {dir: max(min(timestamp(rev) for rev in ancestors(cnt)) for cnt in descendants(dir))},
+    let max_timestamps = [
+        i64::MIN,
+        i64::MIN,
+        i64::MIN,
+        i64::MIN,
+        i64::MIN,
+        i64::MIN,
+        i64::MIN,
+        1, // swh:1:dir:0000000000000000000000000000000000000002
+        i64::MIN,
+        2, // swh:1:dir:0000000000000000000000000000000000000006
+        i64::MIN,
+        i64::MIN,
+        3, // swh:1:dir:0000000000000000000000000000000000000008
+        i64::MIN,
+        4, // swh:1:dir:0000000000000000000000000000000000000012
+        i64::MIN,
+        i64::MIN,
+        5, // swh:1:dir:0000000000000000000000000000000000000016
+        i64::MIN,
+        i64::MIN,
+        i64::MIN,
+        i64::MIN,
+        6, // swh:1:dir:0000000000000000000000000000000000000017
+        i64::MIN,
+    ];
+
+    // Build set of frontier directories, which would be stored in frontier_directories/*.parquet
+    // in the real pipeline
     let mut frontier_directories = BitVec::new(graph.num_nodes());
     for swhid in [
         swhid!(swh:1:dir:0000000000000000000000000000000000000006),
@@ -248,15 +276,14 @@ pub fn gen_database(path: PathBuf) -> Result<()> {
         cnt_in_dir_writer_properties(&graph).build(),
     );
     create_dir_all(&c_in_d).with_context(|| format!("Could not create {}", c_in_d.display()))?;
-    let writer = ParquetTableWriter::<CntInDirTableBuilder>::new(
-        c_in_d.join("0.parquet"),
-        c_in_d_schema,
-        ParquetTableWriterConfig::default(),
+    let writer = ParallelDatasetWriter::<ParquetTableWriter<_>>::with_schema(c_in_d, c_in_d_schema)
+        .context("Could not create contents_in_frontier_directories writer")?;
+    swh_graph_provenance::contents_in_directories::write_directories_from_contents(
+        &graph,
+        &frontier_directories,
+        writer,
     )
-    .context("Could not create contents_in_frontier_directories writer")?;
-    writer
-        .close()
-        .context("Could not close contents_in_frontier_directories writer")?;
+    .context("Could not generate contents_in_frontier_directories")?;
 
     // directories-in-revisions
     let d_in_r = path.join("frontier_directories_in_revisions");
@@ -265,15 +292,17 @@ pub fn gen_database(path: PathBuf) -> Result<()> {
         dir_in_revrel_writer_properties(&graph).build(),
     );
     create_dir_all(&d_in_r).with_context(|| format!("Could not create {}", d_in_r.display()))?;
-    let writer = ParquetTableWriter::<DirInRevrelTableBuilder>::new(
-        d_in_r.join("0.parquet"),
-        d_in_r_schema,
-        ParquetTableWriterConfig::default(),
+    let writer = ParallelDatasetWriter::<ParquetTableWriter<_>>::with_schema(d_in_r, d_in_r_schema)
+        .context("Could not create frontier_directories_in_revisions writer")?;
+    swh_graph_provenance::directories_in_revisions::write_revisions_from_frontier_directories(
+        &graph,
+        &max_timestamps[..],
+        NodeFilter::All,
+        None, // reachable nodes
+        &frontier_directories,
+        writer,
     )
-    .context("Could not create frontier_directories_in_revisions writer")?;
-    writer
-        .close()
-        .context("Could not close frontier_directories_in_revisions writer")?;
+    .context("Could not generate frontier_directories_in_revisions")?;
 
     let graph_path = path.join("graph.json");
     let file = std::fs::File::create(&graph_path)

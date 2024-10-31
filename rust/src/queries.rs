@@ -33,6 +33,16 @@ use crate::proto;
 
 pub type NodeId = u64;
 
+#[derive(Default, Debug)]
+pub struct Metrics {
+    c_in_r_init: TableScanInitMetrics,
+    c_in_r_scan: TableScanMetrics,
+    _c_in_d_init: TableScanInitMetrics,
+    _c_in_d_scan: TableScanMetrics,
+    _d_in_r_init: TableScanInitMetrics,
+    _d_in_r_scan: TableScanMetrics,
+}
+
 /// Given a Parquet schema and a list of columns, returns a [`ProjectionMask`] that can be passed
 /// to [`parquet`] to select which columns to read.
 fn projection_mask(
@@ -332,28 +342,23 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
         Ok(swhids)
     }
 
-    /// Given a content SWHID, returns any of the revision/release that SWHID is in.
+    /// Given a [`NodeId`], returns some records from the contents-in-revision table
     #[instrument(skip(self))]
-    pub async fn where_is_one(
+    pub async fn query_c_in_r(
         &self,
-        swhid: String,
+        node_ids: Arc<Vec<NodeId>>,
     ) -> Result<
-        Result<
-            (
-                TableScanInitMetrics,
-                TableScanMetrics,
-                proto::WhereIsOneResult,
-            ),
-            tonic::Status,
-        >,
+        (
+            TableScanInitMetrics,
+            TableScanMetrics,
+            Vec<RecordBatch>,
+        ),
     > {
-        let node_ids = Arc::new(self.node_id(&[&swhid]).await??);
-
-        if span_enabled!(Level::TRACE) {
-            tracing::trace!("Query node ids: {:?}", node_ids)
-        }
-
         tracing::debug!("Looking up c_in_r");
+
+        if node_ids.len() > 1 {
+            unimplemented!("Querying c-in-r with more than one node id");
+        }
 
         // Start reading from the table
         let schema = Arc::new(Schema::new(vec![
@@ -377,7 +382,7 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
 
         // Read batches of rows, stopping after the first one
         let mut remaining_rows = limit;
-        let c_in_r_batches = c_in_r_stream
+        let batches = c_in_r_stream
             .take_while(move |batch| {
                 std::future::ready(match batch {
                     Ok(batch) => {
@@ -394,11 +399,30 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
             .collect::<Result<Vec<_>>>()?;
         tracing::trace!("Got c_in_r_batches");
         if span_enabled!(Level::TRACE) {
-            tracing::trace!("Anchor node ids: {:?}", c_in_r_batches,)
+            tracing::trace!("Anchor node ids: {:?}", batches)
         }
         let scan_metrics =
             Arc::try_unwrap(scan_metrics).expect("Dangling reference to scan_metrics");
         tracing::debug!("Scan metrics: {:#?}", scan_metrics);
+        Ok((scan_init_metrics, scan_metrics, batches))
+    }
+
+    /// Given a content SWHID, returns any of the revision/release that SWHID is in.
+    #[instrument(skip(self))]
+    pub async fn where_is_one(
+        &self,
+        swhid: String,
+    ) -> Result<Result<(Metrics, proto::WhereIsOneResult), tonic::Status>> {
+        let mut metrics = Metrics::default();
+        let node_ids = Arc::new(self.node_id(&[&swhid]).await??);
+
+        if span_enabled!(Level::TRACE) {
+            tracing::trace!("Query node ids: {:?}", node_ids)
+        }
+
+        let (scan_init_metrics, scan_metrics, c_in_r_batches) = self.query_c_in_r(node_ids).await?;
+        metrics.c_in_r_init = scan_init_metrics;
+        metrics.c_in_r_scan = scan_metrics;
 
         // Translate results' node ids to SWHIDs
         // Note: c_in_r_batches may have more than one row; the above filter only guarantees there
@@ -408,8 +432,7 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
         // And return the first result
         if let Some((cnt, revrel)) = anchors.pop() {
             return Ok(Ok((
-                scan_init_metrics,
-                scan_metrics,
+                metrics,
                 proto::WhereIsOneResult {
                     swhid: cnt.to_string(),
                     anchor: revrel.map(|revrel| revrel.to_string()),
@@ -424,8 +447,7 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
 
         // No result
         Ok(Ok((
-            scan_init_metrics,
-            scan_metrics,
+            metrics,
             proto::WhereIsOneResult {
                 swhid,
                 ..Default::default()

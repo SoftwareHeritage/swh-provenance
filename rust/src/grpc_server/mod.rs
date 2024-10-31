@@ -56,7 +56,7 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
         tracing::info!("{:?}", request.get_ref());
 
         match self.0.where_is_one(request.into_inner().swhid).await {
-            Ok(Ok((_scan_init_metrics, _scan_metrics, result))) => Ok(Response::new(result)),
+            Ok(Ok((_metrics, result))) => Ok(Response::new(result)),
             Ok(Err(e)) => Err(e), // client error
             Err(e) => {
                 // server error
@@ -91,7 +91,7 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
                     let whereis_service: ProvenanceServiceWrapper<G> = whereis_service.clone(); // ditto
                     async move {
                         match whereis_service.0.where_is_one(swhid).await {
-                            Ok(Ok((_scan_init_metrics, _scan_metrics, result))) => Ok(result),
+                            Ok(Ok((_metrics, result))) => Ok(result),
                             Ok(Err(e)) => Err(e), // client error
                             Err(e) => {
                                 // server error

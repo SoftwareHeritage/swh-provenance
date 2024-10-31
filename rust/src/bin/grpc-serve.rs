@@ -13,8 +13,8 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
 use swh_graph::graph::SwhBidirectionalGraph;
-use swh_graph::SwhGraphProperties;
 use swh_graph::properties;
+use swh_graph::SwhGraphProperties;
 
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc; // Allocator recommended by Datafusion

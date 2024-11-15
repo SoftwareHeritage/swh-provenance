@@ -37,10 +37,10 @@ pub type NodeId = u64;
 pub struct Metrics {
     c_in_r_init: TableScanInitMetrics,
     c_in_r_scan: TableScanMetrics,
-    _c_in_d_init: TableScanInitMetrics,
-    _c_in_d_scan: TableScanMetrics,
-    _d_in_r_init: TableScanInitMetrics,
-    _d_in_r_scan: TableScanMetrics,
+    c_in_d_init: TableScanInitMetrics,
+    c_in_d_scan: TableScanMetrics,
+    d_in_r_init: TableScanInitMetrics,
+    d_in_r_scan: TableScanMetrics,
 }
 
 /// Given a Parquet schema and a list of columns, returns a [`ProjectionMask`] that can be passed
@@ -72,6 +72,7 @@ fn projection_mask(
 async fn query_x_in_y_table<'a>(
     table: &'a Table,
     expected_schema: Arc<Schema>,
+    table_name: &'static str,
     key_column: &'static str,
     value_column: &'static str,
     keys: Arc<Vec<u64>>,
@@ -161,6 +162,7 @@ async fn query_x_in_y_table<'a>(
     /// only rows matching the given keys, and with a limited number of results.
     struct Configurator {
         expected_schema: Arc<Schema>,
+        table_name: &'static str,
         key_column: &'static str,
         value_column: &'static str,
         keys: Arc<Vec<u64>>,
@@ -197,7 +199,7 @@ async fn query_x_in_y_table<'a>(
                 reader_builder.parquet_schema(),
                 [self.key_column, self.value_column],
             )
-            .context("Could not project {} table for reading")?;
+            .with_context(|| format!("Could not project {} table for reading", self.table_name))?;
             reader_builder = reader_builder.with_projection(projection);
 
             // Further configure the reader builders to only return rows that
@@ -206,7 +208,9 @@ async fn query_x_in_y_table<'a>(
             let row_filter = RowFilter::new(vec![Box::new(Predicate {
                 // Don't read the other columns yet, we don't need them for filtering
                 projection: projection_mask(reader_builder.parquet_schema(), [self.key_column])
-                    .context("Could not project table for filtering")?,
+                    .with_context(|| {
+                        format!("Could not project {} table for filtering", self.table_name)
+                    })?,
                 key_column: self.key_column,
                 keys: Arc::clone(&self.keys),
                 metrics: Arc::clone(&self.metrics),
@@ -233,6 +237,7 @@ async fn query_x_in_y_table<'a>(
             Arc::clone(&keys),
             Arc::new(Configurator {
                 expected_schema,
+                table_name,
                 key_column,
                 value_column,
                 keys,
@@ -347,13 +352,7 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
     pub async fn query_c_in_r(
         &self,
         node_ids: Arc<Vec<NodeId>>,
-    ) -> Result<
-        (
-            TableScanInitMetrics,
-            TableScanMetrics,
-            Vec<RecordBatch>,
-        ),
-    > {
+    ) -> Result<(TableScanInitMetrics, TableScanMetrics, Vec<RecordBatch>)> {
         tracing::debug!("Looking up c_in_r");
 
         if node_ids.len() > 1 {
@@ -370,6 +369,7 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
         let (scan_init_metrics, scan_metrics, c_in_r_stream) = query_x_in_y_table(
             &self.db.c_in_r,
             schema,
+            "c_in_d", // table name, for error messages
             "cnt",
             "revrel",
             node_ids,
@@ -407,6 +407,105 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
         Ok((scan_init_metrics, scan_metrics, batches))
     }
 
+    /// Given a [`NodeId`], returns a stream of records from the contents-in-directory table
+    #[instrument(skip(self))]
+    pub async fn query_c_in_d(
+        &self,
+        node_ids: Arc<Vec<NodeId>>,
+    ) -> Result<(
+        TableScanInitMetrics,
+        Arc<TableScanMetrics>,
+        impl Stream<Item = Result<RecordBatch>> + use<'_, G>,
+    )> {
+        tracing::debug!("Looking up c_in_d");
+
+        if node_ids.len() > 1 {
+            unimplemented!("Querying c-in-d with more than one node id");
+        }
+
+        // Start reading from the table
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("cnt", DataType::UInt64, false),
+            Field::new("dir", DataType::UInt64, false),
+            Field::new("path", DataType::Binary, false),
+        ]));
+        let (scan_init_metrics, scan_metrics, c_in_d_stream) = query_x_in_y_table(
+            &self.db.c_in_d,
+            schema,
+            "c_in_d", // table name, for error messages
+            "cnt",
+            "dir",
+            node_ids,
+            None, // no limit
+        )
+        .await
+        .context("Could not query c_in_d")?;
+        tracing::trace!("Got c_in_d_stream");
+        tracing::debug!("Scan init metrics: {:#?}", scan_init_metrics);
+
+        Ok((scan_init_metrics, scan_metrics, c_in_d_stream))
+    }
+
+    /// Given a [`NodeId`], returns some records from the contents-in-revision table
+    #[instrument(skip(self))]
+    pub async fn query_d_in_r(
+        &self,
+        node_ids: Arc<Vec<NodeId>>,
+    ) -> Result<(TableScanInitMetrics, TableScanMetrics, Vec<RecordBatch>)> {
+        tracing::debug!("Looking up d_in_r");
+
+        if node_ids.len() > 1 {
+            unimplemented!("Querying c-in-r with more than one node id");
+        }
+
+        // Start reading from the table
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("dir", DataType::UInt64, false),
+            Field::new("revrel", DataType::UInt64, false),
+            Field::new("path", DataType::Binary, false),
+        ]));
+        let limit = 1;
+        let (scan_init_metrics, scan_metrics, d_in_r_stream) = query_x_in_y_table(
+            &self.db.d_in_r,
+            schema,
+            "d_in_r", // table name, for error messages
+            "dir",
+            "revrel",
+            node_ids,
+            Some(limit),
+        )
+        .await
+        .context("Could not query d_in_r")?;
+        tracing::trace!("Got d_in_r_stream");
+        tracing::debug!("Scan init metrics: {:#?}", scan_init_metrics);
+
+        // Read batches of rows, stopping after the first one
+        let mut remaining_rows = limit;
+        let batches = d_in_r_stream
+            .take_while(move |batch| {
+                std::future::ready(match batch {
+                    Ok(batch) => {
+                        let res = remaining_rows > 0;
+                        remaining_rows = remaining_rows.saturating_sub(batch.num_rows());
+                        res
+                    }
+                    Err(_) => true,
+                })
+            })
+            .collect::<FuturesUnordered<_>>()
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>>>()?;
+        tracing::trace!("Got d_in_r_batches");
+        if span_enabled!(Level::TRACE) {
+            tracing::trace!("Anchor node ids: {:?}", batches)
+        }
+        let scan_metrics =
+            Arc::try_unwrap(scan_metrics).expect("Dangling reference to scan_metrics");
+        tracing::debug!("Scan metrics: {:#?}", scan_metrics);
+        Ok((scan_init_metrics, scan_metrics, batches))
+    }
+
     /// Given a content SWHID, returns any of the revision/release that SWHID is in.
     #[instrument(skip(self))]
     pub async fn where_is_one(
@@ -420,7 +519,8 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
             tracing::trace!("Query node ids: {:?}", node_ids)
         }
 
-        let (scan_init_metrics, scan_metrics, c_in_r_batches) = self.query_c_in_r(node_ids).await?;
+        let (scan_init_metrics, scan_metrics, c_in_r_batches) =
+            self.query_c_in_r(Arc::clone(&node_ids)).await?;
         metrics.c_in_r_init = scan_init_metrics;
         metrics.c_in_r_scan = scan_metrics;
 
@@ -441,9 +541,76 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
             )));
         }
 
-        /* TODO:
         tracing::debug!("Looking up c_in_d + d_in_r");
-        */
+        // First look up the list of directories
+        let (c_in_d_scan_init_metrics, c_in_d_scan_metrics, mut c_in_d_batches) =
+            self.query_c_in_d(Arc::clone(&node_ids)).await?;
+        metrics.c_in_d_init = c_in_d_scan_init_metrics;
+        while let Some(c_in_d_batch) = c_in_d_batches.next().await {
+            let c_in_d_batch = c_in_d_batch?;
+            let dirs = c_in_d_batch
+                .column_by_name("dir")
+                .context("Could not get 'dir' column from batch")?
+                .as_primitive_opt::<UInt64Type>()
+                .context("'dir' column is not UInt64Array")?;
+            // For each directory...
+            for dir in dirs {
+                let dir = dir.expect("'dir' is null");
+                // ...query the list of revisions this directory is in
+                // TODO: query more than one directory at once
+                let (scan_init_metrics, scan_metrics, d_in_r_batches) =
+                    self.query_d_in_r(Arc::new(vec![dir])).await?;
+                metrics.d_in_r_init += scan_init_metrics;
+                metrics.d_in_r_scan += scan_metrics;
+
+                // Join the single content with the results from d_in_r.
+                // XXX: This is going to be more complicated when this function adds support for
+                // multiple contents at once!
+                let Some(d_in_r_batch) = d_in_r_batches.into_iter().next() else {
+                    // Directory is in no revisions?!
+                    continue;
+                };
+                assert_eq!(node_ids.len(), 1);
+                let &node_id = node_ids.first().unwrap();
+                let batch = RecordBatch::try_from_iter([
+                    (
+                        "cnt",
+                        Arc::new(UInt64Array::from_iter(std::iter::repeat_n(
+                            node_id,
+                            d_in_r_batch.num_rows(),
+                        ))) as _,
+                    ),
+                    (
+                        "revrel",
+                        Arc::clone(
+                            d_in_r_batch
+                                .column_by_name("revrel")
+                                .context("Could not get 'revrel' column from batch")?,
+                        ),
+                    ),
+                ])
+                .context("Could not build RecordBatch of cnt and revrel")?;
+
+                // Translate results' node ids to SWHIDs
+                // Note: d_in_r_batches may have more than one row; the above filter only guarantees there
+                // is at most one RecordBatch.
+                let mut anchors = self.swhid(vec![batch], "cnt", "revrel").await?;
+
+                // And return the first result
+                if let Some((cnt, revrel)) = anchors.pop() {
+                    metrics.c_in_d_scan += c_in_d_scan_metrics;
+                    return Ok(Ok((
+                        metrics,
+                        proto::WhereIsOneResult {
+                            swhid: cnt.to_string(),
+                            anchor: revrel.map(|revrel| revrel.to_string()),
+                            origin: None,
+                        },
+                    )));
+                }
+            }
+        }
+        metrics.c_in_d_scan += c_in_d_scan_metrics;
 
         // No result
         Ok(Ok((

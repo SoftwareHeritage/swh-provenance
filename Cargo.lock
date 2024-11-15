@@ -3078,7 +3078,7 @@ dependencies = [
 [[package]]
 name = "parquet_aramid"
 version = "0.1.0"
-source = "git+https://gitlab.softwareheritage.org/swh/devel/parquet_aramid-rs.git?rev=a81ada191a067ec1a65a0af6ab28c47e57890681#a81ada191a067ec1a65a0af6ab28c47e57890681"
+source = "git+https://gitlab.softwareheritage.org/swh/devel/parquet_aramid-rs.git?rev=a1f3a854c244c8313f9994c10e4b2a921f2e0c46#a1f3a854c244c8313f9994c10e4b2a921f2e0c46"
 dependencies = [
  "anyhow",
  "arrow 53.1.0",

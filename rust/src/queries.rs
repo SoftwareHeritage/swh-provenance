@@ -251,6 +251,32 @@ async fn query_x_in_y_table<'a>(
     Ok((scan_init_metrics, scan_metrics, stream))
 }
 
+/// Reads a stream of [`RecordBatch`], and stops once `limit` rows were obtained.
+///
+/// The total number of rows returns may be larger than `limit`, as it contains
+/// the whole batch that reached the `limit` at the end.
+async fn consume_batch_stream(
+    stream: impl Stream<Item = Result<RecordBatch>>,
+    limit: usize,
+) -> Result<Vec<RecordBatch>> {
+    let mut remaining_rows = limit;
+    stream
+        .take_while(move |batch| {
+            std::future::ready(match batch {
+                Ok(batch) => {
+                    let res = remaining_rows > 0;
+                    remaining_rows = remaining_rows.saturating_sub(batch.num_rows());
+                    res
+                }
+                Err(_) => true,
+            })
+        })
+        .collect::<FuturesUnordered<_>>()
+        .await
+        .into_iter()
+        .collect()
+}
+
 pub struct ProvenanceService<
     G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync + 'static,
 > {
@@ -381,22 +407,7 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
         tracing::debug!("Scan init metrics: {:#?}", scan_init_metrics);
 
         // Read batches of rows, stopping after the first one
-        let mut remaining_rows = limit;
-        let batches = c_in_r_stream
-            .take_while(move |batch| {
-                std::future::ready(match batch {
-                    Ok(batch) => {
-                        let res = remaining_rows > 0;
-                        remaining_rows = remaining_rows.saturating_sub(batch.num_rows());
-                        res
-                    }
-                    Err(_) => true,
-                })
-            })
-            .collect::<FuturesUnordered<_>>()
-            .await
-            .into_iter()
-            .collect::<Result<Vec<_>>>()?;
+        let batches = consume_batch_stream(c_in_r_stream, limit).await?;
         tracing::trace!("Got c_in_r_batches");
         if span_enabled!(Level::TRACE) {
             tracing::trace!("Anchor node ids: {:?}", batches)
@@ -480,22 +491,7 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
         tracing::debug!("Scan init metrics: {:#?}", scan_init_metrics);
 
         // Read batches of rows, stopping after the first one
-        let mut remaining_rows = limit;
-        let batches = d_in_r_stream
-            .take_while(move |batch| {
-                std::future::ready(match batch {
-                    Ok(batch) => {
-                        let res = remaining_rows > 0;
-                        remaining_rows = remaining_rows.saturating_sub(batch.num_rows());
-                        res
-                    }
-                    Err(_) => true,
-                })
-            })
-            .collect::<FuturesUnordered<_>>()
-            .await
-            .into_iter()
-            .collect::<Result<Vec<_>>>()?;
+        let batches = consume_batch_stream(d_in_r_stream, limit).await?;
         tracing::trace!("Got d_in_r_batches");
         if span_enabled!(Level::TRACE) {
             tracing::trace!("Anchor node ids: {:?}", batches)

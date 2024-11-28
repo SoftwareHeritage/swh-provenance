@@ -373,17 +373,18 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
         Ok(swhids)
     }
 
-    /// Given a [`NodeId`], returns some records from the contents-in-revision table
+    /// Given a [`NodeId`], returns a stream of records from the contents-in-revision table
     #[instrument(skip(self))]
     pub async fn query_c_in_r(
         &self,
         node_ids: Arc<Vec<NodeId>>,
-    ) -> Result<(TableScanInitMetrics, TableScanMetrics, Vec<RecordBatch>)> {
+        limit: Option<usize>,
+    ) -> Result<(
+        TableScanInitMetrics,
+        Arc<TableScanMetrics>,
+        impl Stream<Item = Result<RecordBatch>> + use<'_, G>,
+    )> {
         tracing::debug!("Looking up c_in_r");
-
-        if node_ids.len() > 1 {
-            unimplemented!("Querying c-in-r with more than one node id");
-        }
 
         // Start reading from the table
         let schema = Arc::new(Schema::new(vec![
@@ -391,7 +392,6 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
             Field::new("revrel", DataType::UInt64, false),
             Field::new("path", DataType::Binary, false),
         ]));
-        let limit = 1;
         let (scan_init_metrics, scan_metrics, c_in_r_stream) = query_x_in_y_table(
             &self.db.c_in_r,
             schema,
@@ -399,12 +399,27 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
             "cnt",
             "revrel",
             node_ids,
-            Some(limit),
+            limit,
         )
         .await
         .context("Could not query c_in_r")?;
         tracing::trace!("Got c_in_r_stream");
         tracing::debug!("Scan init metrics: {:#?}", scan_init_metrics);
+
+        Ok((scan_init_metrics, scan_metrics, c_in_r_stream))
+    }
+
+    /// Given a [`NodeId`], returns some records from the contents-in-revision table
+    #[instrument(skip(self))]
+    pub async fn query_c_in_r_one(
+        &self,
+        node_id: NodeId,
+    ) -> Result<(TableScanInitMetrics, TableScanMetrics, Vec<RecordBatch>)> {
+        let limit = 1;
+
+        let (scan_init_metrics, scan_metrics, c_in_r_stream) = self
+            .query_c_in_r(Arc::new(vec![node_id]), Some(limit))
+            .await?;
 
         // Read batches of rows, stopping after the first one
         let batches = consume_batch_stream(c_in_r_stream, limit).await?;
@@ -429,10 +444,6 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
         impl Stream<Item = Result<RecordBatch>> + use<'_, G>,
     )> {
         tracing::debug!("Looking up c_in_d");
-
-        if node_ids.len() > 1 {
-            unimplemented!("Querying c-in-d with more than one node id");
-        }
 
         // Start reading from the table
         let schema = Arc::new(Schema::new(vec![
@@ -462,12 +473,13 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
     pub async fn query_d_in_r(
         &self,
         node_ids: Arc<Vec<NodeId>>,
-    ) -> Result<(TableScanInitMetrics, TableScanMetrics, Vec<RecordBatch>)> {
+        limit: Option<usize>,
+    ) -> Result<(
+        TableScanInitMetrics,
+        Arc<TableScanMetrics>,
+        impl Stream<Item = Result<RecordBatch>> + use<'_, G>,
+    )> {
         tracing::debug!("Looking up d_in_r");
-
-        if node_ids.len() > 1 {
-            unimplemented!("Querying c-in-r with more than one node id");
-        }
 
         // Start reading from the table
         let schema = Arc::new(Schema::new(vec![
@@ -475,7 +487,6 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
             Field::new("revrel", DataType::UInt64, false),
             Field::new("path", DataType::Binary, false),
         ]));
-        let limit = 1;
         let (scan_init_metrics, scan_metrics, d_in_r_stream) = query_x_in_y_table(
             &self.db.d_in_r,
             schema,
@@ -483,12 +494,27 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
             "dir",
             "revrel",
             node_ids,
-            Some(limit),
+            limit,
         )
         .await
         .context("Could not query d_in_r")?;
         tracing::trace!("Got d_in_r_stream");
         tracing::debug!("Scan init metrics: {:#?}", scan_init_metrics);
+
+        Ok((scan_init_metrics, scan_metrics, d_in_r_stream))
+    }
+
+    /// Given a [`NodeId`], returns some records from the contents-in-revision table
+    #[instrument(skip(self))]
+    pub async fn query_d_in_r_one(
+        &self,
+        node_id: NodeId,
+    ) -> Result<(TableScanInitMetrics, TableScanMetrics, Vec<RecordBatch>)> {
+        let limit = 1;
+
+        let (scan_init_metrics, scan_metrics, d_in_r_stream) = self
+            .query_d_in_r(Arc::new(vec![node_id]), Some(limit))
+            .await?;
 
         // Read batches of rows, stopping after the first one
         let batches = consume_batch_stream(d_in_r_stream, limit).await?;
@@ -509,14 +535,18 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
         swhid: String,
     ) -> Result<Result<(Metrics, proto::WhereIsOneResult), tonic::Status>> {
         let mut metrics = Metrics::default();
-        let node_ids = Arc::new(self.node_id(&[&swhid]).await??);
+        let node_id = self
+            .node_id(&[&swhid])
+            .await??
+            .pop()
+            .expect("node_id returned empty Ok result");
 
         if span_enabled!(Level::TRACE) {
-            tracing::trace!("Query node ids: {:?}", node_ids)
+            tracing::trace!("Query node id: {}", node_id)
         }
 
         let (scan_init_metrics, scan_metrics, c_in_r_batches) =
-            self.query_c_in_r(Arc::clone(&node_ids)).await?;
+            self.query_c_in_r_one(node_id).await?;
         metrics.c_in_r_init = scan_init_metrics;
         metrics.c_in_r_scan = scan_metrics;
 
@@ -540,7 +570,7 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
         tracing::debug!("Looking up c_in_d + d_in_r");
         // First look up the list of directories
         let (c_in_d_scan_init_metrics, c_in_d_scan_metrics, mut c_in_d_batches) =
-            self.query_c_in_d(Arc::clone(&node_ids)).await?;
+            self.query_c_in_d(Arc::new(vec![node_id])).await?;
         metrics.c_in_d_init = c_in_d_scan_init_metrics;
         while let Some(c_in_d_batch) = c_in_d_batches.next().await {
             let c_in_d_batch = c_in_d_batch?;
@@ -553,9 +583,8 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
             for dir in dirs {
                 let dir = dir.expect("'dir' is null");
                 // ...query the list of revisions this directory is in
-                // TODO: query more than one directory at once
                 let (scan_init_metrics, scan_metrics, d_in_r_batches) =
-                    self.query_d_in_r(Arc::new(vec![dir])).await?;
+                    self.query_d_in_r_one(dir).await?;
                 metrics.d_in_r_init += scan_init_metrics;
                 metrics.d_in_r_scan += scan_metrics;
 
@@ -563,11 +592,15 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
                 // XXX: This is going to be more complicated when this function adds support for
                 // multiple contents at once!
                 let Some(d_in_r_batch) = d_in_r_batches.into_iter().next() else {
-                    // Directory is in no revisions?!
+                    // Shouldn't happen
+                    tracing::error!(
+                        "Directory {} is in no revision?!",
+                        self.graph
+                            .properties()
+                            .swhid(dir.try_into().expect("Node id overflowed usize"))
+                    );
                     continue;
                 };
-                assert_eq!(node_ids.len(), 1);
-                let &node_id = node_ids.first().unwrap();
                 let batch = RecordBatch::try_from_iter([
                     (
                         "cnt",

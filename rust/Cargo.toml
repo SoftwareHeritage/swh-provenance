@@ -14,7 +14,7 @@ rust-version = "1.80"
 anyhow = { version="1.0.79", features=["backtrace"] }
 itertools = "0.13.0"
 mimalloc = { version = "0.1", default-features = false }
-swh-graph = { git = "https://gitlab.softwareheritage.org/swh/devel/swh-graph.git", rev = "028b7c5a739d43fb99a8dea99b9e463bb6725748"  }
+swh-graph = { git = "https://gitlab.softwareheritage.org/swh/devel/swh-graph.git", rev = "cad977fbe2f73f63788224130a24dc3fe23516a4"  }
 
 # CLI & logging
 cadence = "1.4.0"
@@ -31,7 +31,7 @@ object_store = { version = "0.11.0", default-features = false }
 url = "2.2"
 parquet_aramid = { git = "https://gitlab.softwareheritage.org/swh/devel/parquet_aramid-rs.git", rev = "a1f3a854c244c8313f9994c10e4b2a921f2e0c46", features = ["rayon"] }
 #parquet_aramid = { path = "../../parquet_aramid-rs", features = ["rayon"] }
-swh_graph_provenance = { git = "https://gitlab.softwareheritage.org/swh/devel/swh-graph.git", rev = "028b7c5a739d43fb99a8dea99b9e463bb6725748"  }
+swh_graph_provenance = { git = "https://gitlab.softwareheritage.org/swh/devel/swh-graph.git", rev = "cad977fbe2f73f63788224130a24dc3fe23516a4"  }
 dataset-writer = { version = "1.1.0", features = ["parquet"] } # to generate test databases
 
 # Elias-Fano index

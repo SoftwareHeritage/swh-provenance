@@ -19,6 +19,7 @@ use swh_graph_provenance::filters::NodeFilter;
 use swh_graph_provenance::x_in_y_dataset::{
     cnt_in_dir_schema, cnt_in_dir_writer_properties, cnt_in_revrel_schema,
     cnt_in_revrel_writer_properties, dir_in_revrel_schema, dir_in_revrel_writer_properties,
+    revrel_in_ori_schema, revrel_in_ori_writer_properties,
 };
 
 pub fn gen_graph() -> BuiltGraph {
@@ -303,6 +304,18 @@ pub fn gen_database(path: PathBuf) -> Result<()> {
         writer,
     )
     .context("Could not generate frontier_directories_in_revisions")?;
+
+    // revisions-in-origins
+    let r_in_o = path.join("revisions_in_origins");
+    let r_in_o_schema = (
+        Arc::new(revrel_in_ori_schema()),
+        revrel_in_ori_writer_properties(&graph).build(),
+    );
+    create_dir_all(&r_in_o).with_context(|| format!("Could not create {}", r_in_o.display()))?;
+    let writer = ParallelDatasetWriter::<ParquetTableWriter<_>>::with_schema(r_in_o, r_in_o_schema)
+        .context("Could not create revisions_in_origins writer")?;
+    swh_graph_provenance::revisions_in_origins::main(&graph, NodeFilter::All, writer)
+        .context("Could not generate frontier_directories_in_revisions")?;
 
     let graph_path = path.join("graph.json");
     let file = std::fs::File::create(&graph_path)

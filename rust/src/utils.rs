@@ -17,7 +17,7 @@ use crate::graph::MockSwhGraph;
 
 pub fn load_graph_properties(
     path: PathBuf,
-) -> Result<impl SwhGraphWithProperties<Maps: properties::Maps>> {
+) -> Result<impl SwhGraphWithProperties<Maps: properties::Maps, Strings: properties::Strings>> {
     let node_count_path = path.with_extension("nodes.count.txt");
     let mut num_nodes = String::new();
     std::fs::File::open(&node_count_path)
@@ -33,7 +33,9 @@ pub fn load_graph_properties(
     })?;
     let properties = SwhGraphProperties::new(path.clone(), num_nodes)
         .load_maps::<swh_graph::mph::DynMphf>()
-        .context("Could not load graph maps")?;
+        .context("Could not load graph maps")?
+        .load_strings()
+        .context("Could not load graph strings")?;
     log::info!("Graph loaded");
     Ok(MockSwhGraph {
         path,

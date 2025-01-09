@@ -336,6 +336,7 @@ impl<
 
     /// Given a RecordBatch with a column of `NodeId` and one of `Option<NodeId>`, converts
     /// all the node ids into SWHIDs and returns the pairs in any order.
+    #[allow(clippy::type_complexity)]
     #[instrument(skip(self, node_id_batches))]
     async fn swhid(
         &self,

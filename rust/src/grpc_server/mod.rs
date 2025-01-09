@@ -128,18 +128,6 @@ impl<
                 .collect::<FuturesUnordered<_>>(), // Run each request concurrently
         )))
     }
-
-    // TODO: When impl_trait_in_assoc_type is stabilized, replace this with an 'impl'
-    // to avoid the dynamic dispatch:
-    type WhereIsStream =
-        Box<dyn futures::Stream<Item = Result<proto::WhereIsResult, tonic::Status>> + Unpin + Send>;
-    #[instrument(skip(self, request), err(level = Level::INFO))]
-    async fn where_is(
-        &self,
-        request: Request<proto::WhereIsRequest>,
-    ) -> TonicResult<Self::WhereIsStream> {
-        unimplemented!("where_is")
-    }
 }
 
 type TonicResult<T> = Result<tonic::Response<T>, tonic::Status>;

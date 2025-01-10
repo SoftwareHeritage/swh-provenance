@@ -74,7 +74,12 @@ pub fn main() -> Result<()> {
                 .context("Could not initialize provenance database")?;
             log::info!("Database loaded.");
 
-            let tables = [(db.c_in_d, "cnt"), (db.d_in_r, "dir"), (db.c_in_r, "cnt"), (db.r_in_o, "revrel")];
+            let tables = [
+                (db.c_in_d, "cnt"),
+                (db.d_in_r, "dir"),
+                (db.c_in_r, "cnt"),
+                (db.r_in_o, "revrel"),
+            ];
             let mut pl = progress_logger!(
                 item_name = "index",
                 display_memory = true,

@@ -1,0 +1,3 @@
+pyarrow < 19.0.0  # https://github.com/apache/arrow/issues/45283
+swh-graph[luigi]
+psutil

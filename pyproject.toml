@@ -23,6 +23,7 @@ include = ["swh.*"]
 dependencies = {file = ["requirements.txt", "requirements-swh.txt"]}
 
 [tool.setuptools.dynamic.optional-dependencies]
+luigi = {file = ["requirements.txt", "requirements-swh.txt", "requirements-luigi.txt"]}
 testing = {file = ["requirements.txt", "requirements-swh.txt", "requirements-test.txt"]}
 
 [project.entry-points."swh.cli.subcommands"]

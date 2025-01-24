@@ -15,8 +15,8 @@ use swh_graph::graph::*;
 use swh_graph::graph_builder::BuiltGraph;
 use swh_graph::swhid;
 
-use swh_graph_provenance::filters::NodeFilter;
-use swh_graph_provenance::x_in_y_dataset::{
+use swh_provenance_db_build::filters::NodeFilter;
+use swh_provenance_db_build::x_in_y_dataset::{
     cnt_in_dir_schema, cnt_in_dir_writer_properties, cnt_in_revrel_schema,
     cnt_in_revrel_writer_properties, dir_in_revrel_schema, dir_in_revrel_writer_properties,
 };
@@ -260,7 +260,7 @@ pub fn gen_database(path: PathBuf) -> Result<()> {
     create_dir_all(&c_in_r).with_context(|| format!("Could not create {}", c_in_r.display()))?;
     let writer = ParallelDatasetWriter::<ParquetTableWriter<_>>::with_schema(c_in_r, c_in_r_schema)
         .context("Could not create contents_in_revisions_without_frontiers writer")?;
-    swh_graph_provenance::contents_in_revisions::write_revisions_from_contents(
+    swh_provenance_db_build::contents_in_revisions::write_revisions_from_contents(
         &graph,
         NodeFilter::All,
         None, // reachable nodes
@@ -278,7 +278,7 @@ pub fn gen_database(path: PathBuf) -> Result<()> {
     create_dir_all(&c_in_d).with_context(|| format!("Could not create {}", c_in_d.display()))?;
     let writer = ParallelDatasetWriter::<ParquetTableWriter<_>>::with_schema(c_in_d, c_in_d_schema)
         .context("Could not create contents_in_frontier_directories writer")?;
-    swh_graph_provenance::contents_in_directories::write_directories_from_contents(
+    swh_provenance_db_build::contents_in_directories::write_directories_from_contents(
         &graph,
         &frontier_directories,
         writer,
@@ -294,7 +294,7 @@ pub fn gen_database(path: PathBuf) -> Result<()> {
     create_dir_all(&d_in_r).with_context(|| format!("Could not create {}", d_in_r.display()))?;
     let writer = ParallelDatasetWriter::<ParquetTableWriter<_>>::with_schema(d_in_r, d_in_r_schema)
         .context("Could not create frontier_directories_in_revisions writer")?;
-    swh_graph_provenance::directories_in_revisions::write_revisions_from_frontier_directories(
+    swh_provenance_db_build::directories_in_revisions::write_revisions_from_frontier_directories(
         &graph,
         &max_timestamps[..],
         NodeFilter::All,

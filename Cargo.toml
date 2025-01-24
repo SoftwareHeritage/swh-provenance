@@ -3,6 +3,7 @@
 resolver = "2"
 
 members = [
+    "db-build",
     "rust",
 ]
 
@@ -10,6 +11,10 @@ members = [
 version = "0.2.2"
 
 [workspace.dependencies]
+swh-graph = { git = "https://gitlab.softwareheritage.org/swh/devel/swh-graph.git", rev = "fb8faddbbb9eedfd0b628cc1f6b647f09ec8178b" }
+swh-provenance-db-build = { path = "db-build/", version = "0.2.2" }
+#dataset-writer = { version = "1.2.0", features = ["parquet"] }
+dataset-writer = { git = "https://gitlab.softwareheritage.org/swh/devel/dataset-writer-rs.git", rev = "c76569daa9bdd1da07c1b964708c007a05ee0d84", features = ["parquet"] }
 
 
 [profile.release]

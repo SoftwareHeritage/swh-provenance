@@ -251,7 +251,7 @@ def timestamps_bin_to_csv(bin_timestamps_path: Path) -> List[str]:
     # See rust/src/swhtype.rs
     type_map = {0: "cnt", 1: "dir", 2: "ori", 3: "rev", 4: "rel", 5: "snp"}
     swhids = [
-        f"swh:{bin_swhids[i]}:{type_map[bin_swhids[i+1]]}:{bin_swhids[i+2:i+22].hex()}"
+        f"swh:{bin_swhids[i]}:{type_map[bin_swhids[i + 1]]}:{bin_swhids[i + 2:i + 22].hex()}"
         for i in range(0, len(bin_swhids), 22)
     ]
 

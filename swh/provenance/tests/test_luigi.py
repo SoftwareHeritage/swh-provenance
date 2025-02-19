@@ -15,7 +15,7 @@ import pyarrow.dataset
 import pytest
 
 from swh.graph.example_dataset import DATASET, DATASET_DIR
-from swh.graph.luigi.provenance import (
+from swh.provenance.luigi import (
     ComputeDirectoryFrontier,
     ComputeEarliestTimestamps,
     ListContentsInFrontierDirectories,

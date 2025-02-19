@@ -51,7 +51,7 @@ class ListProvenanceNodes(luigi.Task):
 
     def run(self) -> None:
         """Runs ``list-provenance-nodes`` from ``tools/provenance``"""
-        from swh.graph.shell import Rust
+        from swh.provenance.shell import Rust
 
         self.provenance_dir.mkdir(exist_ok=True, parents=True)
 
@@ -120,7 +120,7 @@ class ComputeEarliestTimestamps(luigi.Task):
 
     def run(self) -> None:
         """Runs ``compute-earliest-timestamps`` from ``tools/provenance``"""
-        from swh.graph.shell import Rust
+        from swh.provenance.shell import Rust
 
         self.provenance_dir.mkdir(exist_ok=True, parents=True)
 
@@ -194,7 +194,7 @@ class ListDirectoryMaxLeafTimestamp(luigi.Task):
 
     def run(self) -> None:
         """Runs ``list-directory-with-max-leaf-timestamp`` from ``tools/provenance``"""
-        from swh.graph.shell import Rust
+        from swh.provenance.shell import Rust
 
         # fmt: off
         (
@@ -262,7 +262,7 @@ class ComputeDirectoryFrontier(luigi.Task):
         """Runs ``compute-directory-frontier`` from ``tools/provenance``"""
         import multiprocessing
 
-        from swh.graph.shell import Rust
+        from swh.provenance.shell import Rust
 
         # fmt: off
         (
@@ -334,7 +334,7 @@ class ListFrontierDirectoriesInRevisions(luigi.Task):
         """Runs ``org.softwareheritage.graph.utils.ListFrontierDirectoriesInRevisions``"""
         import multiprocessing
 
-        from swh.graph.shell import Rust
+        from swh.provenance.shell import Rust
 
         # fmt: off
         (
@@ -412,7 +412,7 @@ class ListContentsInRevisionsWithoutFrontier(luigi.Task):
         """Runs ``contents-in-revisions-without-frontier`` from ``tools/provenance``"""
         import multiprocessing
 
-        from swh.graph.shell import Rust
+        from swh.provenance.shell import Rust
 
         # fmt: off
         (
@@ -481,7 +481,7 @@ class ListContentsInFrontierDirectories(luigi.Task):
         """Runs ``contents-in-directories`` from ``tools/provenance``"""
         import multiprocessing
 
-        from swh.graph.shell import Rust
+        from swh.provenance.shell import Rust
 
         # fmt: off
         (
@@ -543,7 +543,7 @@ class ListRevisionsInOrigins(luigi.Task):
         """Runs ``contents-in-directories`` from ``tools/provenance``"""
         import multiprocessing
 
-        from swh.graph.shell import Rust
+        from swh.provenance.shell import Rust
 
         # fmt: off
         (

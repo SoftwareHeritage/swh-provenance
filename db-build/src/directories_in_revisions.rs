@@ -42,29 +42,31 @@ where
     pl.start("Visiting revisions' directories...");
     let shared_pl = Arc::new(Mutex::new(&mut pl));
 
-    (0..graph.num_nodes()).into_par_iter().try_for_each_init(
-        || {
-            (
-                dataset_writer.get_thread_writer().unwrap(),
-                BufferedProgressLogger::new(shared_pl.clone()),
-            )
-        },
-        |(writer, thread_pl), node| -> Result<()> {
-            if frontier_directories.get(node) {
-                write_revisions_from_frontier_directory(
-                    graph,
-                    max_timestamps,
-                    node_filter,
-                    reachable_nodes,
-                    frontier_directories,
-                    writer,
-                    node,
-                )?;
-            }
-            thread_pl.light_update();
-            Ok(())
-        },
-    )?;
+    swh_graph::utils::shuffle::par_iter_shuffled_range(0..graph.num_nodes())
+        .into_par_iter()
+        .try_for_each_init(
+            || {
+                (
+                    dataset_writer.get_thread_writer().unwrap(),
+                    BufferedProgressLogger::new(shared_pl.clone()),
+                )
+            },
+            |(writer, thread_pl), node| -> Result<()> {
+                if frontier_directories.get(node) {
+                    write_revisions_from_frontier_directory(
+                        graph,
+                        max_timestamps,
+                        node_filter,
+                        reachable_nodes,
+                        frontier_directories,
+                        writer,
+                        node,
+                    )?;
+                }
+                thread_pl.light_update();
+                Ok(())
+            },
+        )?;
 
     pl.done();
 

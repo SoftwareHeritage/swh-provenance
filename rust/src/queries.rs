@@ -42,6 +42,8 @@ pub struct Metrics {
     c_in_d_scan: TableScanMetrics,
     d_in_r_init: TableScanInitMetrics,
     d_in_r_scan: TableScanMetrics,
+    r_in_o_init: TableScanInitMetrics,
+    r_in_o_scan: TableScanMetrics,
 }
 
 /// Given a Parquet schema and a list of columns, returns a [`ProjectionMask`] that can be passed
@@ -279,14 +281,25 @@ async fn consume_batch_stream(
 }
 
 pub struct ProvenanceService<
-    G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync + 'static,
+    G: SwhGraphWithProperties<
+            Maps: swh_graph::properties::Maps,
+            Strings: swh_graph::properties::Strings,
+        > + Send
+        + Sync
+        + 'static,
 > {
     pub db: ProvenanceDatabase,
     pub graph: G,
 }
 
-impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync + 'static>
-    ProvenanceService<G>
+impl<
+        G: SwhGraphWithProperties<
+                Maps: swh_graph::properties::Maps,
+                Strings: swh_graph::properties::Strings,
+            > + Send
+            + Sync
+            + 'static,
+    > ProvenanceService<G>
 {
     /// Given a list of SWHIDs, returns their ids, in any order
     ///
@@ -324,13 +337,14 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
 
     /// Given a RecordBatch with a column of `NodeId` and one of `Option<NodeId>`, converts
     /// all the node ids into SWHIDs and returns the pairs in any order.
+    #[allow(clippy::type_complexity)]
     #[instrument(skip(self, node_id_batches))]
     async fn swhid(
         &self,
         node_id_batches: Vec<RecordBatch>,
         col1: &'static str,
         col2: &'static str,
-    ) -> Result<Vec<(SWHID, Option<SWHID>)>> {
+    ) -> Result<Vec<(SWHID, Option<(NodeId, SWHID)>)>> {
         tracing::debug!("Getting SWHIDs from node ids");
         let mut swhids =
             Vec::with_capacity(node_id_batches.iter().map(|batch| batch.num_rows()).sum());
@@ -363,9 +377,12 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
                             .properties()
                             .swhid(id1.try_into().expect("Node id overflowed usize")),
                         id2.map(|id2| {
-                            self.graph
-                                .properties()
-                                .swhid(id2.try_into().expect("Node id overflowed usize"))
+                            (
+                                id2,
+                                self.graph
+                                    .properties()
+                                    .swhid(id2.try_into().expect("Node id overflowed usize")),
+                            )
                         }),
                     )
                 }),
@@ -374,7 +391,7 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
         Ok(swhids)
     }
 
-    /// Given a [`NodeId`], returns a stream of records from the contents-in-revision table
+    /// Given content [`NodeId`]s, returns a stream of records from the contents-in-revision table
     #[instrument(skip(self))]
     pub async fn query_c_in_r(
         &self,
@@ -410,7 +427,7 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
         Ok((scan_init_metrics, scan_metrics, c_in_r_stream))
     }
 
-    /// Given a [`NodeId`], returns some records from the contents-in-revision table
+    /// Given a content [`NodeId`], returns some records from the contents-in-revision table
     #[instrument(skip(self))]
     pub async fn query_c_in_r_one(
         &self,
@@ -434,7 +451,7 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
         Ok((scan_init_metrics, scan_metrics, batches))
     }
 
-    /// Given a [`NodeId`], returns a stream of records from the contents-in-directory table
+    /// Given content [`NodeId`]s, returns a stream of records from the contents-in-directory table
     #[instrument(skip(self))]
     pub async fn query_c_in_d(
         &self,
@@ -469,7 +486,7 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
         Ok((scan_init_metrics, scan_metrics, c_in_d_stream))
     }
 
-    /// Given a [`NodeId`], returns some records from the contents-in-revision table
+    /// Given directory [`NodeId`]s, returns some records from the directory-in-revision table
     #[instrument(skip(self))]
     pub async fn query_d_in_r(
         &self,
@@ -505,7 +522,7 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
         Ok((scan_init_metrics, scan_metrics, d_in_r_stream))
     }
 
-    /// Given a [`NodeId`], returns some records from the contents-in-revision table
+    /// Given a directory [`NodeId`], returns some records from the directory-in-revision table
     #[instrument(skip(self))]
     pub async fn query_d_in_r_one(
         &self,
@@ -527,6 +544,80 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
             Arc::try_unwrap(scan_metrics).expect("Dangling reference to scan_metrics");
         tracing::debug!("Scan metrics: {:#?}", scan_metrics);
         Ok((scan_init_metrics, scan_metrics, batches))
+    }
+
+    /// Given a revision/release [`NodeId`]s, returns some records from the revisions-in-origins table
+    #[instrument(skip(self))]
+    pub async fn query_r_in_o(
+        &self,
+        node_ids: Arc<[NodeId]>,
+        limit: Option<usize>,
+    ) -> Result<(
+        TableScanInitMetrics,
+        Arc<TableScanMetrics>,
+        impl Stream<Item = Result<RecordBatch>> + use<'_, G>,
+    )> {
+        tracing::debug!("Looking up r_in_o");
+
+        // Start reading from the table
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("revrel", DataType::UInt64, false),
+            Field::new("ori", DataType::UInt64, false),
+        ]));
+        let (scan_init_metrics, scan_metrics, r_in_o_stream) = query_x_in_y_table(
+            &self.db.r_in_o,
+            schema,
+            "r_in_o", // table name, for error messages
+            "revrel",
+            "ori",
+            node_ids,
+            limit,
+        )
+        .await
+        .context("Could not query r_in_o")?;
+        tracing::trace!("Got r_in_o_stream");
+        tracing::debug!("Scan init metrics: {:#?}", scan_init_metrics);
+
+        Ok((scan_init_metrics, scan_metrics, r_in_o_stream))
+    }
+
+    /// Returns the URL of an origin that contains the given revision/release
+    pub async fn get_origin(&self, revrel: usize, metrics: &mut Metrics) -> Result<Option<String>> {
+        let (r_in_o_scan_init_metric, r_in_o_scan_metrics, mut r_in_o_batches) = self
+            .query_r_in_o(
+                Arc::new([u64::try_from(revrel).expect("node id overflowed u64")]),
+                Some(1),
+            )
+            .await?;
+        metrics.r_in_o_init += r_in_o_scan_init_metric;
+        let origin = match r_in_o_batches.next().await {
+            Some(Ok(batch)) => {
+                let oris = batch
+                    .column_by_name("ori")
+                    .context("Could not get 'ori' column from batch")?
+                    .as_primitive_opt::<UInt64Type>()
+                    .context("'ori' column is not UInt64Array")?;
+                match oris.values().first() {
+                    // pick any of the origins
+                    Some(&ori) => self
+                        .graph
+                        .properties()
+                        .message(usize::try_from(ori).expect("node id overflowed usize"))
+                        .map(|url| String::from_utf8_lossy(&url).into()),
+                    None => {
+                        tracing::error!(
+                            "Empty r_in_o batch for {}",
+                            self.graph.properties().swhid(revrel)
+                        );
+                        None
+                    }
+                }
+            }
+            Some(Err(e)) => return Err(e),
+            None => None, // no origin for this anchor
+        };
+        metrics.r_in_o_scan += r_in_o_scan_metrics;
+        Ok(origin)
     }
 
     /// Given a content SWHID, returns any of the revision/release that SWHID is in.
@@ -558,12 +649,22 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
 
         // And return the first result
         if let Some((cnt, revrel)) = anchors.pop() {
+            let origin = match revrel {
+                Some((revrel_id, _revrel_swhid)) => {
+                    self.get_origin(
+                        usize::try_from(revrel_id).expect("node id overflowed usize"),
+                        &mut metrics,
+                    )
+                    .await?
+                }
+                None => None,
+            };
             return Ok(Ok((
                 metrics,
                 proto::WhereIsOneResult {
                     swhid: cnt.to_string(),
-                    anchor: revrel.map(|revrel| revrel.to_string()),
-                    origin: None,
+                    anchor: revrel.map(|(_revrel_id, revrel_swhid)| revrel_swhid.to_string()),
+                    origin,
                 },
             )));
         }
@@ -602,42 +703,42 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
                     );
                     continue;
                 };
-                let batch = RecordBatch::try_from_iter([
-                    (
-                        "cnt",
-                        Arc::new(UInt64Array::from_iter(std::iter::repeat_n(
-                            node_id,
-                            d_in_r_batch.num_rows(),
-                        ))) as _,
-                    ),
-                    (
-                        "revrel",
-                        Arc::clone(
-                            d_in_r_batch
-                                .column_by_name("revrel")
-                                .context("Could not get 'revrel' column from batch")?,
-                        ),
-                    ),
-                ])
-                .context("Could not build RecordBatch of cnt and revrel")?;
 
-                // Translate results' node ids to SWHIDs
-                // Note: d_in_r_batches may have more than one row; the above filter only guarantees there
-                // is at most one RecordBatch.
-                let mut anchors = self.swhid(vec![batch], "cnt", "revrel").await?;
+                let Some(&revrel) = d_in_r_batch
+                    .column_by_name("revrel")
+                    .context("Could not get 'revrel' column from batch")?
+                    .as_primitive_opt::<UInt64Type>()
+                    .context("Could not cast 'revrel' column as UInt64Array")?
+                    .values()
+                    // pick any of the revrels
+                    .first()
+                else {
+                    // Shouldn't happen
+                    tracing::error!(
+                        "d_in_r_batch for directory {} is empty",
+                        self.graph
+                            .properties()
+                            .swhid(dir.try_into().expect("Node id overflowed usize"))
+                    );
+                    continue;
+                };
+                let revrel = usize::try_from(revrel).expect("node id overflowed usize");
 
-                // And return the first result
-                if let Some((cnt, revrel)) = anchors.pop() {
-                    metrics.c_in_d_scan += c_in_d_scan_metrics;
-                    return Ok(Ok((
-                        metrics,
-                        proto::WhereIsOneResult {
-                            swhid: cnt.to_string(),
-                            anchor: revrel.map(|revrel| revrel.to_string()),
-                            origin: None,
-                        },
-                    )));
-                }
+                let origin = self.get_origin(revrel, &mut metrics).await?;
+
+                metrics.c_in_d_scan += c_in_d_scan_metrics;
+                return Ok(Ok((
+                    metrics,
+                    proto::WhereIsOneResult {
+                        swhid: self
+                            .graph
+                            .properties()
+                            .swhid(usize::try_from(node_id).expect("node id overflowed usize"))
+                            .to_string(),
+                        anchor: Some(self.graph.properties().swhid(revrel).to_string()),
+                        origin,
+                    },
+                )));
             }
         }
         metrics.c_in_d_scan += c_in_d_scan_metrics;

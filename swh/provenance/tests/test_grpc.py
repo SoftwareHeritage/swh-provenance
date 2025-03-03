@@ -14,6 +14,7 @@ def test_grpc_whereis1(provenance_grpc_stub):
     assert result == WhereIsOneResult(
         swhid="swh:1:cnt:0000000000000000000000000000000000000001",
         anchor="swh:1:rev:0000000000000000000000000000000000000003",
+        origin="https://example.com/swh/graph2",
     )
 
 
@@ -27,9 +28,11 @@ def test_grpc_whereis2(provenance_grpc_stub):
         WhereIsOneResult(
             swhid="swh:1:cnt:0000000000000000000000000000000000000004",
             anchor="swh:1:rev:0000000000000000000000000000000000000009",
+            origin="https://example.com/swh/graph2",
         ),
         WhereIsOneResult(
             swhid="swh:1:cnt:0000000000000000000000000000000000000004",
             anchor="swh:1:rev:0000000000000000000000000000000000000013",
+            origin="https://example.com/swh/graph2",
         ),
     )

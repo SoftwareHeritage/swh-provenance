@@ -25,19 +25,36 @@ pub type NodeId = u64;
 mod metrics;
 
 pub struct ProvenanceServiceWrapper<
-    G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync + 'static,
+    G: SwhGraphWithProperties<
+            Maps: swh_graph::properties::Maps,
+            Strings: swh_graph::properties::Strings,
+        > + Send
+        + Sync
+        + 'static,
 >(Arc<ProvenanceService<G>>);
 
-impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync + 'static>
-    ProvenanceServiceWrapper<G>
+impl<
+        G: SwhGraphWithProperties<
+                Maps: swh_graph::properties::Maps,
+                Strings: swh_graph::properties::Strings,
+            > + Send
+            + Sync
+            + 'static,
+    > ProvenanceServiceWrapper<G>
 {
     pub fn new(db: ProvenanceDatabase, graph: G) -> Self {
         Self(Arc::new(ProvenanceService { db, graph }))
     }
 }
 
-impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync + 'static> Clone
-    for ProvenanceServiceWrapper<G>
+impl<
+        G: SwhGraphWithProperties<
+                Maps: swh_graph::properties::Maps,
+                Strings: swh_graph::properties::Strings,
+            > + Send
+            + Sync
+            + 'static,
+    > Clone for ProvenanceServiceWrapper<G>
 {
     fn clone(&self) -> Self {
         Self(Arc::clone(&self.0))
@@ -45,8 +62,14 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
 }
 
 #[tonic::async_trait]
-impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync + 'static>
-    proto::provenance_service_server::ProvenanceService for ProvenanceServiceWrapper<G>
+impl<
+        G: SwhGraphWithProperties<
+                Maps: swh_graph::properties::Maps,
+                Strings: swh_graph::properties::Strings,
+            > + Send
+            + Sync
+            + 'static,
+    > proto::provenance_service_server::ProvenanceService for ProvenanceServiceWrapper<G>
 {
     #[instrument(skip(self, request), err(level = Level::INFO))]
     async fn where_is_one(
@@ -110,7 +133,12 @@ impl<G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync 
 type TonicResult<T> = Result<tonic::Response<T>, tonic::Status>;
 
 pub async fn serve<
-    G: SwhGraphWithProperties<Maps: swh_graph::properties::Maps> + Send + Sync + 'static,
+    G: SwhGraphWithProperties<
+            Maps: swh_graph::properties::Maps,
+            Strings: swh_graph::properties::Strings,
+        > + Send
+        + Sync
+        + 'static,
 >(
     db: ProvenanceDatabase,
     graph: G,

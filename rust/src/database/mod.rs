@@ -19,6 +19,7 @@ pub struct ProvenanceDatabase {
     pub c_in_d: Table,
     pub d_in_r: Table,
     pub c_in_r: Table,
+    pub r_in_o: Table,
 }
 
 impl ProvenanceDatabase {
@@ -26,7 +27,7 @@ impl ProvenanceDatabase {
         let (store, path) = object_store::parse_url(&base_url)
             .with_context(|| format!("Invalid provenance database URL: {}", base_url))?;
         let store = store.into();
-        let (c_in_d, d_in_r, c_in_r) = futures::join!(
+        let (c_in_d, d_in_r, c_in_r, r_in_o) = futures::join!(
             Table::new(
                 Arc::clone(&store),
                 path.child("contents_in_frontier_directories"),
@@ -42,6 +43,11 @@ impl ProvenanceDatabase {
                 path.child("contents_in_revisions_without_frontiers"),
                 base_ef_indexes_path.join("contents_in_revisions_without_frontiers"),
             ),
+            Table::new(
+                Arc::clone(&store),
+                path.child("revisions_in_origins"),
+                base_ef_indexes_path.join("revisions_in_origins"),
+            ),
         );
 
         Ok(Self {
@@ -49,6 +55,7 @@ impl ProvenanceDatabase {
             c_in_d: c_in_d.context("Could not initialize 'c_in_d' table")?,
             d_in_r: d_in_r.context("Could not initialize 'd_in_r' table")?,
             c_in_r: c_in_r.context("Could not initialize 'c_in_r' table")?,
+            r_in_o: r_in_o.context("Could not initialize 'r_in_o' table")?,
         })
     }
 
@@ -66,6 +73,10 @@ impl ProvenanceDatabase {
                 .name("load_index_c_in_r".to_string())
                 .spawn_scoped(s, || self.c_in_r.mmap_ef_index("cnt"))
                 .expect("could not spawn load_index_c_in_r");
+            let r_in_o = std::thread::Builder::new()
+                .name("load_index_r_in_o".to_string())
+                .spawn_scoped(s, || self.r_in_o.mmap_ef_index("revrel"))
+                .expect("could not spawn load_index_r_in_o");
 
             c_in_d
                 .join()
@@ -78,6 +89,10 @@ impl ProvenanceDatabase {
             c_in_r.join().expect("could not join c_in_r").context(
                 "Could not mmap index for 'contents_in_revisions_without_frontiers' table",
             )?;
+            r_in_o
+                .join()
+                .expect("could not join c_in_r")
+                .context("Could not mmap index for 'revisions_in_origins' table")?;
             Ok(())
         })
     }

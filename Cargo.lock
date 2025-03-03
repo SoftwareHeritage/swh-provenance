@@ -1182,8 +1182,7 @@ dependencies = [
 [[package]]
 name = "dataset-writer"
 version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9820d373dab3056fbae3dffc9b4ceb623a9df1133b42b02cbe5a1ea7b04119b5"
+source = "git+https://gitlab.softwareheritage.org/swh/devel/dataset-writer-rs.git?rev=c76569daa9bdd1da07c1b964708c007a05ee0d84#c76569daa9bdd1da07c1b964708c007a05ee0d84"
 dependencies = [
  "anyhow",
  "arrow",
@@ -1214,6 +1213,12 @@ checksum = "b42b6fa04a440b495c8b04d0e71b707c585f83cb9cb28cf8cd0d976c315e31b4"
 dependencies = [
  "powerfmt",
 ]
+
+[[package]]
+name = "diff"
+version = "0.1.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56254986775e3233ffa9c4d7d3faaf6d36a2c09d30b20687e9f88bc8bafc16c8"
 
 [[package]]
 name = "difflib"
@@ -2746,7 +2751,7 @@ dependencies = [
 [[package]]
 name = "parquet_aramid"
 version = "0.1.0"
-source = "git+https://gitlab.softwareheritage.org/swh/devel/parquet_aramid-rs.git?rev=a1f3a854c244c8313f9994c10e4b2a921f2e0c46#a1f3a854c244c8313f9994c10e4b2a921f2e0c46"
+source = "git+https://gitlab.softwareheritage.org/swh/devel/parquet_aramid-rs.git?rev=62504c3e4b9892d458221eac214a26c298aacc32#62504c3e4b9892d458221eac214a26c298aacc32"
 dependencies = [
  "anyhow",
  "arrow",
@@ -2904,6 +2909,16 @@ name = "predicates-core"
 version = "1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ae8177bee8e75d6846599c6b9ff679ed51e882816914eec639944d7c9aa11931"
+
+[[package]]
+name = "pretty_assertions"
+version = "1.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3ae130e2f271fbc2ac3a40fb1d07180839cdbbe443c7a27e1e3c13c5cac0116d"
+dependencies = [
+ "diff",
+ "yansi",
+]
 
 [[package]]
 name = "prettyplease"
@@ -3744,7 +3759,7 @@ dependencies = [
  "serde_json",
  "sux",
  "swh-graph",
- "swh_graph_provenance",
+ "swh-provenance-db-build",
  "tokio",
  "tonic",
  "tonic-build",
@@ -3757,9 +3772,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "swh_graph_provenance"
-version = "6.3.1"
-source = "git+https://gitlab.softwareheritage.org/swh/devel/swh-graph.git?rev=fb8faddbbb9eedfd0b628cc1f6b647f09ec8178b#fb8faddbbb9eedfd0b628cc1f6b647f09ec8178b"
+name = "swh-provenance-db-build"
+version = "0.2.2"
 dependencies = [
  "anyhow",
  "ar_row",
@@ -3776,6 +3790,7 @@ dependencies = [
  "env_logger 0.11.5",
  "log",
  "parquet",
+ "pretty_assertions",
  "rayon",
  "rdst",
  "serde",
@@ -4808,6 +4823,12 @@ name = "xxhash-rust"
 version = "0.8.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a5cbf750400958819fb6178eaa83bee5cd9c29a26a40cc241df8c70fdd46984"
+
+[[package]]
+name = "yansi"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cfe53a6657fd280eaa890a3bc59152892ffa3e30101319d168b781ed6529b049"
 
 [[package]]
 name = "zerocopy"

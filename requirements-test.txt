@@ -1,6 +1,8 @@
 grpcio
+pyarrow-stubs
 pytest >= 8.1
 swh.graph[testing] >= 1.0.1
 types-click
+types-psutil
 types-PyYAML
 types-Deprecated

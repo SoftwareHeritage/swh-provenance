@@ -2,4 +2,4 @@
 swh.core[db,http] >= 2
 swh.model >= 2.6.1
 swh.storage
-swh.graph >= 2.0.0
+swh.graph >= 6.6.0

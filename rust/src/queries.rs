@@ -20,7 +20,8 @@ use parquet_aramid::{
     parquet::arrow::{ParquetRecordBatchStreamBuilder, ProjectionMask},
     parquet::schema::types::SchemaDescriptor,
 };
-use parquet_aramid::{ReaderBuilderConfigurator, Table};
+use parquet_aramid::Table;
+use parquet_aramid::config::Configurator;
 use swh_graph::SWHID;
 use tracing::{instrument, span_enabled, Level};
 
@@ -77,7 +78,7 @@ async fn query_x_in_y_table<'a>(
     table_name: &'static str,
     key_column: &'static str,
     value_column: &'static str,
-    keys: Arc<Vec<u64>>,
+    keys: Arc<[u64]>,
     limit: Option<usize>,
 ) -> Result<(
     TableScanInitMetrics,
@@ -90,7 +91,7 @@ async fn query_x_in_y_table<'a>(
     struct Predicate {
         projection: ProjectionMask,
         key_column: &'static str,
-        keys: Arc<Vec<u64>>,
+        keys: Arc<[u64]>,
         metrics: Arc<TableScanMetrics>,
     }
 
@@ -162,17 +163,17 @@ async fn query_x_in_y_table<'a>(
 
     /// Configures a [`ParquetRecordBatchStreamBuilder`] to read only columns we are interested in,
     /// only rows matching the given keys, and with a limited number of results.
-    struct Configurator {
+    struct ProvenanceConfigurator {
         expected_schema: Arc<Schema>,
         table_name: &'static str,
         key_column: &'static str,
         value_column: &'static str,
-        keys: Arc<Vec<u64>>,
+        keys: Arc<[u64]>,
         limit: Option<usize>,
         metrics: Arc<TableScanMetrics>,
     }
-    impl ReaderBuilderConfigurator for Configurator {
-        fn configure<R: AsyncFileReader>(
+    impl Configurator for ProvenanceConfigurator {
+        fn configure_stream_builder<R: AsyncFileReader>(
             &self,
             mut reader_builder: ParquetRecordBatchStreamBuilder<R>,
         ) -> Result<ParquetRecordBatchStreamBuilder<R>> {
@@ -236,13 +237,13 @@ async fn query_x_in_y_table<'a>(
         // one of the keys in the query, using indices.
         .stream_for_keys(
             key_column,
-            Arc::clone(&keys),
-            Arc::new(Configurator {
+            &keys,
+            Arc::new(ProvenanceConfigurator {
                 expected_schema,
                 table_name,
                 key_column,
                 value_column,
-                keys,
+                keys: Arc::clone(&keys),
                 limit,
                 metrics,
             }),
@@ -394,7 +395,7 @@ impl<
     #[instrument(skip(self))]
     pub async fn query_c_in_r(
         &self,
-        node_ids: Arc<Vec<NodeId>>,
+        node_ids: Arc<[NodeId]>,
         limit: Option<usize>,
     ) -> Result<(
         TableScanInitMetrics,
@@ -435,7 +436,7 @@ impl<
         let limit = 1;
 
         let (scan_init_metrics, scan_metrics, c_in_r_stream) = self
-            .query_c_in_r(Arc::new(vec![node_id]), Some(limit))
+            .query_c_in_r(Arc::new([node_id]), Some(limit))
             .await?;
 
         // Read batches of rows, stopping after the first one
@@ -454,7 +455,7 @@ impl<
     #[instrument(skip(self))]
     pub async fn query_c_in_d(
         &self,
-        node_ids: Arc<Vec<NodeId>>,
+        node_ids: Arc<[NodeId]>,
     ) -> Result<(
         TableScanInitMetrics,
         Arc<TableScanMetrics>,
@@ -489,7 +490,7 @@ impl<
     #[instrument(skip(self))]
     pub async fn query_d_in_r(
         &self,
-        node_ids: Arc<Vec<NodeId>>,
+        node_ids: Arc<[NodeId]>,
         limit: Option<usize>,
     ) -> Result<(
         TableScanInitMetrics,
@@ -530,7 +531,7 @@ impl<
         let limit = 1;
 
         let (scan_init_metrics, scan_metrics, d_in_r_stream) = self
-            .query_d_in_r(Arc::new(vec![node_id]), Some(limit))
+            .query_d_in_r(Arc::new([node_id]), Some(limit))
             .await?;
 
         // Read batches of rows, stopping after the first one
@@ -549,7 +550,7 @@ impl<
     #[instrument(skip(self))]
     pub async fn query_r_in_o(
         &self,
-        node_ids: Arc<Vec<NodeId>>,
+        node_ids: Arc<[NodeId]>,
         limit: Option<usize>,
     ) -> Result<(
         TableScanInitMetrics,
@@ -584,7 +585,7 @@ impl<
     pub async fn get_origin(&self, revrel: usize, metrics: &mut Metrics) -> Result<Option<String>> {
         let (r_in_o_scan_init_metric, r_in_o_scan_metrics, mut r_in_o_batches) = self
             .query_r_in_o(
-                Arc::new(vec![u64::try_from(revrel).expect("node id overflowed u64")]),
+                Arc::new([u64::try_from(revrel).expect("node id overflowed u64")]),
                 Some(1),
             )
             .await?;
@@ -671,7 +672,7 @@ impl<
         tracing::debug!("Looking up c_in_d + d_in_r");
         // First look up the list of directories
         let (c_in_d_scan_init_metrics, c_in_d_scan_metrics, mut c_in_d_batches) =
-            self.query_c_in_d(Arc::new(vec![node_id])).await?;
+            self.query_c_in_d(Arc::new([node_id])).await?;
         metrics.c_in_d_init = c_in_d_scan_init_metrics;
         while let Some(c_in_d_batch) = c_in_d_batches.next().await {
             let c_in_d_batch = c_in_d_batch?;

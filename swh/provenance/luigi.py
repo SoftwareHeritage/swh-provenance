@@ -14,13 +14,13 @@ driving the computation of the :ref:`provenance-index`.
 # WARNING: do not import unnecessary things here to keep cli startup time under
 # control
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 
 import luigi
 import psutil
 
 from swh.graph.luigi.compressed_graph import LocalGraph
-from swh.graph.luigi.utils import estimate_node_count
+from swh.graph.luigi.utils import _ParquetToS3Task, estimate_node_count
 
 
 def default_max_ram_mb() -> int:
@@ -561,19 +561,33 @@ class ListRevisionsInOrigins(luigi.Task):
         # fmt: on
 
 
-class RunProvenance(luigi.WrapperTask):
-    """(Transitively) depends on all provenance tasks"""
+class UploadProvenanceDatabase(_ParquetToS3Task):
+    """Uploads to S3 the result of:
+    * :class:`ListProvenanceNodes`,
+    * :class:`ListContentsInFrontierDirectories`,
+    * :class:`ListContentsInRevisionsWithoutFrontier`,
+    * :class:`ListFrontierDirectoriesInRevisions`, and
+    * :class:`ListRevisionsInOrigins`,
+    """
 
     local_export_path = luigi.PathParameter()
     local_graph_path = luigi.PathParameter()
+    dataset_name = luigi.Parameter()
     graph_name = luigi.Parameter(default="graph")
     provenance_dir = luigi.PathParameter()
     provenance_node_filter = luigi.Parameter(default="heads")
     max_ram_mb = luigi.IntParameter(default=default_max_ram_mb(), significant=False)
 
-    def requires(self):
-        """Returns :class:`ListContentsInFrontierDirectories` and
-        :class:`ListContentsInRevisionsWithoutFrontier`"""
+    def _s3_bucket(self) -> str:
+        # TODO: configurable
+        return "softwareheritage"
+
+    def _s3_prefix(self) -> str:
+        # TODO: configurable
+        return f"derived_datasets/{self.dataset_name}/provenance/{self.provenance_node_filter}"
+
+    def requires(self) -> List[luigi.Task]:
+        """Returns an instance of :class:`AggregateContentDatasets`."""
         kwargs = dict(
             local_export_path=self.local_export_path,
             local_graph_path=self.local_graph_path,
@@ -589,4 +603,34 @@ class RunProvenance(luigi.WrapperTask):
             ),
             ListFrontierDirectoriesInRevisions(max_ram_mb=self.max_ram_mb, **kwargs),
             ListRevisionsInOrigins(**kwargs),
+        ]
+
+    def _input_parquet_path(self) -> Path:
+        return self.provenance_dir
+
+
+class RunProvenance(luigi.WrapperTask):
+    """(Transitively) depends on all provenance tasks"""
+
+    local_export_path = luigi.PathParameter()
+    local_graph_path = luigi.PathParameter()
+    dataset_name = luigi.Parameter()
+    graph_name = luigi.Parameter(default="graph")
+    provenance_dir = luigi.PathParameter()
+    provenance_node_filter = luigi.Parameter(default="heads")
+    max_ram_mb = luigi.IntParameter(default=default_max_ram_mb(), significant=False)
+
+    def requires(self):
+        """Returns :class:`ListContentsInFrontierDirectories` and
+        :class:`ListContentsInRevisionsWithoutFrontier`"""
+        return [
+            UploadProvenanceDatabase(
+                local_export_path=self.local_export_path,
+                local_graph_path=self.local_graph_path,
+                dataset_name=self.dataset_name,
+                graph_name=self.graph_name,
+                provenance_dir=self.provenance_dir,
+                provenance_node_filter=self.provenance_node_filter,
+                max_ram_mb=self.max_ram_mb,
+            )
         ]

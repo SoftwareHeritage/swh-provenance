@@ -28,8 +28,8 @@ Or::
     cd swh-provenance
     cargo build --release
 
-Getting a compressed provenance database
-----------------------------------------
+Getting a provenance database
+-----------------------------
 
 ::
 

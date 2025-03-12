@@ -6,6 +6,8 @@
    :maxdepth: 2
    :caption: Contents:
 
+    grpc-api
+
 .. only:: standalone_package_doc
 
    Indices and tables

@@ -19,7 +19,7 @@ class GrpcProvenance:
 
     def check_config(self) -> bool:
         # if the constructor successfully connected, it means we are good
-        return False
+        return True
 
     def whereis(self, *, swhid: CoreSWHID) -> Optional[QualifiedSWHID]:
         str_swhid = str(swhid)

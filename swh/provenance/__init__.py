@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 PROVENANCE_IMPLEMENTATIONS = {
     "graph": "swh.provenance.backend.graph.GraphProvenance",
     "remote": "swh.provenance.api.client.RemoteProvenance",
+    "grpc": "swh.provenance.grpc_client.GrpcProvenance",
     "postgresql": "swh.provenance.backend.postgresql.PostgresqlProvenance",
     "known_swhid_filter": "swh.provenance.backend.known_swhid_proxy.KnownSwhidFilterProvenance",
 }

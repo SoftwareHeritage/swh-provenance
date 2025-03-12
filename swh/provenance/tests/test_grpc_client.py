@@ -17,6 +17,7 @@ def test_grpc_whereis1(provenance_grpc_server):
     ) == QualifiedSWHID.from_string(
         "swh:1:cnt:0000000000000000000000000000000000000001"
         ";anchor=swh:1:rev:0000000000000000000000000000000000000003"
+        ";origin=https://example.com/swh/graph2"
     )
 
 
@@ -34,25 +35,26 @@ def test_grpc_whereis2(provenance_grpc_server):
                 ),
             ]
         )
-    ) in (
+    ) in [
         {
             QualifiedSWHID.from_string(
                 "swh:1:cnt:0000000000000000000000000000000000000001"
                 ";anchor=swh:1:rev:0000000000000000000000000000000000000003"
+                ";origin=https://example.com/swh/graph2"
             ),
             QualifiedSWHID.from_string(
-                "swh:1:cnt:0000000000000000000000000000000000000004"
-                ";anchor=swh:1:rev:0000000000000000000000000000000000000009",
+                f"swh:1:cnt:0000000000000000000000000000000000000004"
+                f";anchor={anchor}"
+                f";origin={origin}"
             ),
-        },
-        {
-            QualifiedSWHID.from_string(
-                "swh:1:cnt:0000000000000000000000000000000000000001"
-                ";anchor=swh:1:rev:0000000000000000000000000000000000000003"
-            ),
-            QualifiedSWHID.from_string(
-                "swh:1:cnt:0000000000000000000000000000000000000004"
-                ";anchor=swh:1:rev:0000000000000000000000000000000000000013"
-            ),
-        },
-    )
+        }
+        for anchor in [
+            "swh:1:rev:0000000000000000000000000000000000000009",
+            "swh:1:rev:0000000000000000000000000000000000000013",
+        ]
+        for origin in (
+            ["https://example.com/swh/graph2"]
+            if anchor == "swh:1:rev:0000000000000000000000000000000000000013"
+            else ["https://example.com/swh/graph", "https://example.com/swh/graph2"]
+        )
+    ]

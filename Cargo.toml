@@ -8,13 +8,15 @@ members = [
 ]
 
 [workspace.package]
-version = "0.2.2"
+version = "0.3.2"
+license = "GPL-3.0-or-later"
+repository = "https://gitlab.softwareheritage.org/swh/devel/swh-provenance"
 
 [workspace.dependencies]
-swh-graph = { git = "https://gitlab.softwareheritage.org/swh/devel/swh-graph.git", rev = "fb8faddbbb9eedfd0b628cc1f6b647f09ec8178b" }
-swh-provenance-db-build = { path = "db-build/", version = "0.2.2" }
+swh-graph = "6.7.0"
+swh-provenance-db-build = { path = "db-build/", version = "0.3.2" }
 #dataset-writer = { version = "1.2.0", features = ["parquet"] }
-dataset-writer = { git = "https://gitlab.softwareheritage.org/swh/devel/dataset-writer-rs.git", rev = "c76569daa9bdd1da07c1b964708c007a05ee0d84", features = ["parquet"] }
+dataset-writer = { version = "1.1.1", features = ["parquet"] }
 
 
 [profile.release]

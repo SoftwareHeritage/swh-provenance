@@ -1,8 +1,12 @@
 [package]
 name = "swh-provenance-db-build"
 description = "Reads a swh-graph dataset, and produces a Parquet database suitable for efficient provenance queries"
+repository.workspace = true
 version.workspace = true
 edition = "2021"
+license.workspace = true
+keywords = ["software-heritage", "graph", "provenance", "grpc"]
+categories = ["compression", "science"]
 rust-version = "1.82"
 
 [dependencies]

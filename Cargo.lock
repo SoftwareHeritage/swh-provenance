@@ -1181,8 +1181,9 @@ dependencies = [
 
 [[package]]
 name = "dataset-writer"
-version = "1.1.0"
-source = "git+https://gitlab.softwareheritage.org/swh/devel/dataset-writer-rs.git?rev=c76569daa9bdd1da07c1b964708c007a05ee0d84#c76569daa9bdd1da07c1b964708c007a05ee0d84"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "250329652c46a7be546d267f0d54f2316437562acd760a74feae793463752f27"
 dependencies = [
  "anyhow",
  "arrow",
@@ -2171,7 +2172,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4979f22fdb869068da03c9f7528f8297c6fd2606bc3a4affe42e6a823fdb8da4"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -2750,8 +2751,9 @@ dependencies = [
 
 [[package]]
 name = "parquet_aramid"
-version = "0.1.0"
-source = "git+https://gitlab.softwareheritage.org/swh/devel/parquet_aramid-rs.git?rev=62504c3e4b9892d458221eac214a26c298aacc32#62504c3e4b9892d458221eac214a26c298aacc32"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c93a3004fa479bf35b597d9c882bae9fbf1679f003d9d6a0dee61ff3e0d080de"
 dependencies = [
  "anyhow",
  "arrow",
@@ -3693,8 +3695,9 @@ dependencies = [
 
 [[package]]
 name = "swh-graph"
-version = "6.3.1"
-source = "git+https://gitlab.softwareheritage.org/swh/devel/swh-graph.git?rev=fb8faddbbb9eedfd0b628cc1f6b647f09ec8178b#fb8faddbbb9eedfd0b628cc1f6b647f09ec8178b"
+version = "6.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c75ce3b24eec0f57c94eeb6fa83a44ea9036fa608633c9b31028b819dc347e6f"
 dependencies = [
  "anyhow",
  "base64-simd",
@@ -3718,6 +3721,7 @@ dependencies = [
  "mmap-rs",
  "nonmax",
  "num_cpus",
+ "once_cell",
  "pthash",
  "rand",
  "rayon",
@@ -3728,14 +3732,13 @@ dependencies = [
  "tempfile",
  "thiserror",
  "thread_local",
- "tikv-jemallocator",
  "webgraph",
  "zstd 0.12.4",
 ]
 
 [[package]]
 name = "swh-provenance"
-version = "0.2.2"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "cadence",
@@ -3773,7 +3776,7 @@ dependencies = [
 
 [[package]]
 name = "swh-provenance-db-build"
-version = "0.2.2"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "ar_row",

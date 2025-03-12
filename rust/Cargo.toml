@@ -4,8 +4,8 @@ version.workspace = true
 readme = "README.md"
 edition = "2021"
 description = "gRPC service to efficiently find the first revisions/releases/origins to contain a given content/directory"
-repository = "https://gitlab.softwareheritage.org/swh/devel/swh-provenance"
-license = "GPL-3.0-or-later"
+repository.workspace = true
+license.workspace = true
 keywords = ["software-heritage", "graph", "provenance", "grpc"]
 categories = ["compression", "science"]
 rust-version = "1.80"
@@ -29,7 +29,7 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 # Database
 object_store = { version = "0.11.0", default-features = false }
 url = "2.2"
-parquet_aramid = { git = "https://gitlab.softwareheritage.org/swh/devel/parquet_aramid-rs.git", rev = "62504c3e4b9892d458221eac214a26c298aacc32", features = ["rayon"] }
+parquet_aramid = { version = "0.2.0", features = ["rayon"] }
 #parquet_aramid = { path = "../../parquet_aramid-rs", features = ["rayon"] }
 swh-provenance-db-build.workspace = true
 dataset-writer.workspace = true # to generate test databases

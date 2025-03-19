@@ -29,9 +29,6 @@ enum GraphFormat {
 #[derive(Parser, Debug)]
 #[command(about = "gRPC server for the Software Heritage Provenance Index", long_about = None)]
 struct Args {
-    #[arg(long)]
-    /// Keep Parquet metadata in RAM between queries, instead of re-parsing them every time
-    cache_parquet: bool,
     #[arg(long, value_enum, default_value_t = GraphFormat::Webgraph)]
     graph_format: GraphFormat,
     #[arg(long)]

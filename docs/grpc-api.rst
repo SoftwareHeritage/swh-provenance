@@ -41,8 +41,10 @@ only the minimal set of required files with::
 
     aws s3 cp --no-sign-request s3://softwareheritage/graph/2024-12-06/compressed/graph.pthash graph-2024-12-06/
     aws s3 cp --no-sign-request s3://softwareheritage/graph/2024-12-06/compressed/graph.pthash.order graph-2024-12-06/
-    aws s3 cp --no-sign-request s3://softwareheritage/graph/2024-12-06/compressed/graph.node2swhid.bin graph-2024-12-06/
-    aws s3 cp --no-sign-request s3://softwareheritage/graph/2024-12-06/compressed/graph.node2type.bin graph-2024-12-06/
+    aws s3 cp --no-sign-request s3://softwareheritage/graph/2024-12-06/compressed/graph.node2swhid.bin.zst graph-2024-12-06/
+    aws s3 cp --no-sign-request s3://softwareheritage/graph/2024-12-06/compressed/graph.node2type.bin.zst graph-2024-12-06/
+    cd graph-2024-12-06/
+    unzstd graph.node2swhid.bin.zst graph.node2type.bin.zst
 
 
 Starting the server

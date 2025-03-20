@@ -22,7 +22,7 @@ static GLOBAL: MiMalloc = MiMalloc; // Allocator recommended by Datafusion
 #[command(about = "Builds .ef indexes for extra quick querying of the Software Heritage Provenance Index", long_about = None)]
 struct Args {
     #[arg(long)]
-    /// Path to the provenance database
+    /// URL to the provenance database (which may be a file:// URL)
     database: url::Url,
     #[arg(long)]
     /// Path to the directory where to write paths to. Defaults to `--database` (when it is a file:// URL).

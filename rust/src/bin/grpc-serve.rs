@@ -35,7 +35,7 @@ struct Args {
     /// Path to the graph prefix
     graph: PathBuf,
     #[arg(long)]
-    /// Path to the provenance database
+    /// URL to the provenance database (which may be a file:// URL)
     database: url::Url,
     #[arg(long)]
     /// Path to Elias-Fano indexes, default to `--database` (when it is a file:// URL)

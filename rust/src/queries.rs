@@ -10,7 +10,9 @@ use anyhow::{anyhow, bail, ensure, Context, Result};
 use futures::stream::FuturesUnordered;
 use futures::{Stream, StreamExt};
 use itertools::Itertools;
+use parquet_aramid::config::Configurator;
 use parquet_aramid::metrics::TableScanInitMetrics;
+use parquet_aramid::Table;
 use parquet_aramid::{
     arrow,
     arrow::array::*,
@@ -20,8 +22,6 @@ use parquet_aramid::{
     parquet::arrow::{ParquetRecordBatchStreamBuilder, ProjectionMask},
     parquet::schema::types::SchemaDescriptor,
 };
-use parquet_aramid::Table;
-use parquet_aramid::config::Configurator;
 use swh_graph::SWHID;
 use tracing::{instrument, span_enabled, Level};
 
@@ -435,9 +435,8 @@ impl<
     ) -> Result<(TableScanInitMetrics, TableScanMetrics, Vec<RecordBatch>)> {
         let limit = 1;
 
-        let (scan_init_metrics, scan_metrics, c_in_r_stream) = self
-            .query_c_in_r(Arc::new([node_id]), Some(limit))
-            .await?;
+        let (scan_init_metrics, scan_metrics, c_in_r_stream) =
+            self.query_c_in_r(Arc::new([node_id]), Some(limit)).await?;
 
         // Read batches of rows, stopping after the first one
         let batches = consume_batch_stream(c_in_r_stream, limit).await?;
@@ -530,9 +529,8 @@ impl<
     ) -> Result<(TableScanInitMetrics, TableScanMetrics, Vec<RecordBatch>)> {
         let limit = 1;
 
-        let (scan_init_metrics, scan_metrics, d_in_r_stream) = self
-            .query_d_in_r(Arc::new([node_id]), Some(limit))
-            .await?;
+        let (scan_init_metrics, scan_metrics, d_in_r_stream) =
+            self.query_d_in_r(Arc::new([node_id]), Some(limit)).await?;
 
         // Read batches of rows, stopping after the first one
         let batches = consume_batch_stream(d_in_r_stream, limit).await?;

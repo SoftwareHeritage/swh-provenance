@@ -13,7 +13,9 @@ use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter};
 use swh_graph::mph::DynMphf;
 
 use swh_provenance_db_build::filters::NodeFilter;
-use swh_provenance_db_build::x_in_y_dataset::{revrel_in_ori_schema, revrel_in_ori_writer_properties};
+use swh_provenance_db_build::x_in_y_dataset::{
+    revrel_in_ori_schema, revrel_in_ori_writer_properties,
+};
 
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;

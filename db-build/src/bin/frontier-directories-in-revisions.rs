@@ -16,7 +16,9 @@ use swh_graph::mph::DynMphf;
 use swh_graph::utils::mmap::NumberMmap;
 
 use swh_provenance_db_build::filters::{load_reachable_nodes, NodeFilter};
-use swh_provenance_db_build::x_in_y_dataset::{dir_in_revrel_schema, dir_in_revrel_writer_properties};
+use swh_provenance_db_build::x_in_y_dataset::{
+    dir_in_revrel_schema, dir_in_revrel_writer_properties,
+};
 
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;

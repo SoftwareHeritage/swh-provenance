@@ -75,7 +75,7 @@ pub fn statsd_client(host: Option<String>) -> Result<StatsdClient> {
     )?
     .into_iter()
     .fold(
-        StatsdClient::builder("swh_graph_grpc_server", sink),
+        StatsdClient::builder("swh_provenance_grpc_server", sink),
         |client_builder, (k, v)| client_builder.with_tag(k, v),
     )
     .with_error_handler(|e| log::error!("Could not update Statsd metric: {e}"))

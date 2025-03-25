@@ -1,4 +1,4 @@
-// Copyright (C) 2023-2024  The Software Heritage developers
+// Copyright (C) 2023-2025  The Software Heritage developers
 // See the AUTHORS file at the top-level directory of this distribution
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
@@ -6,7 +6,7 @@
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-use anyhow::{anyhow, bail, ensure, Context, Result};
+use anyhow::{bail, ensure, Context, Result};
 use futures::stream::FuturesUnordered;
 use futures::{Stream, StreamExt};
 use itertools::Itertools;
@@ -22,11 +22,11 @@ use parquet_aramid::{
     parquet::arrow::{ParquetRecordBatchStreamBuilder, ProjectionMask},
     parquet::schema::types::SchemaDescriptor,
 };
-use swh_graph::SWHID;
-use tracing::{instrument, span_enabled, Level};
-
 use swh_graph::graph::SwhGraphWithProperties;
 use swh_graph::properties::NodeIdFromSwhidError;
+use swh_graph::{StrSWHIDDeserializationError, SWHID};
+use thiserror::Error;
+use tracing::{instrument, span_enabled, Level};
 
 use crate::database::metrics::TableScanMetrics;
 use crate::database::ProvenanceDatabase;
@@ -44,6 +44,21 @@ pub struct Metrics {
     d_in_r_scan: TableScanMetrics,
     r_in_o_init: TableScanInitMetrics,
     r_in_o_scan: TableScanMetrics,
+}
+
+#[derive(Error, Debug)]
+#[non_exhaustive]
+pub enum ProvenanceClientError {
+    #[error("{0}")]
+    Swhid(#[from] NodeIdFromSwhidError<StrSWHIDDeserializationError>),
+}
+
+#[derive(Error, Debug)]
+pub enum ProvenanceQueryError {
+    #[error("Client error: {0}")]
+    ClientError(#[from] ProvenanceClientError),
+    #[error("Server error: {0}")]
+    ServerError(#[from] anyhow::Error),
 }
 
 /// Given a Parquet schema and a list of columns, returns a [`ProjectionMask`] that can be passed
@@ -305,7 +320,7 @@ impl<
     ///
     /// TODO: if a SWHID can't be found, return others' node ids, and only error for that one.
     #[instrument(skip(self), fields(swhids=swhids.iter().map(AsRef::as_ref).join(", ")))]
-    async fn node_id(&self, swhids: &[impl AsRef<str>]) -> Result<Result<Vec<u64>, tonic::Status>> {
+    async fn node_id(&self, swhids: &[impl AsRef<str>]) -> Result<Vec<u64>, ProvenanceClientError> {
         tracing::debug!(
             "Getting node id for {:?}",
             swhids.iter().map(AsRef::as_ref).collect::<Vec<_>>()
@@ -314,25 +329,11 @@ impl<
         let mut node_ids = Vec::<u64>::new();
         for swhid in swhids {
             let swhid = swhid.as_ref();
-            match self.graph.properties().node_id_from_string_swhid(swhid) {
-                Ok(node_id) => node_ids.push(node_id.try_into().expect("Node id overflowed u64")),
-                Err(NodeIdFromSwhidError::InvalidSwhid(_)) => {
-                    return Ok(Err(tonic::Status::invalid_argument(format!(
-                        "Unknown SWHID: {}",
-                        swhid
-                    ))))
-                }
-                Err(NodeIdFromSwhidError::UnknownSwhid(_)) => {
-                    return Ok(Err(tonic::Status::not_found(format!(
-                        "Unknown SWHID: {}",
-                        swhid
-                    ))))
-                }
-                Err(NodeIdFromSwhidError::InternalError(e)) => return Err(anyhow!("{}", e)),
-            }
+            let node_id = self.graph.properties().node_id_from_string_swhid(swhid)?;
+            node_ids.push(node_id.try_into().expect("Node id overflowed u64"));
         }
 
-        Ok(Ok(node_ids))
+        Ok(node_ids)
     }
 
     /// Given a RecordBatch with a column of `NodeId` and one of `Option<NodeId>`, converts
@@ -622,12 +623,12 @@ impl<
     #[instrument(skip(self))]
     pub async fn where_is_one(
         &self,
-        swhid: String,
-    ) -> Result<Result<(Metrics, proto::WhereIsOneResult), tonic::Status>> {
+        swhid: &str,
+    ) -> Result<(Metrics, proto::WhereIsOneResult), ProvenanceQueryError> {
         let mut metrics = Metrics::default();
         let node_id = self
-            .node_id(&[&swhid])
-            .await??
+            .node_id(&[swhid])
+            .await?
             .pop()
             .expect("node_id returned empty Ok result");
 
@@ -657,14 +658,14 @@ impl<
                 }
                 None => None,
             };
-            return Ok(Ok((
+            return Ok((
                 metrics,
                 proto::WhereIsOneResult {
                     swhid: cnt.to_string(),
                     anchor: revrel.map(|(_revrel_id, revrel_swhid)| revrel_swhid.to_string()),
                     origin,
                 },
-            )));
+            ));
         }
 
         tracing::debug!("Looking up c_in_d + d_in_r");
@@ -725,7 +726,7 @@ impl<
                 let origin = self.get_origin(revrel, &mut metrics).await?;
 
                 metrics.c_in_d_scan += c_in_d_scan_metrics;
-                return Ok(Ok((
+                return Ok((
                     metrics,
                     proto::WhereIsOneResult {
                         swhid: self
@@ -736,18 +737,18 @@ impl<
                         anchor: Some(self.graph.properties().swhid(revrel).to_string()),
                         origin,
                     },
-                )));
+                ));
             }
         }
         metrics.c_in_d_scan += c_in_d_scan_metrics;
 
         // No result
-        Ok(Ok((
+        Ok((
             metrics,
             proto::WhereIsOneResult {
-                swhid,
+                swhid: swhid.to_string(),
                 ..Default::default()
             },
-        )))
+        ))
     }
 }

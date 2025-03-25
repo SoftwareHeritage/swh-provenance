@@ -1,4 +1,4 @@
-// Copyright (C) 2023-2024  The Software Heritage developers
+// Copyright (C) 2023-2025  The Software Heritage developers
 // See the AUTHORS file at the top-level directory of this distribution
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
@@ -18,7 +18,7 @@ use swh_graph::graph::SwhGraphWithProperties;
 use crate::database::ProvenanceDatabase;
 use crate::proto;
 use crate::proto::provenance_service_server::ProvenanceServiceServer;
-use crate::queries::ProvenanceService;
+use crate::queries::{ProvenanceClientError, ProvenanceQueryError, ProvenanceService};
 
 pub type NodeId = u64;
 
@@ -78,11 +78,20 @@ impl<
     ) -> TonicResult<proto::WhereIsOneResult> {
         tracing::info!("{:?}", request.get_ref());
 
-        match self.0.where_is_one(request.into_inner().swhid).await {
-            Ok(Ok((_metrics, result))) => Ok(Response::new(result)),
-            Ok(Err(e)) => Err(e), // client error
-            Err(e) => {
-                // server error
+        match self.0.where_is_one(&request.into_inner().swhid).await {
+            Ok((_metrics, result)) => Ok(Response::new(result)),
+            Err(ProvenanceQueryError::ClientError(ProvenanceClientError::Swhid(e))) => {
+                use swh_graph::properties::NodeIdFromSwhidError::*;
+                match e {
+                    InvalidSwhid(e) => Err(tonic::Status::invalid_argument(e.to_string())),
+                    UnknownSwhid(e) => Err(tonic::Status::not_found(e.to_string())),
+                    InternalError(e) => {
+                        tracing::error!("{:?}", e);
+                        Err(tonic::Status::internal(e.to_string()))
+                    }
+                }
+            }
+            Err(ProvenanceQueryError::ServerError(e)) => {
                 tracing::error!("{:?}", e);
                 capture_anyhow(&e); // redundant with tracing::error!
                 Err(tonic::Status::internal(e.to_string()))
@@ -113,11 +122,36 @@ impl<
                 .map(move |swhid| {
                     let whereis_service: ProvenanceServiceWrapper<G> = whereis_service.clone(); // ditto
                     async move {
-                        match whereis_service.0.where_is_one(swhid).await {
-                            Ok(Ok((_metrics, result))) => Ok(result),
-                            Ok(Err(e)) => Err(e), // client error
-                            Err(e) => {
-                                // server error
+                        match whereis_service.0.where_is_one(&swhid).await {
+                            Ok((_metrics, result)) => Ok(result),
+                            Err(ProvenanceQueryError::ClientError(
+                                ProvenanceClientError::Swhid(e),
+                            )) => {
+                                use swh_graph::properties::NodeIdFromSwhidError::*;
+                                match e {
+                                    InvalidSwhid(e) => {
+                                        Err(tonic::Status::invalid_argument(e.to_string()))
+                                    }
+                                    UnknownSwhid(_) => {
+                                        // Can't return
+                                        // Err(tonic::Status::not_found(e.to_string())) because
+                                        // gRPC does not support streaming results after an error,
+                                        // and we don't want to stop sending the whole response to
+                                        // the client just because they sent a SWHID that we don't
+                                        // know about.
+                                        Ok(proto::WhereIsOneResult {
+                                            swhid,
+                                            anchor: None,
+                                            origin: None,
+                                        })
+                                    }
+                                    InternalError(e) => {
+                                        tracing::error!("{:?}", e);
+                                        Err(tonic::Status::internal(e.to_string()))
+                                    }
+                                }
+                            }
+                            Err(ProvenanceQueryError::ServerError(e)) => {
                                 tracing::error!("{:?}", e);
                                 capture_anyhow(&e); // redundant with tracing::error!
                                 Err(tonic::Status::internal(e.to_string()))

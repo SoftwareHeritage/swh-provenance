@@ -3763,6 +3763,7 @@ dependencies = [
  "sux",
  "swh-graph",
  "swh-provenance-db-build",
+ "thiserror",
  "tokio",
  "tonic",
  "tonic-build",

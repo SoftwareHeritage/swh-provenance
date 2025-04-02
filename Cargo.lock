@@ -3738,7 +3738,7 @@ dependencies = [
 
 [[package]]
 name = "swh-provenance"
-version = "0.3.2"
+version = "0.4.1"
 dependencies = [
  "anyhow",
  "cadence",
@@ -3777,7 +3777,7 @@ dependencies = [
 
 [[package]]
 name = "swh-provenance-db-build"
-version = "0.3.2"
+version = "0.4.1"
 dependencies = [
  "anyhow",
  "ar_row",

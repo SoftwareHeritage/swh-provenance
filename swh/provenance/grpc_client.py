@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import logging
 from typing import List, Optional
 
 import grpc
@@ -10,6 +11,8 @@ import grpc
 from swh.model.swhids import CoreSWHID, QualifiedSWHID
 from swh.provenance.grpc.swhprovenance_pb2 import WhereAreOneRequest, WhereIsOneRequest
 from swh.provenance.grpc.swhprovenance_pb2_grpc import ProvenanceServiceStub
+
+logger = logging.getLogger(__name__)
 
 
 class GrpcProvenance:
@@ -23,7 +26,14 @@ class GrpcProvenance:
 
     def whereis(self, *, swhid: CoreSWHID) -> Optional[QualifiedSWHID]:
         str_swhid = str(swhid)
-        result = self._stub.WhereIsOne(WhereIsOneRequest(swhid=str_swhid))
+        try:
+            result = self._stub.WhereIsOne(WhereIsOneRequest(swhid=str_swhid))
+        except grpc.RpcError as exc:
+            if exc.code() == grpc.StatusCode.NOT_FOUND:
+                logger.debug("Unknown SWHID: %s", swhid)
+                return None
+            else:
+                raise
         if result is None or result.anchor is None:
             return None
         else:
@@ -41,7 +51,7 @@ class GrpcProvenance:
         for result in self._stub.WhereAreOne(
             WhereAreOneRequest(swhid=list(map(str, swhids)))
         ):
-            if result is None or result.anchor is None:
+            if result is None or not result.anchor:
                 results.append(None)
             else:
                 swhid = CoreSWHID.from_string(result.swhid)

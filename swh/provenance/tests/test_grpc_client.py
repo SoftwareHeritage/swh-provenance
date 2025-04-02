@@ -7,7 +7,7 @@ from swh.model.swhids import CoreSWHID, QualifiedSWHID
 from swh.provenance import get_provenance
 
 
-def test_grpc_whereis1(provenance_grpc_server):
+def test_grpc_whereis(provenance_grpc_server):
     provenance_client = get_provenance("grpc", url=provenance_grpc_server)
 
     assert provenance_client.whereis(
@@ -21,7 +21,7 @@ def test_grpc_whereis1(provenance_grpc_server):
     )
 
 
-def test_grpc_whereis2(provenance_grpc_server):
+def test_grpc_whereare(provenance_grpc_server):
     provenance_client = get_provenance("grpc", url=provenance_grpc_server)
 
     assert set(
@@ -58,3 +58,38 @@ def test_grpc_whereis2(provenance_grpc_server):
             else ["https://example.com/swh/graph", "https://example.com/swh/graph2"]
         )
     ]
+
+
+def test_grpc_whereis_unknown_swhid(provenance_grpc_server):
+    provenance_client = get_provenance("grpc", url=provenance_grpc_server)
+
+    assert (
+        provenance_client.whereis(
+            swhid=CoreSWHID.from_string(
+                "swh:1:cnt:ffffffffffffffffffffffffffffffffffffffff"
+            )
+        )
+        is None
+    )
+
+
+def test_grpc_whereare_unknown_swhid(provenance_grpc_server):
+    provenance_client = get_provenance("grpc", url=provenance_grpc_server)
+
+    assert set(
+        provenance_client.whereare(
+            swhids=[
+                CoreSWHID.from_string(
+                    "swh:1:cnt:0000000000000000000000000000000000000001"
+                ),
+                CoreSWHID.from_string(
+                    "swh:1:cnt:ffffffffffffffffffffffffffffffffffffffff"
+                ),
+            ]
+        )
+    ) == {
+        None,
+        QualifiedSWHID.from_string(
+            "swh:1:cnt:0000000000000000000000000000000000000001;origin=https://example.com/swh/graph2;anchor=swh:1:rev:0000000000000000000000000000000000000003"
+        ),
+    }

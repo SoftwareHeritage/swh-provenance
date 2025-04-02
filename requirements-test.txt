@@ -3,6 +3,7 @@ pyarrow-stubs
 pytest >= 8.1
 swh.graph[testing] >= 1.0.1
 types-click
+types-protobuf
 types-psutil
 types-PyYAML
 types-Deprecated

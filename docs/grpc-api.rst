@@ -39,6 +39,7 @@ Getting a provenance database
 You also need a local graph. Either use ``swh graph download`` to download a full graph, or get
 only the minimal set of required files with::
 
+    aws s3 cp --no-sign-request s3://softwareheritage/graph/2024-12-06/compressed/graph.nodes.count.txt graph-2024-12-06/
     aws s3 cp --no-sign-request s3://softwareheritage/graph/2024-12-06/compressed/graph.pthash graph-2024-12-06/
     aws s3 cp --no-sign-request s3://softwareheritage/graph/2024-12-06/compressed/graph.pthash.order graph-2024-12-06/
     aws s3 cp --no-sign-request s3://softwareheritage/graph/2024-12-06/compressed/graph.node2swhid.bin.zst graph-2024-12-06/

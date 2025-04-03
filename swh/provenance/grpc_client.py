@@ -34,7 +34,7 @@ class GrpcProvenance:
                 return None
             else:
                 raise
-        if result is None or result.anchor is None:
+        if result is None or not result.anchor:
             return None
         else:
             assert result.swhid == str_swhid

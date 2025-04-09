@@ -12,6 +12,7 @@ use tracing_subscriber::util::SubscriberInitExt;
 
 #[derive(ValueEnum, Debug, Clone)]
 enum Dataset {
+    DanglingContent,
     Main,
 }
 
@@ -44,10 +45,11 @@ pub fn main() -> Result<()> {
         .context("Could not initialize logging")?;
 
     match args.dataset {
-        Dataset::Main => {
-            swh_provenance::test_databases::main::gen_database(args.path)?;
+        Dataset::DanglingContent => {
+            swh_provenance::test_databases::dangling_content::gen_database(args.path)
         }
-    }
+        Dataset::Main => swh_provenance::test_databases::main::gen_database(args.path),
+    }?;
 
     Ok(())
 }

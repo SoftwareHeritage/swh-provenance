@@ -10,10 +10,10 @@
 //! 1. Initialize an array of timestamps (as AtomicI64), one for each node, to the maximum
 //!    timestamp
 //! 2. For each revision/release (in parallel):
-//!     a. Get its author date (if none, skip the revision/release)
-//!     b. traverse all contents and directories contained by that revision/release.
-//!        For each content/directory, atomically set the timestamp to the
-//!        current rev/rel's timestamp if it is lower than the existing one
+//!    a. Get its author date (if none, skip the revision/release)
+//!    b. traverse all contents and directories contained by that revision/release.
+//!       For each content/directory, atomically set the timestamp to the
+//!       current rev/rel's timestamp if it is lower than the existing one
 //! 3. Write the array
 #![allow(non_snake_case)]
 use std::io::Write;

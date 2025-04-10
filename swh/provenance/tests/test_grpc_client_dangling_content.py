@@ -11,6 +11,14 @@ from swh.model.swhids import CoreSWHID, QualifiedSWHID
 from swh.provenance import get_provenance
 from swh.provenance.grpc_server import default_rust_executable_dir
 
+# locally "redefine" all fixtures that depend on the session-scoped
+# provenance_database_and_graph, because we need pytest to call them again.
+from swh.provenance.pytest_plugin import (  # noqa
+    provenance_grpc_server_config,
+    provenance_grpc_server_process,
+    provenance_grpc_server_started,
+)
+
 
 @pytest.fixture(scope="session")
 def provenance_database_and_graph(tmpdir_factory):

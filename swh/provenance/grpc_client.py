@@ -34,16 +34,14 @@ class GrpcProvenance:
                 return None
             else:
                 raise
-        if result is None:
-            return None
-        else:
-            assert result.swhid == str_swhid
-            return QualifiedSWHID(
-                object_type=swhid.object_type,
-                object_id=swhid.object_id,
-                anchor=result.anchor or None,
-                origin=result.origin or None,
-            )
+        assert result is not None
+        assert result.swhid == str_swhid
+        return QualifiedSWHID(
+            object_type=swhid.object_type,
+            object_id=swhid.object_id,
+            anchor=result.anchor or None,
+            origin=result.origin or None,
+        )
 
     def whereare(self, *, swhids: List[CoreSWHID]) -> List[Optional[QualifiedSWHID]]:
         results: List[Optional[QualifiedSWHID]] = []
@@ -51,17 +49,15 @@ class GrpcProvenance:
         for result in self._stub.WhereAreOne(
             WhereAreOneRequest(swhid=list(map(str, swhids)))
         ):
-            if result is None:
-                results.append(None)
-            else:
-                swhid = CoreSWHID.from_string(result.swhid)
-                results.append(
-                    QualifiedSWHID(
-                        object_type=swhid.object_type,
-                        object_id=swhid.object_id,
-                        anchor=result.anchor or None,
-                        origin=result.origin or None,
-                    )
+            assert result is not None
+            swhid = CoreSWHID.from_string(result.swhid)
+            results.append(
+                QualifiedSWHID(
+                    object_type=swhid.object_type,
+                    object_id=swhid.object_id,
+                    anchor=result.anchor or None,
+                    origin=result.origin or None,
                 )
+            )
 
         return results

@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use futures::stream::FuturesUnordered;
+use futures::StreamExt;
 use sentry::integrations::anyhow::capture_anyhow;
 use tonic::transport::Server;
 use tonic::{Request, Response};
@@ -123,7 +124,7 @@ impl<
                     let whereis_service: ProvenanceServiceWrapper<G> = whereis_service.clone(); // ditto
                     async move {
                         match whereis_service.0.where_is_one(&swhid).await {
-                            Ok((_metrics, result)) => Ok(result),
+                            Ok((_metrics, result)) => Ok(Some(result)),
                             Err(ProvenanceQueryError::ClientError(
                                 ProvenanceClientError::Swhid(e),
                             )) => {
@@ -139,11 +140,7 @@ impl<
                                         // and we don't want to stop sending the whole response to
                                         // the client just because they sent a SWHID that we don't
                                         // know about.
-                                        Ok(proto::WhereIsOneResult {
-                                            swhid,
-                                            anchor: None,
-                                            origin: None,
-                                        })
+                                        Ok(None)
                                     }
                                     InternalError(e) => {
                                         tracing::error!("{:?}", e);
@@ -159,7 +156,8 @@ impl<
                         }
                     }
                 })
-                .collect::<FuturesUnordered<_>>(), // Run each request concurrently
+                .collect::<FuturesUnordered<_>>() // Run each request concurrently
+                .filter_map(|item| std::future::ready(item.transpose()) ) // Remove Ok(None) items
         )))
     }
 }

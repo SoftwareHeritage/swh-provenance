@@ -31,7 +31,7 @@ use swh_provenance_db_build::x_in_y_dataset::{
 /// ```
 pub fn gen_graph() -> BuiltGraph {
     use swh_graph::graph_builder::GraphBuilder;
-    use swh_graph::labels::{Permission, VisitStatus};
+    use swh_graph::labels::{Permission};
     use swh_graph::swhid;
     let mut builder = GraphBuilder::default();
 

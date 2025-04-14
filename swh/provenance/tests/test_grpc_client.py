@@ -88,7 +88,6 @@ def test_grpc_whereare_unknown_swhid(provenance_grpc_server):
             ]
         )
     ) == {
-        None,
         QualifiedSWHID.from_string(
             "swh:1:cnt:0000000000000000000000000000000000000001;origin=https://example.com/swh/graph2;anchor=swh:1:rev:0000000000000000000000000000000000000003"
         ),

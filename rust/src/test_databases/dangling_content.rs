@@ -24,7 +24,7 @@ use swh_provenance_db_build::x_in_y_dataset::{
 
 /// Builds a small graph where one content is in no revision
 ///
-/// ```
+/// ```text
 /// rev0 -> dir1 -> cnt3
 ///
 /// dir4 -> cnt5

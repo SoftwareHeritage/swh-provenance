@@ -70,6 +70,7 @@ pub fn gen_graph() -> BuiltGraph {
     builder.done().expect("Could not build graph")
 }
 
+#[allow(clippy::single_element_loop)]
 pub fn gen_database(path: PathBuf) -> Result<()> {
     let graph = gen_graph();
 

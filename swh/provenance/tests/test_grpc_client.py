@@ -76,7 +76,7 @@ def test_grpc_whereis_unknown_swhid(provenance_grpc_server):
 def test_grpc_whereare_unknown_swhid(provenance_grpc_server):
     provenance_client = get_provenance("grpc", url=provenance_grpc_server)
 
-    assert set(
+    assert list(
         provenance_client.whereare(
             swhids=[
                 CoreSWHID.from_string(
@@ -87,8 +87,9 @@ def test_grpc_whereare_unknown_swhid(provenance_grpc_server):
                 ),
             ]
         )
-    ) == {
+    ) == [
         QualifiedSWHID.from_string(
             "swh:1:cnt:0000000000000000000000000000000000000001;origin=https://example.com/swh/graph2;anchor=swh:1:rev:0000000000000000000000000000000000000003"
         ),
-    }
+        None,
+    ]

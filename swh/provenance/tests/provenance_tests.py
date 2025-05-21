@@ -22,7 +22,7 @@ TEST_CASES: Dict[
                 object_type=data.CONTENTS[0].swhid().object_type,
                 object_id=data.CONTENTS[0].swhid().object_id,
                 anchor=data.RELEASES[0].swhid(),
-                origin="https://example.com/swh/graph2",
+                origin="https://example.com/swh/graph",
             ),
         )
     ],
@@ -33,7 +33,7 @@ TEST_CASES: Dict[
                 object_type=data.DIRECTORIES[1].swhid().object_type,
                 object_id=data.DIRECTORIES[1].swhid().object_id,
                 anchor=data.RELEASES[0].swhid(),
-                origin="https://example.com/swh/graph2",
+                origin="https://example.com/swh/graph",
             ),
         )
     ],

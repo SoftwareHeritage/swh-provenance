@@ -30,10 +30,12 @@ def swh_provenance(swh_provenance_config):
     yield get_provenance(**swh_provenance_config)
 
 
-class ProvenanceServerProcess(multiprocessing.Process):
+# The default on Python < 3.14 on Linux is "fork", which is not safe
+# as forking a multithreaded process is problematic
+class ProvenanceServerProcess(multiprocessing.context.ForkServerProcess):
     def __init__(self, config, *args, **kwargs):
         self.config = config
-        self.q = multiprocessing.Queue()
+        self.q = multiprocessing.get_context("forkserver").Queue()
         super().__init__(*args, **kwargs)
 
     def run(self):

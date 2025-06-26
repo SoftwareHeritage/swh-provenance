@@ -25,6 +25,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use dsi_progress_logger::{progress_logger, ProgressLog};
 use rayon::prelude::*;
+use mimalloc::MiMalloc;
 
 use swh_graph::collections::{AdaptiveNodeSet, NodeSet};
 use swh_graph::graph::*;
@@ -34,12 +35,8 @@ use swh_graph::NodeType;
 use swh_graph::utils::progress_logger::{BufferedProgressLogger, MinimalProgressLog};
 use swh_provenance_db_build::filters::{is_root_revrel, NodeFilter};
 
-#[cfg(not(target_env = "msvc"))]
-use tikv_jemallocator::Jemalloc;
-
-#[cfg(not(target_env = "msvc"))]
 #[global_allocator]
-static GLOBAL: Jemalloc = Jemalloc;
+static GLOBAL: MiMalloc = MiMalloc;
 
 #[derive(Parser, Debug)]
 /// Returns a directory of CSV files with header 'author_date,revrel_SWHID,cntdir_SWHID'

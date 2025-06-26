@@ -3793,6 +3793,7 @@ dependencies = [
  "dsi-progress-logger",
  "env_logger 0.11.5",
  "log",
+ "mimalloc",
  "parquet",
  "pretty_assertions",
  "rayon",
@@ -3801,7 +3802,6 @@ dependencies = [
  "serde_bytes",
  "sux",
  "swh-graph",
- "tikv-jemallocator",
 ]
 
 [[package]]

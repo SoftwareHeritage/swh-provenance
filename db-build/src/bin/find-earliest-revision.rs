@@ -9,6 +9,7 @@ use std::sync::Mutex;
 
 use anyhow::{ensure, Context, Result};
 use clap::Parser;
+use mimalloc::MiMalloc;
 use dsi_progress_logger::{progress_logger, ProgressLog};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -19,12 +20,8 @@ use swh_graph::SWHID;
 
 use swh_provenance_db_build::earliest_revision::{find_earliest_revision, EarliestRevision};
 
-#[cfg(not(target_env = "msvc"))]
-use tikv_jemallocator::Jemalloc;
-
-#[cfg(not(target_env = "msvc"))]
 #[global_allocator]
-static GLOBAL: Jemalloc = Jemalloc;
+static GLOBAL: MiMalloc = MiMalloc;
 
 #[derive(Parser, Debug)]
 /// Given a CSV of directory/content SWHID on stdin (with header 'swhid'), returns a CSV with header 'swhid,earliest_swhid,earliest_ts,rev_occurrences'

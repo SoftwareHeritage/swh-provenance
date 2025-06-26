@@ -9,6 +9,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use clap::Parser;
 use dsi_progress_logger::{progress_logger, ProgressLog};
+use mimalloc::MiMalloc;
 
 use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter};
 use swh_graph::mph::DynMphf;
@@ -18,12 +19,8 @@ use swh_provenance_db_build::x_in_y_dataset::{
     cnt_in_revrel_schema, cnt_in_revrel_writer_properties,
 };
 
-#[cfg(not(target_env = "msvc"))]
-use tikv_jemallocator::Jemalloc;
-
-#[cfg(not(target_env = "msvc"))]
 #[global_allocator]
-static GLOBAL: Jemalloc = Jemalloc;
+static GLOBAL: MiMalloc = MiMalloc;
 
 #[derive(Parser, Debug)]
 /** Given a Parquet table with the node ids of every frontier directory.

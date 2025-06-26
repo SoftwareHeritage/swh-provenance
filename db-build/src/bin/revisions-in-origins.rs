@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use mimalloc::MiMalloc;
 use clap::Parser;
 
 use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter};
@@ -17,12 +18,8 @@ use swh_provenance_db_build::x_in_y_dataset::{
     revrel_in_ori_schema, revrel_in_ori_writer_properties,
 };
 
-#[cfg(not(target_env = "msvc"))]
-use tikv_jemallocator::Jemalloc;
-
-#[cfg(not(target_env = "msvc"))]
 #[global_allocator]
-static GLOBAL: Jemalloc = Jemalloc;
+static GLOBAL: MiMalloc = MiMalloc;
 
 #[derive(Parser, Debug)]
 /** Given a Parquet table with the node ids of every frontier directory.

@@ -9,6 +9,7 @@ use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use anyhow::{bail, Context, Result};
+use mimalloc::MiMalloc;
 use clap::Parser;
 use dsi_progress_logger::{progress_logger, ProgressLog};
 use rayon::prelude::*;
@@ -24,12 +25,8 @@ use swh_graph::NodeType;
 
 use swh_provenance_db_build::filters::{load_reachable_nodes, NodeFilter};
 
-#[cfg(not(target_env = "msvc"))]
-use tikv_jemallocator::Jemalloc;
-
-#[cfg(not(target_env = "msvc"))]
 #[global_allocator]
-static GLOBAL: Jemalloc = Jemalloc;
+static GLOBAL: MiMalloc = MiMalloc;
 
 #[derive(Parser, Debug)]
 /** Given as argument a binary file containing an array of timestamps which is,

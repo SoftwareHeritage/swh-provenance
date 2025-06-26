@@ -9,6 +9,7 @@ use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
 use anyhow::{ensure, Context, Result};
+use mimalloc::MiMalloc;
 use clap::Parser;
 use dsi_progress_logger::{progress_logger, ProgressLog};
 use rayon::prelude::*;
@@ -24,12 +25,8 @@ use swh_graph::NodeType;
 use swh_provenance_db_build::filters::{is_root_revrel, NodeFilter};
 use swh_provenance_db_build::node_dataset::{schema, writer_properties, NodeTableBuilder};
 
-#[cfg(not(target_env = "msvc"))]
-use tikv_jemallocator::Jemalloc;
-
-#[cfg(not(target_env = "msvc"))]
 #[global_allocator]
-static GLOBAL: Jemalloc = Jemalloc;
+static GLOBAL: MiMalloc = MiMalloc;
 
 #[derive(Parser, Debug)]
 /** Writes the list of nodes reachable from a 'head' revision or a release.

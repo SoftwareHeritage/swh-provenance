@@ -11,6 +11,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use dsi_progress_logger::{progress_logger, ProgressLog};
 use rayon::prelude::*;
+use mimalloc::MiMalloc;
 use sux::prelude::{AtomicBitVec, BitVec};
 
 use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter};
@@ -25,12 +26,8 @@ use swh_graph::NodeType;
 use swh_provenance_db_build::filters::{is_root_revrel, NodeFilter};
 use swh_provenance_db_build::frontier_set::{schema, to_parquet, writer_properties};
 
-#[cfg(not(target_env = "msvc"))]
-use tikv_jemallocator::Jemalloc;
-
-#[cfg(not(target_env = "msvc"))]
 #[global_allocator]
-static GLOBAL: Jemalloc = Jemalloc;
+static GLOBAL: MiMalloc = MiMalloc;
 
 #[derive(Parser, Debug)]
 /** Given as input a binary file with, for each directory, the newest date of first

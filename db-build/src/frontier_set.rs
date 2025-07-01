@@ -188,7 +188,7 @@ where
 
     readers.into_par_iter().try_for_each(|mut reader| {
         reader.try_for_each(|batch| -> Result<()> {
-            let batch = batch.unwrap_or_else(|e| panic!("Could not read chunk: {}", e));
+            let batch = batch.unwrap_or_else(|e| panic!("Could not read chunk: {e}"));
             let batch_num_rows = batch.num_rows();
             let rows: Vec<Row> =
                 Row::from_record_batch(batch).context("Could not deserialize from arrow")?;

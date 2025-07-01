@@ -25,7 +25,7 @@ pub struct ProvenanceDatabase {
 impl ProvenanceDatabase {
     pub async fn new(base_url: Url, base_ef_indexes_path: &Path) -> Result<Self> {
         let (store, path) = object_store::parse_url(&base_url)
-            .with_context(|| format!("Invalid provenance database URL: {}", base_url))?;
+            .with_context(|| format!("Invalid provenance database URL: {base_url}"))?;
         let store = store.into();
         let (c_in_d, d_in_r, c_in_r, r_in_o) = futures::join!(
             Table::new(

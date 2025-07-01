@@ -75,7 +75,7 @@ fn projection_mask(
                 .columns()
                 .iter()
                 .position(|column| column.name() == column_name)
-                .with_context(|| format!("{:?} has no column named {}", schema, column_name))
+                .with_context(|| format!("{schema:?} has no column named {column_name}"))
         })
         .collect::<Result<Vec<_>>>()?;
     Ok(ProjectionMask::roots(schema, column_indices))
@@ -354,24 +354,24 @@ impl<
                 std::iter::zip(
                     batch
                         .column_by_name(col1)
-                        .with_context(|| format!("Could not get '{}' column from batch", col1))?
+                        .with_context(|| format!("Could not get '{col1}' column from batch"))?
                         .as_primitive_opt::<UInt64Type>()
                         .with_context(|| {
-                            format!("Could not cast '{}' column as UInt64Array", col1)
+                            format!("Could not cast '{col1}' column as UInt64Array")
                         })?
                         .into_iter(),
                     batch
                         .column_by_name(col2)
-                        .with_context(|| format!("Could not get '{}' column from batch", col2))?
+                        .with_context(|| format!("Could not get '{col2}' column from batch"))?
                         .as_primitive_opt::<UInt64Type>()
                         .with_context(|| {
-                            format!("Could not cast '{}' column as UInt64Array", col2)
+                            format!("Could not cast '{col2}' column as UInt64Array")
                         })?
                         .into_iter(),
                 )
                 .map(|(id1, id2)| {
                     let Some(id1) = id1 else {
-                        panic!("Got null value for '{}'", col1)
+                        panic!("Got null value for '{col1}'")
                     };
                     (
                         self.graph

@@ -1,15 +1,15 @@
-// Copyright (C) 2024  The Software Heritage developers
+// Copyright (C) 2024-2025  The Software Heritage developers
 // See the AUTHORS file at the top-level directory of this distribution
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
 
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use dsi_progress_logger::{progress_logger, ProgressLog};
+use dsi_progress_logger::{concurrent_progress_logger, ProgressLog};
 use rayon::prelude::*;
 use mimalloc::MiMalloc;
 use sux::prelude::{AtomicBitVec, BitVec};
@@ -19,7 +19,6 @@ use swh_graph::collections::{AdaptiveNodeSet, NodeSet};
 use swh_graph::graph::*;
 use swh_graph::mph::DynMphf;
 use swh_graph::utils::mmap::NumberMmap;
-use swh_graph::utils::progress_logger::{BufferedProgressLogger, MinimalProgressLog};
 use swh_graph::utils::GetIndex;
 use swh_graph::NodeType;
 
@@ -81,7 +80,7 @@ pub fn main() -> Result<()> {
 
     let frontiers = find_frontiers(&graph, &max_timestamps, args.node_filter)?;
 
-    let mut pl = progress_logger!(
+    let mut pl = concurrent_progress_logger!(
         item_name = "node",
         display_memory = true,
         local_speed = true,
@@ -108,7 +107,7 @@ where
 {
     let frontiers = AtomicBitVec::new(graph.num_nodes());
 
-    let mut pl = progress_logger!(
+    let mut pl = concurrent_progress_logger!(
         item_name = "node",
         display_memory = true,
         local_speed = true,
@@ -116,7 +115,7 @@ where
     );
     pl.start("[step 1/2] Visiting revisions' directories...");
     swh_graph::utils::shuffle::par_iter_shuffled_range(0..graph.num_nodes()).try_for_each_with(
-        BufferedProgressLogger::new(Arc::new(Mutex::new(&mut pl))),
+        pl.clone(),
         |thread_pl, root| -> Result<()> {
             if is_root_revrel(graph, node_filter, root) {
                 if let Some(root_dir) = swh_graph::stdlib::find_root_dir(graph, root)

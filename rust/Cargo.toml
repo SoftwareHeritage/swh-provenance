@@ -20,7 +20,7 @@ swh-graph.workspace = true
 # CLI & logging
 cadence = "1.4.0"
 clap = { version = "4.1.6", features = ["derive"] }
-dsi-progress-logger = "0.2.4"
+dsi-progress-logger = "0.8.0"
 log = "0.4.17"
 sentry = { version = "0.32.1", features = ["anyhow", "tower", "tracing"], optional = true }
 sentry-tracing = { version = "0.32.1", optional = true }
@@ -37,7 +37,7 @@ dataset-writer.workspace = true # to generate test databases
 
 # Elias-Fano index
 epserde = "0.6.1"
-sux = "0.4.1"
+sux = "0.7.2"
 
 # gRPC
 prost = "0.13"

@@ -1,4 +1,4 @@
-// Copyright (C) 2024  The Software Heritage developers
+// Copyright (C) 2024-2025  The Software Heritage developers
 // See the AUTHORS file at the top-level directory of this distribution
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
@@ -14,7 +14,7 @@ use ar_row_derive::ArRowDeserialize;
 use arrow::array::*;
 use arrow::datatypes::DataType::*;
 use arrow::datatypes::{Field, Schema};
-use dsi_progress_logger::ProgressLog;
+use dsi_progress_logger::{ConcurrentProgressLog, ProgressLog};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::ProjectionMask;
 use parquet::basic::{Compression, Encoding, ZstdLevel};
@@ -25,7 +25,6 @@ use sux::bits::bit_vec::{AtomicBitVec, BitVec};
 
 use swh_graph::collections::NodeSet;
 use swh_graph::graph::*;
-use swh_graph::utils::progress_logger::{BufferedProgressLogger, MinimalProgressLog};
 
 use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter, StructArrayBuilder};
 
@@ -78,7 +77,7 @@ impl StructArrayBuilder for Builder {
     }
 }
 
-pub fn to_parquet<G, NS: NodeSet + Sync, PL: ProgressLog + Send>(
+pub fn to_parquet<G, NS: NodeSet + Sync, PL: ConcurrentProgressLog + Send>(
     graph: &G,
     frontier: NS,
     dataset_writer: ParallelDatasetWriter<ParquetTableWriter<Builder>>,
@@ -87,8 +86,6 @@ pub fn to_parquet<G, NS: NodeSet + Sync, PL: ProgressLog + Send>(
 where
     G: SwhGraph + Sync,
 {
-    let pl = Arc::new(Mutex::new(pl));
-
     // Split into a small number of chunks. This causes the node ids to form long
     // monotonically increasing sequences in the output dataset, which makes them
     // easy to index using Parquet/ORC chunk statistics. And should compress better
@@ -110,12 +107,7 @@ where
                 .into_par_iter()
                 .by_uniform_blocks(chunk_size)
                 .try_for_each_init(
-                    || {
-                        (
-                            dataset_writer.get_thread_writer().unwrap(),
-                            BufferedProgressLogger::new(pl.clone()),
-                        )
-                    },
+                    || (dataset_writer.get_thread_writer().unwrap(), pl.clone()),
                     |(writer, thread_pl), node| -> Result<()> {
                         if frontier.contains(node) {
                             writer

@@ -5,11 +5,10 @@
 
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
 
 use anyhow::{bail, Context, Result};
 use dashmap::DashMap;
-use dsi_progress_logger::{progress_logger, ProgressLog};
+use dsi_progress_logger::{concurrent_progress_logger, ProgressLog};
 use rayon::prelude::*;
 use rdst::RadixSort;
 use sux::prelude::elias_fano;
@@ -17,7 +16,6 @@ use sux::prelude::elias_fano;
 use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter};
 use swh_graph::collections::{AdaptiveNodeSet, NodeSet};
 use swh_graph::graph::*;
-use swh_graph::utils::progress_logger::{BufferedProgressLogger, MinimalProgressLog};
 use swh_graph::views::Subgraph;
 use swh_graph::NodeType;
 
@@ -38,17 +36,16 @@ where
     let (unique_representatives, revrel_to_representative) =
         compute_revrel_representatives(graph, node_filter)?;
 
-    let mut pl = progress_logger!(
+    let mut pl = concurrent_progress_logger!(
         item_name = "revrel representative",
         display_memory = true,
         local_speed = true,
         expected_updates = Some(unique_representatives.len()),
     );
     pl.start("Computing origin sets for revision/release representatives...");
-    let shared_pl = Arc::new(Mutex::new(&mut pl));
     let representative_to_origin_set = DashMap::new();
     unique_representatives.into_par_iter().try_for_each_init(
-        || BufferedProgressLogger::new(shared_pl.clone()),
+        || pl.clone(),
         |pl, node| -> Result<_> {
             find_origins_from_revrel(&graph, node, &representative_to_origin_set)?;
             pl.light_update();
@@ -132,7 +129,7 @@ where
     // compiled into a no-op
     let representatives: Vec<_> = representatives.into_iter().map(AtomicUsize::new).collect();
 
-    let mut pl = progress_logger!(
+    let mut pl = concurrent_progress_logger!(
         item_name = "revrel",
         display_memory = true,
         local_speed = true,
@@ -145,11 +142,10 @@ where
     while !todo.is_empty() {
         unique_representatives.extend(todo.iter().copied());
 
-        let shared_pl = Arc::new(Mutex::new(&mut pl));
         todo = todo
             .par_iter()
             .map_init(
-                || BufferedProgressLogger::new(shared_pl.clone()),
+                || pl.clone(),
                 |pl, &root| {
                     if representatives[root].load(Ordering::SeqCst) != usize::MAX {
                         // the 'root' is already in the subgraph of an other node
@@ -275,7 +271,7 @@ where
     G: SwhBackwardGraph + SwhGraphWithProperties + Send + Sync + 'static,
     <G as SwhGraphWithProperties>::Maps: swh_graph::properties::Maps,
 {
-    let mut pl = progress_logger!(
+    let mut pl = concurrent_progress_logger!(
         item_name = "node",
         display_memory = true,
         local_speed = true,
@@ -283,14 +279,8 @@ where
     );
     pl.start("Writing revisions' origins...");
 
-    let shared_pl = Arc::new(Mutex::new(&mut pl));
     (0..graph.num_nodes()).into_par_iter().try_for_each_init(
-        || {
-            (
-                dataset_writer.get_thread_writer().unwrap(),
-                BufferedProgressLogger::new(shared_pl.clone()),
-            )
-        },
+        || (dataset_writer.get_thread_writer().unwrap(), pl.clone()),
         |(writer, thread_pl), node| -> Result<()> {
             if crate::filters::is_root_revrel(graph, node_filter, node) {
                 if let Some(origins) = get_origins(node)? {

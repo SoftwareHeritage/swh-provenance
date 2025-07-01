@@ -1,4 +1,4 @@
-// Copyright (C) 2024  The Software Heritage developers
+// Copyright (C) 2024-2025  The Software Heritage developers
 // See the AUTHORS file at the top-level directory of this distribution
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
@@ -19,11 +19,10 @@
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicI64, Ordering};
-use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use dsi_progress_logger::{progress_logger, ProgressLog};
+use dsi_progress_logger::{concurrent_progress_logger, ProgressLog};
 use rayon::prelude::*;
 use mimalloc::MiMalloc;
 
@@ -32,7 +31,6 @@ use swh_graph::graph::*;
 use swh_graph::mph::DynMphf;
 use swh_graph::NodeType;
 
-use swh_graph::utils::progress_logger::{BufferedProgressLogger, MinimalProgressLog};
 use swh_provenance_db_build::filters::{is_root_revrel, NodeFilter};
 
 #[global_allocator]
@@ -76,7 +74,7 @@ pub fn main() -> Result<()> {
     let mut timestamps_file = std::fs::File::create(&args.timestamps_out)
         .with_context(|| format!("Could not create {}", &args.timestamps_out.display()))?;
 
-    let mut pl = progress_logger!(
+    let mut pl = concurrent_progress_logger!(
         item_name = "node",
         display_memory = true,
         local_speed = true,
@@ -85,7 +83,7 @@ pub fn main() -> Result<()> {
     pl.start("[step 1/3] Computing first occurrence date of each content...");
 
     swh_graph::utils::shuffle::par_iter_shuffled_range(0..graph.num_nodes()).try_for_each_with(
-        BufferedProgressLogger::new(Arc::new(Mutex::new(&mut pl))),
+        pl.clone(),
         |thread_pl, revrel| -> Result<_> {
             mark_reachable_contents(&graph, &timestamps, revrel, args.node_filter)?;
             thread_pl.light_update();
@@ -95,7 +93,7 @@ pub fn main() -> Result<()> {
 
     pl.done();
 
-    let mut pl = progress_logger!(
+    let mut pl = concurrent_progress_logger!(
         item_name = "node",
         display_memory = true,
         local_speed = true,
@@ -106,7 +104,7 @@ pub fn main() -> Result<()> {
     timestamps
         .into_par_iter()
         .map_with(
-            BufferedProgressLogger::new(Arc::new(Mutex::new(&mut pl))),
+            pl.clone(),
             |thread_pl, timestamp| {
                 thread_pl.light_update();
                 // i64::MIN.to_be() indicates the timestamp is unset

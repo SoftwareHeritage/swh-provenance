@@ -1,18 +1,15 @@
-// Copyright (C) 2024  The Software Heritage developers
+// Copyright (C) 2024-2025  The Software Heritage developers
 // See the AUTHORS file at the top-level directory of this distribution
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
 
-use std::sync::{Arc, Mutex};
-
 use anyhow::Result;
-use dsi_progress_logger::{progress_logger, ProgressLog};
+use dsi_progress_logger::{concurrent_progress_logger, ProgressLog};
 use rayon::prelude::*;
 use sux::bits::bit_vec::BitVec;
 
 use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter};
 use swh_graph::graph::*;
-use swh_graph::utils::progress_logger::{BufferedProgressLogger, MinimalProgressLog};
 use swh_graph::utils::GetIndex;
 
 use crate::filters::NodeFilter;
@@ -33,14 +30,13 @@ where
     <G as SwhGraphWithProperties>::Maps: swh_graph::properties::Maps,
     <G as SwhGraphWithProperties>::Timestamps: swh_graph::properties::Timestamps,
 {
-    let mut pl = progress_logger!(
+    let mut pl = concurrent_progress_logger!(
         item_name = "node",
         display_memory = true,
         local_speed = true,
         expected_updates = Some(graph.num_nodes()),
     );
     pl.start("Visiting revisions' directories...");
-    let shared_pl = Arc::new(Mutex::new(&mut pl));
 
     swh_graph::utils::shuffle::par_iter_shuffled_range(0..graph.num_nodes())
         .into_par_iter()
@@ -48,7 +44,7 @@ where
             || {
                 (
                     dataset_writer.get_thread_writer().unwrap(),
-                    BufferedProgressLogger::new(shared_pl.clone()),
+                    pl.clone(),
                 )
             },
             |(writer, thread_pl), node| -> Result<()> {

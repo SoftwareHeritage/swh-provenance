@@ -1,4 +1,4 @@
-// Copyright (C) 2024  The Software Heritage developers
+// Copyright (C) 2024-2025  The Software Heritage developers
 // See the AUTHORS file at the top-level directory of this distribution
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
@@ -6,19 +6,18 @@
 use std::num::NonZeroU16;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use anyhow::{ensure, Context, Result};
-use mimalloc::MiMalloc;
 use clap::Parser;
-use dsi_progress_logger::{progress_logger, ProgressLog};
+use dsi_progress_logger::{concurrent_progress_logger, ProgressLog};
+use mimalloc::MiMalloc;
 use rayon::prelude::*;
 use sux::prelude::{AtomicBitVec, BitVec};
 
 use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter, PartitionedTableWriter};
 use swh_graph::graph::*;
 use swh_graph::mph::DynMphf;
-use swh_graph::utils::progress_logger::{BufferedProgressLogger, MinimalProgressLog};
 use swh_graph::utils::shuffle::par_iter_shuffled_range;
 use swh_graph::NodeType;
 
@@ -128,7 +127,7 @@ where
     G: SwhForwardGraph + SwhBackwardGraph + SwhGraphWithProperties + Sync,
     <G as SwhGraphWithProperties>::Maps: swh_graph::properties::Maps,
 {
-    let mut pl = progress_logger!(
+    let mut pl = concurrent_progress_logger!(
         item_name = "node",
         display_memory = true,
         local_speed = true,
@@ -138,7 +137,7 @@ where
     let reachable_from_heads = AtomicBitVec::new(graph.num_nodes());
 
     par_iter_shuffled_range(0..graph.num_nodes()).try_for_each_with(
-        BufferedProgressLogger::new(Arc::new(Mutex::new(&mut pl))),
+        pl.clone(),
         |thread_pl, root| -> Result<()> {
             if graph.properties().node_type(root) == NodeType::Origin {
                 reachable_from_heads.set(root, true, Ordering::Relaxed);
@@ -182,7 +181,7 @@ where
 {
     assert!(num_partitions.is_power_of_two());
 
-    let mut pl = progress_logger!(
+    let mut pl = concurrent_progress_logger!(
         item_name = "node",
         display_memory = true,
         local_speed = true,
@@ -199,17 +198,11 @@ where
     let num_chunks = 96;
     let chunk_size = graph.num_nodes().div_ceil(num_chunks);
 
-    let shared_pl = Arc::new(Mutex::new(&mut pl));
     (0..graph.num_nodes())
         .into_par_iter()
         .by_uniform_blocks(chunk_size)
         .try_for_each_init(
-            || {
-                (
-                    dataset_writer.get_thread_writer().unwrap(),
-                    BufferedProgressLogger::new(shared_pl.clone()),
-                )
-            },
+            || (dataset_writer.get_thread_writer().unwrap(), pl.clone()),
             |(writer, thread_pl), node| -> Result<()> {
                 if reachable_nodes.get(node) {
                     let swhid = graph.properties().swhid(node);

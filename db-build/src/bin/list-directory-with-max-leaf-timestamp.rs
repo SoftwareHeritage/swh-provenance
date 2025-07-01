@@ -1,4 +1,4 @@
-// Copyright (C) 2024  The Software Heritage developers
+// Copyright (C) 2024-2025  The Software Heritage developers
 // See the AUTHORS file at the top-level directory of this distribution
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
@@ -6,19 +6,17 @@
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicI64, Ordering};
-use std::sync::{Arc, Mutex};
 
 use anyhow::{bail, Context, Result};
 use mimalloc::MiMalloc;
 use clap::Parser;
-use dsi_progress_logger::{progress_logger, ProgressLog};
+use dsi_progress_logger::{concurrent_progress_logger, ProgressLog};
 use rayon::prelude::*;
 use sux::prelude::BitVec;
 
 use swh_graph::graph::*;
 use swh_graph::mph::DynMphf;
 use swh_graph::utils::mmap::NumberMmap;
-use swh_graph::utils::progress_logger::{BufferedProgressLogger, MinimalProgressLog};
 use swh_graph::utils::shuffle::par_iter_shuffled_range;
 use swh_graph::utils::GetIndex;
 use swh_graph::NodeType;
@@ -123,7 +121,7 @@ where
     G: SwhBackwardGraph + SwhGraphWithProperties + Sync,
     <G as SwhGraphWithProperties>::Maps: swh_graph::properties::Maps,
 {
-    let mut pl = progress_logger!(
+    let mut pl = concurrent_progress_logger!(
         item_name = "node",
         display_memory = true,
         local_speed = true,
@@ -137,7 +135,7 @@ where
     };
 
     par_iter_shuffled_range(0..graph.num_nodes()).try_for_each_with(
-        BufferedProgressLogger::new(Arc::new(Mutex::new(&mut pl))),
+        pl.clone(),
         |thread_pl, cnt| {
             if reachable(cnt) && graph.properties().node_type(cnt) == NodeType::Content {
                 let cnt_timestamp = timestamps.get(cnt).unwrap();

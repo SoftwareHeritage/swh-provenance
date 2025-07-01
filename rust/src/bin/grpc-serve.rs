@@ -110,8 +110,11 @@ pub fn main() -> Result<()> {
                             })?;
                             let mut deserializer =
                                 serde_json::Deserializer::from_reader(BufReader::new(file));
-                            swh_graph::serde::deserialize_with_labels_and_maps(&mut deserializer)
-                                .map_err(|e| anyhow!("Could not read JSON graph: {e}"))
+                            swh_graph::serde::deserialize_with_labels_and_maps(
+                                &mut deserializer,
+                                args.graph.clone(),
+                            )
+                            .map_err(|e| anyhow!("Could not read JSON graph: {e}"))
                         }),
                         tokio::task::spawn(swh_provenance::utils::load_database(
                             args.database,

@@ -5,7 +5,7 @@ swh-provenance design
 =====================
 
 The provenance database is created read-only by Rust scripts, which takes about a day on the production graph.
-Their output is a bunch of `Parquet https://parquet.apache.org/`_ tables
+Their output is a bunch of `Parquet <https://parquet.apache.org/>`_ tables
 (a Parquet table being a directory that contains Parquet files that all have the same schema).
 
 Database format and layout

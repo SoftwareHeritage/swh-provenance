@@ -7,6 +7,7 @@
    :caption: Contents:
 
    grpc-api
+   design
 
 .. only:: standalone_package_doc
 

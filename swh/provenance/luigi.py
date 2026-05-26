@@ -1,4 +1,4 @@
-# Copyright (C) 2023  The Software Heritage developers
+# Copyright (C) 2023-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -32,9 +32,9 @@ class ListProvenanceNodes(luigi.Task):
 
     local_export_path = luigi.PathParameter()
     local_graph_path = luigi.PathParameter()
-    graph_name = luigi.Parameter(default="graph")
+    graph_name = luigi.StrParameter(default="graph")
     provenance_dir = luigi.PathParameter()
-    provenance_node_filter = luigi.Parameter(default="heads")
+    provenance_node_filter = luigi.StrParameter(default="heads")
 
     def requires(self) -> Dict[str, luigi.Task]:
         """Returns :class:`LocalGraph` and :class:`SortRevrelByDate` instances."""
@@ -77,9 +77,9 @@ class ComputeEarliestTimestamps(luigi.Task):
 
     local_export_path = luigi.PathParameter()
     local_graph_path = luigi.PathParameter()
-    graph_name = luigi.Parameter(default="graph")
+    graph_name = luigi.StrParameter(default="graph")
     provenance_dir = luigi.PathParameter()
-    provenance_node_filter = luigi.Parameter(default="heads")
+    provenance_node_filter = luigi.StrParameter(default="heads")
 
     def _max_ram(self):
         # see java/src/main/java/org/softwareheritage/graph/utils/ListEarliestRevisions.java
@@ -145,9 +145,9 @@ class ListDirectoryMaxLeafTimestamp(luigi.Task):
 
     local_export_path = luigi.PathParameter()
     local_graph_path = luigi.PathParameter()
-    graph_name = luigi.Parameter(default="graph")
+    graph_name = luigi.StrParameter(default="graph")
     provenance_dir = luigi.PathParameter()
-    provenance_node_filter = luigi.Parameter(default="heads")
+    provenance_node_filter = luigi.StrParameter(default="heads")
 
     def _max_ram(self):
         # see
@@ -225,9 +225,9 @@ class ComputeDirectoryFrontier(luigi.Task):
 
     local_export_path = luigi.PathParameter()
     local_graph_path = luigi.PathParameter()
-    graph_name = luigi.Parameter(default="graph")
+    graph_name = luigi.StrParameter(default="graph")
     provenance_dir = luigi.PathParameter()
-    provenance_node_filter = luigi.Parameter(default="heads")
+    provenance_node_filter = luigi.StrParameter(default="heads")
     max_ram_mb = luigi.IntParameter(default=default_max_ram_mb(), significant=False)
 
     @property
@@ -294,9 +294,9 @@ class ListFrontierDirectoriesInRevisions(luigi.Task):
 
     local_export_path = luigi.PathParameter()
     local_graph_path = luigi.PathParameter()
-    graph_name = luigi.Parameter(default="graph")
+    graph_name = luigi.StrParameter(default="graph")
     provenance_dir = luigi.PathParameter()
-    provenance_node_filter = luigi.Parameter(default="heads")
+    provenance_node_filter = luigi.StrParameter(default="heads")
     max_ram_mb = luigi.IntParameter(default=default_max_ram_mb(), significant=False)
 
     @property
@@ -371,9 +371,9 @@ class ListContentsInRevisionsWithoutFrontier(luigi.Task):
 
     local_export_path = luigi.PathParameter()
     local_graph_path = luigi.PathParameter()
-    graph_name = luigi.Parameter(default="graph")
+    graph_name = luigi.StrParameter(default="graph")
     provenance_dir = luigi.PathParameter()
-    provenance_node_filter = luigi.Parameter(default="heads")
+    provenance_node_filter = luigi.StrParameter(default="heads")
     max_ram_mb = luigi.IntParameter(default=default_max_ram_mb(), significant=False)
 
     @property
@@ -440,9 +440,9 @@ class ListContentsInFrontierDirectories(luigi.Task):
 
     local_export_path = luigi.PathParameter()
     local_graph_path = luigi.PathParameter()
-    graph_name = luigi.Parameter(default="graph")
+    graph_name = luigi.StrParameter(default="graph")
     provenance_dir = luigi.PathParameter()
-    provenance_node_filter = luigi.Parameter(default="heads")
+    provenance_node_filter = luigi.StrParameter(default="heads")
     max_ram_mb = luigi.IntParameter(default=default_max_ram_mb(), significant=False)
 
     @property
@@ -507,9 +507,9 @@ class ListRevisionsInOrigins(luigi.Task):
 
     local_export_path = luigi.PathParameter()
     local_graph_path = luigi.PathParameter()
-    graph_name = luigi.Parameter(default="graph")
+    graph_name = luigi.StrParameter(default="graph")
     provenance_dir = luigi.PathParameter()
-    provenance_node_filter = luigi.Parameter(default="heads")
+    provenance_node_filter = luigi.StrParameter(default="heads")
 
     @property
     def resources(self):
@@ -572,10 +572,10 @@ class UploadProvenanceDatabase(_ParquetToS3Task):
 
     local_export_path = luigi.PathParameter()
     local_graph_path = luigi.PathParameter()
-    dataset_name = luigi.Parameter()
-    graph_name = luigi.Parameter(default="graph")
+    dataset_name = luigi.StrParameter()
+    graph_name = luigi.StrParameter(default="graph")
     provenance_dir = luigi.PathParameter()
-    provenance_node_filter = luigi.Parameter(default="heads")
+    provenance_node_filter = luigi.StrParameter(default="heads")
     max_ram_mb = luigi.IntParameter(default=default_max_ram_mb(), significant=False)
 
     def _s3_bucket(self) -> str:
@@ -614,10 +614,10 @@ class RunProvenance(luigi.WrapperTask):
 
     local_export_path = luigi.PathParameter()
     local_graph_path = luigi.PathParameter()
-    dataset_name = luigi.Parameter()
-    graph_name = luigi.Parameter(default="graph")
+    dataset_name = luigi.StrParameter()
+    graph_name = luigi.StrParameter(default="graph")
     provenance_dir = luigi.PathParameter()
-    provenance_node_filter = luigi.Parameter(default="heads")
+    provenance_node_filter = luigi.StrParameter(default="heads")
     max_ram_mb = luigi.IntParameter(default=default_max_ram_mb(), significant=False)
 
     def requires(self):

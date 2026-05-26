@@ -1,3 +1,3 @@
 pyarrow < 19.0.0  # https://github.com/apache/arrow/issues/45283
-swh-graph[luigi]
+swh-graph[luigi] >= 1.14.2
 psutil

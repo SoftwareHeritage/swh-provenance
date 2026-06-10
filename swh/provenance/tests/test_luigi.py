@@ -1,4 +1,4 @@
-# Copyright (C) 2023-2024  The Software Heritage developers
+# Copyright (C) 2023-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -125,9 +125,7 @@ CONTENT_TIMESTAMPS = """\
 2005-03-18T17:24:20,swh:1:cnt:0000000000000000000000000000000000000011
 2005-03-18T20:29:30,swh:1:cnt:0000000000000000000000000000000000000014
 2005-03-18T20:29:30,swh:1:cnt:0000000000000000000000000000000000000015
-""".replace(
-    "\n", "\r\n"
-)
+""".replace("\n", "\r\n")
 
 FRONTIER_DIRECTORIES = {
     "heads": ["swh:1:dir:0000000000000000000000000000000000000006"],
@@ -292,8 +290,7 @@ def write_directory_frontier(provenance_dir, swhids):
     # https://github.com/apache/arrow-datafusion/issues/9684
     target_path.mkdir()
 
-    ctx.sql(
-        """
+    ctx.sql("""
         SELECT id
         FROM nodes
         INNER JOIN directory_frontier_swhids ON (
@@ -304,8 +301,7 @@ def write_directory_frontier(provenance_dir, swhids):
                 encode(CAST(nodes.sha1_git AS bytea), 'hex')
             )
         )
-        """
-    ).write_parquet(str(target_path))
+        """).write_parquet(str(target_path))
 
 
 @pytest.mark.parametrize("provenance_node_filter", ["heads", "all"])
@@ -358,7 +354,7 @@ def test_computeearliesttimestamps(tmpdir, provenance_node_filter):
     assert trailing == ""
 
     rows = set(timestamps_bin_to_csv(provenance_dir / "earliest_timestamps.bin"))
-    (header, *expected_rows) = [
+    header, *expected_rows = [
         f"{author_date},{cntdir_SWHID}"
         for (author_date, revrel_SWHID, cntdir_SWHID) in (
             row.split(",")
@@ -392,7 +388,7 @@ def test_listdirectorymaxleaftimestamp(tmpdir, provenance_node_filter):
     task.run()
 
     rows = set(timestamps_bin_to_csv(provenance_dir / "max_leaf_timestamps.bin"))
-    (header, *expected_rows) = (
+    header, *expected_rows = (
         DIRECTORY_MAX_LEAF_TIMESTAMPS[provenance_node_filter].rstrip().split("\r\n")
     )
     assert rows == set(expected_rows)
@@ -431,8 +427,7 @@ def test_computedirectoryfrontier(tmpdir, provenance_node_filter):
         ),
     )
 
-    swhids = ctx.sql(
-        """
+    swhids = ctx.sql("""
         SELECT concat(
             'swh:1:',
             nodes.type,
@@ -441,8 +436,7 @@ def test_computedirectoryfrontier(tmpdir, provenance_node_filter):
         ) AS swhid
         FROM directory_frontier
         LEFT JOIN nodes ON (directory_frontier.id=nodes.id)
-        """
-    ).to_pydict()["swhid"]
+        """).to_pydict()["swhid"]
 
     assert set(swhids) == set(FRONTIER_DIRECTORIES[provenance_node_filter])
 
@@ -484,8 +478,7 @@ def test_listfrontierdirectoriesinrevisions(tmpdir, provenance_node_filter):
         ),
     )
 
-    rows = ctx.sql(
-        """
+    rows = ctx.sql("""
         SELECT
             CAST(dir_max_author_date AS text) AS dir_max_author_date,
             concat(
@@ -505,8 +498,7 @@ def test_listfrontierdirectoriesinrevisions(tmpdir, provenance_node_filter):
         FROM dir_in_revrel
         LEFT JOIN nodes AS dir_nodes ON (dir_in_revrel.dir=dir_nodes.id)
         LEFT JOIN nodes AS revrel_nodes ON (dir_in_revrel.revrel=revrel_nodes.id)
-        """
-    ).to_pylist()
+        """).to_pylist()
 
     expected_rows = list(
         csv.DictReader(
@@ -556,8 +548,7 @@ def test_listcontentsinrevisionswithoutfrontier(tmpdir, provenance_node_filter):
         ),
     )
 
-    rows = ctx.sql(
-        """
+    rows = ctx.sql("""
         SELECT
             concat(
                 'swh:1:',
@@ -576,8 +567,7 @@ def test_listcontentsinrevisionswithoutfrontier(tmpdir, provenance_node_filter):
         FROM cnt_in_revrel
         LEFT JOIN nodes AS cnt_nodes ON (cnt_in_revrel.cnt=cnt_nodes.id)
         LEFT JOIN nodes AS revrel_nodes ON (cnt_in_revrel.revrel=revrel_nodes.id)
-        """
-    ).to_pylist()
+        """).to_pylist()
 
     expected_rows = list(
         csv.DictReader(
@@ -627,8 +617,7 @@ def test_listcontentsindirectories(tmpdir, provenance_node_filter):
         ),
     )
 
-    rows = ctx.sql(
-        """
+    rows = ctx.sql("""
         SELECT
             concat(
                 'swh:1:',
@@ -646,8 +635,7 @@ def test_listcontentsindirectories(tmpdir, provenance_node_filter):
         FROM cnt_in_dir
         LEFT JOIN nodes AS cnt_nodes ON (cnt_in_dir.cnt=cnt_nodes.id)
         LEFT JOIN nodes AS dir_nodes ON (cnt_in_dir.dir=dir_nodes.id)
-        """
-    ).to_pylist()
+        """).to_pylist()
 
     expected_rows = list(
         csv.DictReader(
@@ -717,8 +705,7 @@ def test_listcontentsindirectories_root(tmpdir):
         ),
     )
 
-    rows = ctx.sql(
-        """
+    rows = ctx.sql("""
         SELECT
             concat(
                 'swh:1:',
@@ -736,8 +723,7 @@ def test_listcontentsindirectories_root(tmpdir):
         FROM cnt_in_dir
         LEFT JOIN nodes AS cnt_nodes ON (cnt_in_dir.cnt=cnt_nodes.id)
         LEFT JOIN nodes AS dir_nodes ON (cnt_in_dir.dir=dir_nodes.id)
-        """
-    ).to_pylist()
+        """).to_pylist()
 
     expected_rows = list(csv.DictReader(io.StringIO(expected_csv)))
     rows.sort(key=lambda d: tuple(sorted(d.items())))
@@ -776,8 +762,7 @@ def test_listrevisionsinorigins(tmpdir, provenance_node_filter):
         ),
     )
 
-    rows = ctx.sql(
-        """
+    rows = ctx.sql("""
         SELECT
             concat(
                 'swh:1:',
@@ -794,8 +779,7 @@ def test_listrevisionsinorigins(tmpdir, provenance_node_filter):
         FROM revrel_in_ori
         LEFT JOIN nodes AS revrel_nodes ON (revrel_in_ori.revrel=revrel_nodes.id)
         LEFT JOIN nodes AS ori_nodes ON (revrel_in_ori.ori=ori_nodes.id)
-        """
-    ).to_pylist()
+        """).to_pylist()
 
     expected_rows = list(
         csv.DictReader(io.StringIO(REVISIONS_IN_ORIGINS[provenance_node_filter]))

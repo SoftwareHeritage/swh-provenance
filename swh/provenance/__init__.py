@@ -44,7 +44,7 @@ def get_provenance(cls: str, **kwargs: ProvenanceSpec) -> "ProvenanceInterface":
             % (cls, ", ".join(PROVENANCE_IMPLEMENTATIONS))
         )
 
-    (module_path, class_name) = class_path.rsplit(".", 1)
+    module_path, class_name = class_path.rsplit(".", 1)
     module = importlib.import_module(module_path, package=__package__)
     Provenance = getattr(module, class_name)
     return Provenance(**kwargs)

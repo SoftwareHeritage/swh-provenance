@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2024  The Software Heritage developers
+# Copyright (C) 2019-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -41,7 +41,7 @@ class ProvenanceServerProcess(multiprocessing.context.ForkServerProcess):
     def run(self):
         try:
             assert self.config["cls"] == "local_rust"
-            (server, port) = spawn_rust_grpc_server(**self.config["grpc_server"])
+            server, port = spawn_rust_grpc_server(**self.config["grpc_server"])
             self.q.put(
                 {
                     "grpc_url": f"localhost:{port}",
@@ -72,7 +72,7 @@ class StatsdServer:
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._sock.bind(("127.0.0.1", 0))
         self._sock.settimeout(0.1)
-        (self.host, self.port) = self._sock.getsockname()
+        self.host, self.port = self._sock.getsockname()
         self._closing = False
         self._thread = threading.Thread(target=self._listen)
         self._thread.start()
@@ -83,7 +83,7 @@ class StatsdServer:
     def _listen(self):
         while not self._closing:
             try:
-                (datagram, addr) = self._sock.recvfrom(4096)
+                datagram, addr = self._sock.recvfrom(4096)
             except TimeoutError:
                 continue
             self.datagrams.append(datagram)

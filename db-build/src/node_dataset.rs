@@ -1,4 +1,4 @@
-// Copyright (C) 2024  The Software Heritage developers
+// Copyright (C) 2024-2026  The Software Heritage developers
 // See the AUTHORS file at the top-level directory of this distribution
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
@@ -33,7 +33,7 @@ pub fn writer_properties<G: SwhGraph>(graph: &G) -> WriterPropertiesBuilder {
         // Saves 2GB on the 2023-09-06 dataset with no visible performance penalty.
         .set_column_encoding("id".into(), Encoding::DELTA_BINARY_PACKED)
         // ZSTD has a 35% compression ratio over the delta-encoding alone, which saves
-        // 2GB on the 2023-09-06 dataset; and has negligeable penalty on access
+        // 2GB on the 2023-09-06 dataset; and has negligible penalty on access
         // (SELECT * WHERE id = ?).
         .set_column_compression(
             "id".into(),

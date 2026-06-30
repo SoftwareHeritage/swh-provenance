@@ -1,4 +1,4 @@
-// Copyright (C) 2024-2025  The Software Heritage developers
+// Copyright (C) 2024-2026  The Software Heritage developers
 // See the AUTHORS file at the top-level directory of this distribution
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
@@ -8,17 +8,18 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicI64, Ordering};
 
 use anyhow::{bail, Context, Result};
-use mimalloc::MiMalloc;
 use clap::Parser;
 use dsi_progress_logger::{concurrent_progress_logger, ProgressLog};
+use mimalloc::MiMalloc;
 use rayon::prelude::*;
 use sux::prelude::BitVec;
+use sux::traits::BitVecOps;
+use value_traits::slices::SliceByValue;
 
 use swh_graph::graph::*;
 use swh_graph::mph::DynMphf;
 use swh_graph::utils::mmap::NumberMmap;
 use swh_graph::utils::shuffle::par_iter_shuffled_range;
-use swh_graph::utils::GetIndex;
 use swh_graph::NodeType;
 
 use swh_provenance_db_build::filters::{load_reachable_nodes, NodeFilter};
@@ -114,7 +115,7 @@ pub fn main() -> Result<()> {
 fn propagate_through_directories<G>(
     graph: &G,
     reachable_nodes: Option<&BitVec>,
-    timestamps: &(impl GetIndex<Output = i64> + Sync),
+    timestamps: &(impl SliceByValue<Value = i64> + Sync),
     max_timestamps: &mut [AtomicI64],
 ) -> Result<()>
 where
@@ -138,7 +139,7 @@ where
         pl.clone(),
         |thread_pl, cnt| {
             if reachable(cnt) && graph.properties().node_type(cnt) == NodeType::Content {
-                let cnt_timestamp = timestamps.get(cnt).unwrap();
+                let cnt_timestamp = timestamps.get_value(cnt).unwrap();
                 if cnt_timestamp == i64::MIN {
                     // Content is not in any timestamped revrel, ignore it.
                 } else {

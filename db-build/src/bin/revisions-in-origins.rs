@@ -1,4 +1,4 @@
-// Copyright (C) 2024-2025  The Software Heritage developers
+// Copyright (C) 2024-2026  The Software Heritage developers
 // See the AUTHORS file at the top-level directory of this distribution
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
@@ -7,8 +7,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use mimalloc::MiMalloc;
 use clap::Parser;
+use mimalloc::MiMalloc;
 
 use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter};
 use swh_graph::mph::DynMphf;

@@ -1,4 +1,4 @@
-// Copyright (C) 2024-2025  The Software Heritage developers
+// Copyright (C) 2024-2026  The Software Heritage developers
 // See the AUTHORS file at the top-level directory of this distribution
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
@@ -10,12 +10,12 @@ use std::sync::Arc;
 
 use anyhow::{ensure, Context, Result};
 use clap::Parser;
+use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter, PartitionedTableWriter};
 use dsi_progress_logger::{concurrent_progress_logger, ProgressLog};
 use mimalloc::MiMalloc;
 use rayon::prelude::*;
 use sux::prelude::{AtomicBitVec, BitVec};
-
-use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter, PartitionedTableWriter};
+use sux::traits::{AtomicBitVecOps, BitVecOps};
 use swh_graph::graph::*;
 use swh_graph::mph::DynMphf;
 use swh_graph::utils::shuffle::par_iter_shuffled_range;

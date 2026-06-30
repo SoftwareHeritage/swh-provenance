@@ -1,4 +1,4 @@
-// Copyright (C) 2024-2025  The Software Heritage developers
+// Copyright (C) 2024-2026  The Software Heritage developers
 // See the AUTHORS file at the top-level directory of this distribution
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
@@ -10,17 +10,18 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use clap::Parser;
 use dsi_progress_logger::{concurrent_progress_logger, ProgressLog};
-use rayon::prelude::*;
 use mimalloc::MiMalloc;
+use rayon::prelude::*;
 use sux::prelude::{AtomicBitVec, BitVec};
+use sux::traits::AtomicBitVecOps;
+use value_traits::slices::SliceByValue;
 
 use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter};
-use swh_graph::collections::{AdaptiveNodeSet, NodeSet};
 use swh_graph::graph::*;
 use swh_graph::mph::DynMphf;
 use swh_graph::utils::mmap::NumberMmap;
-use swh_graph::utils::GetIndex;
 use swh_graph::NodeType;
+use swh_graph_stdlib::collections::{AdaptiveNodeSet, NodeSet, ReadNodeSet};
 
 use swh_provenance_db_build::filters::{is_root_revrel, NodeFilter};
 use swh_provenance_db_build::frontier_set::{schema, to_parquet, writer_properties};
@@ -97,7 +98,7 @@ pub fn main() -> Result<()> {
 
 fn find_frontiers<G>(
     graph: &G,
-    max_timestamps: impl GetIndex<Output = i64> + Sync + Copy,
+    max_timestamps: impl SliceByValue<Value = i64> + Sync + Copy,
     node_filter: NodeFilter,
 ) -> Result<BitVec>
 where
@@ -118,7 +119,7 @@ where
         pl.clone(),
         |thread_pl, root| -> Result<()> {
             if is_root_revrel(graph, node_filter, root) {
-                if let Some(root_dir) = swh_graph::stdlib::find_root_dir(graph, root)
+                if let Some(root_dir) = swh_graph_stdlib::find_root_dir(graph, root)
                     .context("Could not pick root directory")?
                 {
                     find_frontiers_in_root_directory(
@@ -144,7 +145,7 @@ where
 
 fn find_frontiers_in_root_directory<G>(
     graph: &G,
-    max_timestamps: impl GetIndex<Output = i64>,
+    max_timestamps: impl SliceByValue<Value = i64>,
     frontiers: &AtomicBitVec,
     revrel_id: NodeId,
     root_dir_id: NodeId,
@@ -184,7 +185,9 @@ where
     while let Some(node) = stack.pop() {
         for succ in graph.successors(node) {
             if graph.properties().node_type(succ) == NodeType::Directory {
-                let dir_max_timestamp = max_timestamps.get(succ).expect("max_timestamps too small");
+                let dir_max_timestamp = max_timestamps
+                    .get_value(succ)
+                    .expect("max_timestamps too small");
                 if dir_max_timestamp == i64::MIN {
                     // Somehow does not have a max timestamp. Presumably because it does not
                     // have any content.

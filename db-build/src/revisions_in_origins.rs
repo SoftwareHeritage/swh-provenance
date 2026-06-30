@@ -1,4 +1,4 @@
-// Copyright (C) 2024-2025  The Software Heritage developers
+// Copyright (C) 2024-2026  The Software Heritage developers
 // See the AUTHORS file at the top-level directory of this distribution
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
@@ -14,10 +14,10 @@ use rdst::RadixSort;
 use sux::prelude::elias_fano;
 
 use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter};
-use swh_graph::collections::{AdaptiveNodeSet, NodeSet};
 use swh_graph::graph::*;
 use swh_graph::views::Subgraph;
 use swh_graph::NodeType;
+use swh_graph_stdlib::collections::{AdaptiveNodeSet, NodeSet, ReadNodeSet};
 
 use crate::filters::NodeFilter;
 use crate::x_in_y_dataset::RevrelInOriTableBuilder;

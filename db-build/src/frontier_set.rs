@@ -1,4 +1,4 @@
-// Copyright (C) 2024-2025  The Software Heritage developers
+// Copyright (C) 2024-2026  The Software Heritage developers
 // See the AUTHORS file at the top-level directory of this distribution
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
@@ -22,9 +22,10 @@ use parquet::file::properties::EnabledStatistics;
 use parquet::file::properties::{WriterProperties, WriterPropertiesBuilder};
 use rayon::prelude::*;
 use sux::bits::bit_vec::{AtomicBitVec, BitVec};
+use sux::traits::AtomicBitVecOps;
 
-use swh_graph::collections::NodeSet;
 use swh_graph::graph::*;
+use swh_graph_stdlib::collections::NodeSet;
 
 use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter, StructArrayBuilder};
 

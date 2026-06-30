@@ -1,20 +1,21 @@
-// Copyright (C) 2024  The Software Heritage developers
+// Copyright (C) 2024-2026  The Software Heritage developers
 // See the AUTHORS file at the top-level directory of this distribution
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
 
 use anyhow::{bail, Result};
 use sux::prelude::BitVec;
+use sux::traits::BitVecOps;
 
-use swh_graph::collections::PathStack;
-use swh_graph::collections::{AdaptiveNodeSet, NodeSet};
 use swh_graph::graph::*;
-use swh_graph::labels::FilenameId;
+use swh_graph::labels::LabelNameId;
 use swh_graph::NodeType;
+use swh_graph_stdlib::collections::PathStack;
+use swh_graph_stdlib::collections::{AdaptiveNodeSet, NodeSet, ReadNodeSet};
 
 /// Yielded by `dfs_with_path` to allow building a path as a `Vec<u8>` only when needed
 pub struct PathParts<'a> {
-    parts: &'a [FilenameId],
+    parts: &'a [LabelNameId],
     path_to_directory: bool,
 }
 
@@ -119,7 +120,7 @@ where
 
                         stack.push(pred);
                         path_stack.push(path_parts.iter().copied());
-                        path_stack.push_filename(first_label.filename_id());
+                        path_stack.push_filename(first_label.label_name_id());
                     }
 
                     NodeType::Revision | NodeType::Release => {

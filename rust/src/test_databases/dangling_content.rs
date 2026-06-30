@@ -1,4 +1,4 @@
-// Copyright (C) 2025  The Software Heritage developers
+// Copyright (C) 2025-2026  The Software Heritage developers
 // See the AUTHORS file at the top-level directory of this distribution
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
@@ -11,6 +11,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter};
 use sux::prelude::BitVec;
+use sux::traits::BitVecOpsMut;
 use swh_graph::graph::*;
 use swh_graph::graph_builder::BuiltGraph;
 use swh_graph::swhid;
@@ -31,7 +32,7 @@ use swh_provenance_db_build::x_in_y_dataset::{
 /// ```
 pub fn gen_graph() -> BuiltGraph {
     use swh_graph::graph_builder::GraphBuilder;
-    use swh_graph::labels::{Permission};
+    use swh_graph::labels::Permission;
     use swh_graph::swhid;
     let mut builder = GraphBuilder::default();
 
@@ -87,9 +88,7 @@ pub fn gen_database(path: PathBuf) -> Result<()> {
     // Build set of frontier directories, which would be stored in frontier_directories/*.parquet
     // in the real pipeline
     let mut frontier_directories = BitVec::new(graph.num_nodes());
-    for swhid in [
-        swhid!(swh:1:dir:0000000000000000000000000000000000000001),
-    ] {
+    for swhid in [swhid!(swh:1:dir:0000000000000000000000000000000000000001)] {
         let node_id = graph.properties().node_id(swhid).expect("unknown SWHID");
         frontier_directories.set(node_id, true);
     }

@@ -1,4 +1,4 @@
-// Copyright (C) 2024-2025  The Software Heritage developers
+// Copyright (C) 2024-2026  The Software Heritage developers
 // See the AUTHORS file at the top-level directory of this distribution
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
@@ -6,11 +6,11 @@
 use std::sync::atomic::Ordering;
 
 use anyhow::Result;
+use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter};
 use dsi_progress_logger::{concurrent_progress_logger, ProgressLog};
 use rayon::prelude::*;
 use sux::prelude::{AtomicBitVec, BitVec};
-
-use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter};
+use sux::traits::{AtomicBitVecOps, BitVecOps};
 use swh_graph::graph::*;
 use swh_graph::NodeType;
 
@@ -39,9 +39,9 @@ where
     );
     pl.start("Listing nodes reachable from frontier directories...");
     let reachable_nodes_from_frontier = AtomicBitVec::new(graph.num_nodes());
-    (0..graph.num_nodes()).into_par_iter().for_each_with(
-        pl.clone(),
-        |thread_pl, root| {
+    (0..graph.num_nodes())
+        .into_par_iter()
+        .for_each_with(pl.clone(), |thread_pl, root| {
             if frontier_directories.get(root) {
                 let mut to_visit = vec![root];
                 while let Some(node) = to_visit.pop() {
@@ -61,8 +61,7 @@ where
                 }
             }
             thread_pl.light_update();
-        },
-    );
+        });
     pl.done();
     let reachable_nodes_from_frontier: BitVec = reachable_nodes_from_frontier.into();
 
@@ -75,12 +74,7 @@ where
     pl.start("Listing contents in directories...");
 
     swh_graph::utils::shuffle::par_iter_shuffled_range(0..graph.num_nodes()).try_for_each_init(
-        || {
-            (
-                dataset_writer.get_thread_writer().unwrap(),
-                pl.clone(),
-            )
-        },
+        || (dataset_writer.get_thread_writer().unwrap(), pl.clone()),
         |(writer, thread_pl), node| -> Result<()> {
             if reachable_nodes_from_frontier.get(node)
                 && graph.properties().node_type(node) == NodeType::Content

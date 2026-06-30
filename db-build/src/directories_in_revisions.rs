@@ -1,16 +1,16 @@
-// Copyright (C) 2024-2025  The Software Heritage developers
+// Copyright (C) 2024-2026  The Software Heritage developers
 // See the AUTHORS file at the top-level directory of this distribution
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
 
 use anyhow::Result;
+use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter};
 use dsi_progress_logger::{concurrent_progress_logger, ProgressLog};
 use rayon::prelude::*;
 use sux::bits::bit_vec::BitVec;
-
-use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter};
+use sux::traits::BitVecOps;
 use swh_graph::graph::*;
-use swh_graph::utils::GetIndex;
+use value_traits::slices::SliceByValue;
 
 use crate::filters::NodeFilter;
 use crate::frontier::PathParts;
@@ -18,7 +18,7 @@ use crate::x_in_y_dataset::DirInRevrelTableBuilder;
 
 pub fn write_revisions_from_frontier_directories<G>(
     graph: &G,
-    max_timestamps: impl GetIndex<Output = i64> + Sync + Copy,
+    max_timestamps: impl SliceByValue<Value = i64> + Sync + Copy,
     node_filter: NodeFilter,
     reachable_nodes: Option<&BitVec>,
     frontier_directories: &BitVec,
@@ -41,12 +41,7 @@ where
     swh_graph::utils::shuffle::par_iter_shuffled_range(0..graph.num_nodes())
         .into_par_iter()
         .try_for_each_init(
-            || {
-                (
-                    dataset_writer.get_thread_writer().unwrap(),
-                    pl.clone(),
-                )
-            },
+            || (dataset_writer.get_thread_writer().unwrap(), pl.clone()),
             |(writer, thread_pl), node| -> Result<()> {
                 if frontier_directories.get(node) {
                     write_revisions_from_frontier_directory(
@@ -73,7 +68,7 @@ where
 
 fn write_revisions_from_frontier_directory<G>(
     graph: &G,
-    max_timestamps: impl GetIndex<Output = i64>,
+    max_timestamps: impl SliceByValue<Value = i64>,
     node_filter: NodeFilter,
     reachable_nodes: Option<&BitVec>,
     frontier_directories: &BitVec,
@@ -89,7 +84,9 @@ where
     if !frontier_directories[dir] {
         return Ok(());
     }
-    let dir_max_timestamp = max_timestamps.get(dir).expect("max_timestamps too small");
+    let dir_max_timestamp = max_timestamps
+        .get_value(dir)
+        .expect("max_timestamps too small");
     if dir_max_timestamp == i64::MIN {
         // Somehow does not have a max timestamp. Presumably because it does not
         // have any content.

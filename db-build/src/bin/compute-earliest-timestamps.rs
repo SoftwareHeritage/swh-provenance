@@ -1,4 +1,4 @@
-// Copyright (C) 2024-2025  The Software Heritage developers
+// Copyright (C) 2024-2026  The Software Heritage developers
 // See the AUTHORS file at the top-level directory of this distribution
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
@@ -23,13 +23,13 @@ use std::sync::atomic::{AtomicI64, Ordering};
 use anyhow::{Context, Result};
 use clap::Parser;
 use dsi_progress_logger::{concurrent_progress_logger, ProgressLog};
-use rayon::prelude::*;
 use mimalloc::MiMalloc;
+use rayon::prelude::*;
 
-use swh_graph::collections::{AdaptiveNodeSet, NodeSet};
 use swh_graph::graph::*;
 use swh_graph::mph::DynMphf;
 use swh_graph::NodeType;
+use swh_graph_stdlib::collections::{AdaptiveNodeSet, NodeSet, ReadNodeSet};
 
 use swh_provenance_db_build::filters::{is_root_revrel, NodeFilter};
 
@@ -103,18 +103,15 @@ pub fn main() -> Result<()> {
     let mut timestamps_be = Vec::with_capacity(graph.num_nodes());
     timestamps
         .into_par_iter()
-        .map_with(
-            pl.clone(),
-            |thread_pl, timestamp| {
-                thread_pl.light_update();
-                // i64::MIN.to_be() indicates the timestamp is unset
-                match timestamp.load(Ordering::Relaxed) {
-                    i64::MAX => i64::MIN,
-                    timestamp => timestamp,
-                }
-                .to_be()
-            },
-        )
+        .map_with(pl.clone(), |thread_pl, timestamp| {
+            thread_pl.light_update();
+            // i64::MIN.to_be() indicates the timestamp is unset
+            match timestamp.load(Ordering::Relaxed) {
+                i64::MAX => i64::MIN,
+                timestamp => timestamp,
+            }
+            .to_be()
+        })
         .collect_into_vec(&mut timestamps_be);
     pl.done();
 
@@ -161,11 +158,9 @@ where
 
         for succ in graph.successors(node) {
             match graph.properties().node_type(succ) {
-                NodeType::Directory | NodeType::Content => {
-                    if !visited.contains(succ) {
-                        stack.push(succ);
-                        visited.insert(succ);
-                    }
+                NodeType::Directory | NodeType::Content if !visited.contains(succ) => {
+                    stack.push(succ);
+                    visited.insert(succ);
                 }
                 _ => (),
             }

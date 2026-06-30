@@ -1,14 +1,14 @@
-// Copyright (C) 2024-2025  The Software Heritage developers
+// Copyright (C) 2024-2026  The Software Heritage developers
 // See the AUTHORS file at the top-level directory of this distribution
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
 
 use anyhow::Result;
+use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter};
 use dsi_progress_logger::{concurrent_progress_logger, ProgressLog};
 use rayon::prelude::*;
 use sux::bits::bit_vec::BitVec;
-
-use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter};
+use sux::traits::BitVecOps;
 use swh_graph::graph::*;
 use swh_graph::NodeType;
 
@@ -38,12 +38,7 @@ where
     pl.start("Visiting revisions' directories...");
 
     (0..graph.num_nodes()).into_par_iter().try_for_each_init(
-        || {
-            (
-                dataset_writer.get_thread_writer().unwrap(),
-                pl.clone(),
-            )
-        },
+        || (dataset_writer.get_thread_writer().unwrap(), pl.clone()),
         |(writer, thread_pl), node| -> Result<()> {
             let is_reachable = match reachable_nodes {
                 None => true,

@@ -1,4 +1,4 @@
-// Copyright (C) 2024  The Software Heritage developers
+// Copyright (C) 2024-2026  The Software Heritage developers
 // See the AUTHORS file at the top-level directory of this distribution
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
@@ -11,6 +11,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter};
 use sux::prelude::BitVec;
+use sux::traits::BitVecOpsMut;
 use swh_graph::graph::*;
 use swh_graph::graph_builder::BuiltGraph;
 use swh_graph::swhid;
@@ -27,7 +28,7 @@ pub fn gen_graph() -> BuiltGraph {
     // --all-features --bin swh-graph-convert -- -i swh/graph/example_dataset/compressed/example -o
     // /dev/stdout --output-format graph-builder`
     use swh_graph::graph_builder::GraphBuilder;
-    use swh_graph::labels::{Permission, VisitStatus};
+    use swh_graph::labels::{Permission, VisitStatus, VisitType};
     use swh_graph::swhid;
     let mut builder = GraphBuilder::default();
 
@@ -173,11 +174,11 @@ pub fn gen_graph() -> BuiltGraph {
         .content_length(14)
         .done();
 
-    builder.ori_arc(0, 1, VisitStatus::Full, 1367900441);
+    builder.ori_arc(0, 1, VisitStatus::Full, 1367900441, VisitType::Unknown);
     builder.snp_arc(1, 3, b"refs/heads/master".to_vec());
     builder.snp_arc(1, 4, b"refs/tags/v1.0".to_vec());
     builder.snp_arc(1, 19, b"refs/tags/v2.0-anonymous".to_vec());
-    builder.ori_arc(2, 5, VisitStatus::Full, 1367900441);
+    builder.ori_arc(2, 5, VisitStatus::Full, 1367900441, VisitType::Unknown);
     builder.arc(3, 6);
     builder.arc(3, 12);
     builder.arc(4, 3);

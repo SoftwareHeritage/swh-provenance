@@ -30,14 +30,13 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 # Database
 object_store = { version = "0.11.0", default-features = false }
 url = "2.2"
-parquet_aramid = { version = "0.2.0", features = ["rayon"] }
-#parquet_aramid = { path = "../../parquet_aramid-rs", features = ["rayon"] }
+parquet_aramid = { workspace = true, features = ["rayon"] }
 swh-provenance-db-build.workspace = true
 dataset-writer.workspace = true # to generate test databases
 
 # Elias-Fano index
-epserde = "0.6.1"
-sux = "0.7.2"
+epserde.workspace = true
+sux.workspace = true
 
 # gRPC
 prost = "0.13"

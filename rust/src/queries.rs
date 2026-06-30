@@ -1,4 +1,4 @@
-// Copyright (C) 2023-2025  The Software Heritage developers
+// Copyright (C) 2023-2026  The Software Heritage developers
 // See the AUTHORS file at the top-level directory of this distribution
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
@@ -356,17 +356,13 @@ impl<
                         .column_by_name(col1)
                         .with_context(|| format!("Could not get '{col1}' column from batch"))?
                         .as_primitive_opt::<UInt64Type>()
-                        .with_context(|| {
-                            format!("Could not cast '{col1}' column as UInt64Array")
-                        })?
+                        .with_context(|| format!("Could not cast '{col1}' column as UInt64Array"))?
                         .into_iter(),
                     batch
                         .column_by_name(col2)
                         .with_context(|| format!("Could not get '{col2}' column from batch"))?
                         .as_primitive_opt::<UInt64Type>()
-                        .with_context(|| {
-                            format!("Could not cast '{col2}' column as UInt64Array")
-                        })?
+                        .with_context(|| format!("Could not cast '{col2}' column as UInt64Array"))?
                         .into_iter(),
                 )
                 .map(|(id1, id2)| {

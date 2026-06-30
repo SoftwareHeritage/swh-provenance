@@ -8,7 +8,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.4.3"
+version = "0.5.0"
 license = "GPL-3.0-or-later"
 repository = "https://gitlab.softwareheritage.org/swh/devel/swh-provenance"
 
@@ -18,7 +18,7 @@ epserde = "0.12.0"
 parquet_aramid = "0.3.0"
 swh-graph = ">= 12.1.0, <13"
 swh-graph-stdlib = ">= 14, < 15"
-swh-provenance-db-build = { path = "db-build/", version = "0.4.0" }
+swh-provenance-db-build = { path = "db-build/", version = "0.5.0" }
 #dataset-writer = { version = "1.2.0", features = ["parquet"] }
 dataset-writer = { version = "1.1.1", features = ["parquet"] }
 sux = "0.12.0"

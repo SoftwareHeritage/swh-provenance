@@ -97,10 +97,15 @@ class ComputeEarliestTimestamps(luigi.Task):
 
     @property
     def resources(self):
-        """Returns the value of ``self.max_ram_mb``"""
+        """Returns the value of ``self.max_ram_mb``
+        and declares the task uses every CPU available"""
         import socket
 
-        return {f"{socket.getfqdn()}_ram_mb": self._max_ram() // 1_000_000}
+        hostname = socket.getfqdn()
+        return {
+            f"{socket.getfqdn()}_ram_mb": self._max_ram() // 1_000_000,
+            f"{hostname}_max_cpu": 1,
+        }
 
     def requires(self) -> Dict[str, luigi.Task]:
         """Returns :class:`LocalGraph` and :class:`SortRevrelByDate` instances."""
@@ -165,10 +170,15 @@ class ListDirectoryMaxLeafTimestamp(luigi.Task):
 
     @property
     def resources(self):
-        """Returns the value of ``self.max_ram_mb``"""
+        """Returns the value of ``self.max_ram_mb``
+        and declares the task uses every CPU available"""
         import socket
 
-        return {f"{socket.getfqdn()}_ram_mb": self._max_ram() // 1_000_000}
+        hostname = socket.getfqdn()
+        return {
+            f"{socket.getfqdn()}_ram_mb": self._max_ram() // 1_000_000,
+            f"{hostname}_max_cpu": 1,
+        }
 
     def requires(self) -> Dict[str, luigi.Task]:
         """Returns :class:`LocalGraph` and :class:`ComputeEarliestTimestamps` instances."""
@@ -232,10 +242,12 @@ class ComputeDirectoryFrontier(luigi.Task):
 
     @property
     def resources(self):
-        """Returns the value of ``self.max_ram_mb``"""
+        """Returns the value of ``self.max_ram_mb``
+        and declares the task uses every CPU available"""
         import socket
 
-        return {f"{socket.getfqdn()}_ram_mb": self.max_ram_mb}
+        hostname = socket.getfqdn()
+        return {f"{socket.getfqdn()}_ram_mb": self.max_ram_mb, f"{hostname}_max_cpu": 1}
 
     def requires(self) -> Dict[str, luigi.Task]:
         """Returns :class:`LocalGraph` and :class:`ListDirectoryMaxLeafTimestamp`
@@ -301,10 +313,12 @@ class ListFrontierDirectoriesInRevisions(luigi.Task):
 
     @property
     def resources(self):
-        """Returns the value of ``self.max_ram_mb``"""
+        """Returns the value of ``self.max_ram_mb``
+        and declares the task uses every CPU available"""
         import socket
 
-        return {f"{socket.getfqdn()}_ram_mb": self.max_ram_mb}
+        hostname = socket.getfqdn()
+        return {f"{socket.getfqdn()}_ram_mb": self.max_ram_mb, f"{hostname}_max_cpu": 1}
 
     def requires(self) -> Dict[str, luigi.Task]:
         """Returns :class:`LocalGraph` and :class:`ComputeDirectoryFrontier`
@@ -378,10 +392,12 @@ class ListContentsInRevisionsWithoutFrontier(luigi.Task):
 
     @property
     def resources(self):
-        """Returns the value of ``self.max_ram_mb``"""
+        """Returns the value of ``self.max_ram_mb``
+        and declares the task uses every CPU available"""
         import socket
 
-        return {f"{socket.getfqdn()}_ram_mb": self.max_ram_mb}
+        hostname = socket.getfqdn()
+        return {f"{socket.getfqdn()}_ram_mb": self.max_ram_mb, f"{hostname}_max_cpu": 1}
 
     def requires(self) -> Dict[str, luigi.Task]:
         """Returns :class:`LocalGraph` and :class:`ListDirectoryMaxLeafTimestamp`
@@ -447,10 +463,12 @@ class ListContentsInFrontierDirectories(luigi.Task):
 
     @property
     def resources(self):
-        """Returns the value of ``self.max_ram_mb``"""
+        """Returns the value of ``self.max_ram_mb``
+        and declares the task uses every CPU available"""
         import socket
 
-        return {f"{socket.getfqdn()}_ram_mb": self.max_ram_mb}
+        hostname = socket.getfqdn()
+        return {f"{socket.getfqdn()}_ram_mb": self.max_ram_mb, f"{hostname}_max_cpu": 1}
 
     def requires(self) -> Dict[str, luigi.Task]:
         """Returns :class:`LocalGraph` and :class:`ComputeDirectoryFrontier`
@@ -513,9 +531,11 @@ class ListRevisionsInOrigins(luigi.Task):
 
     @property
     def resources(self):
-        """Returns the value of ``self.max_ram_mb``"""
+        """Returns the value of ``self.max_ram_mb``
+        and declares the task uses every CPU available"""
         import socket
 
+        hostname = socket.getfqdn()
         # based on the 2024-08-23 graph, where RAM peaked at 1.26TB for 4G nodes
         bytes_per_node = 31
         return {
@@ -523,7 +543,8 @@ class ListRevisionsInOrigins(luigi.Task):
                 self.local_graph_path, self.graph_name, "ori,snp,rel,rev,dir,cnt"
             )
             * bytes_per_node
-            / 1_000_000
+            / 1_000_000,
+            f"{hostname}_max_cpu": 1,
         }
 
     def requires(self) -> Dict[str, luigi.Task]:

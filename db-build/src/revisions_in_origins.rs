@@ -3,13 +3,13 @@
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
 
-use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use anyhow::{bail, Context, Result};
 use dashmap::DashMap;
 use dsi_progress_logger::{concurrent_progress_logger, ProgressLog};
 use rayon::prelude::*;
+use rapidhash::{RapidHashMap, RapidHashSet};
 use rdst::RadixSort;
 use sux::prelude::elias_fano;
 
@@ -55,7 +55,7 @@ where
     pl.done();
 
     // Don't need concurrent writes anymore
-    let representative_to_origin_set: HashMap<_, _> =
+    let representative_to_origin_set: RapidHashMap<_, _> =
         representative_to_origin_set.into_iter().collect();
 
     write_origins_from_revrels(graph, node_filter, dataset_writer, |node| {
@@ -111,7 +111,7 @@ where
         .count();
 
     // compute the set of all revrels pointed directly by a snapshot
-    let mut todo: HashSet<_> = (0..graph.num_nodes())
+    let mut todo: RapidHashSet<_> = (0..graph.num_nodes())
         .into_par_iter()
         .filter(|&node| {
             graph.has_node(node)
@@ -166,9 +166,9 @@ where
                     // this basis that it is reachable from a node not (yet) in the subgraph.
                     //
                     // This is good enough, because we are mostly interested in chains, anyway.
-                    let mut next_generation = HashSet::new(); // Representatives for the next while{} iteration
+                    let mut next_generation = RapidHashSet::default(); // Representatives for the next while{} iteration
                     let mut stack = vec![root];
-                    let mut subgraph = HashSet::new();
+                    let mut subgraph = RapidHashSet::default();
                     subgraph.insert(root);
                     while let Some(node) = stack.pop() {
                         representatives[node].store(root, Ordering::SeqCst);
@@ -321,7 +321,7 @@ where
     let mut seen = AdaptiveNodeSet::new(graph.num_nodes());
     let mut stack = vec![revrel];
 
-    let mut origins: HashSet<NodeId> = HashSet::new();
+    let mut origins: RapidHashSet<NodeId> = RapidHashSet::default();
 
     while let Some(node) = stack.pop() {
         match graph.properties().node_type(node) {

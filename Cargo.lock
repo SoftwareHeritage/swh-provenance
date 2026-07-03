@@ -3956,6 +3956,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9813f789f95ee4fe6b4d01834404d7cccacbc3f6c029343af910b3c2835eb9f1"
 
 [[package]]
+name = "rapidhash"
+version = "4.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32b266a82f4aa99bb5c25e28d11cc44ace63d91adbcbcee4d323e2ae3d49ef37"
+dependencies = [
+ "rustversion",
+]
+
+[[package]]
 name = "rayon"
 version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4666,7 +4675,7 @@ dependencies = [
  "itertools 0.11.0",
  "lender 0.6.2",
  "log",
- "rapidhash",
+ "rapidhash 1.4.0",
  "rayon",
  "rdst",
  "regex",
@@ -4740,6 +4749,7 @@ dependencies = [
  "mimalloc",
  "parquet",
  "pretty_assertions",
+ "rapidhash 4.4.2",
  "rayon",
  "rdst",
  "serde",

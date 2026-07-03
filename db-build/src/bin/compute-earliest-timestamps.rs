@@ -29,7 +29,6 @@ use rayon::prelude::*;
 use swh_graph::graph::*;
 use swh_graph::mph::DynMphf;
 use swh_graph::NodeType;
-use swh_graph_stdlib::collections::{AdaptiveNodeSet, NodeSet, ReadNodeSet};
 
 use swh_provenance_db_build::filters::{is_root_revrel, NodeFilter};
 
@@ -146,21 +145,26 @@ where
     };
 
     let mut stack = vec![revrel];
-    let mut visited = AdaptiveNodeSet::new(graph.num_nodes());
 
     while let Some(node) = stack.pop() {
         match graph.properties().node_type(node) {
             NodeType::Content | NodeType::Directory => {
-                timestamps[node].fetch_min(revrel_timestamp, Ordering::Relaxed);
+                let previous_min = timestamps[node].fetch_min(revrel_timestamp, Ordering::Relaxed);
+                if previous_min <= revrel_timestamp {
+                    // Already traversed from a revrel with an older timestamp
+                    // than this one (or already from this one), so every
+                    // content or directory we would find from now on would too.
+                    // No need to recurse further.
+                    continue;
+                }
             }
             _ => (),
         }
 
         for succ in graph.successors(node) {
             match graph.properties().node_type(succ) {
-                NodeType::Directory | NodeType::Content if !visited.contains(succ) => {
+                NodeType::Directory | NodeType::Content => {
                     stack.push(succ);
-                    visited.insert(succ);
                 }
                 _ => (),
             }

@@ -53,12 +53,11 @@ class ProvenanceServerProcess(multiprocessing.context.ForkServerProcess):
             if isinstance(e, ExecutableNotFound):
                 # hack to add a bit more context and help to the user,
                 # especially when this is used from another swh package...
-                # XXX on py>=3.11 we could use e.add_note() instead
-                e.args = (
-                    *e.args,
+                e.add_note(
                     "This probably means you need to build the rust grpc server "
-                    "for swh-provenance.",
+                    "for swh-provenance."
                 )
+
             logger.exception(e)
             self.q.put(e)
 

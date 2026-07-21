@@ -52,22 +52,23 @@ class ListProvenanceNodes(luigi.Task):
     def run(self) -> None:
         """Runs ``list-provenance-nodes`` from ``tools/provenance``"""
         from swh.provenance.shell import Rust
+        from swh.provenance.utils import atomic_path
 
         self.provenance_dir.mkdir(exist_ok=True, parents=True)
 
-        print("listing nodes to", self._arrow_output_path())
-        # fmt: off
-        (
-            Rust(
-                "list-provenance-nodes",
-                self.local_graph_path / self.graph_name,
-                "--node-filter",
-                self.provenance_node_filter,
-                "--nodes-out",
-                str(self._arrow_output_path()),
-            )
-        ).run()
-        # fmt: on
+        with atomic_path(self._arrow_output_path()) as output_dir:
+            # fmt: off
+            (
+                Rust(
+                    "list-provenance-nodes",
+                    self.local_graph_path / self.graph_name,
+                    "--node-filter",
+                    self.provenance_node_filter,
+                    "--nodes-out",
+                    output_dir,
+                )
+            ).run()
+            # fmt: on
 
 
 class ComputeEarliestTimestamps(luigi.Task):
@@ -126,21 +127,23 @@ class ComputeEarliestTimestamps(luigi.Task):
     def run(self) -> None:
         """Runs ``compute-earliest-timestamps`` from ``tools/provenance``"""
         from swh.provenance.shell import Rust
+        from swh.provenance.utils import atomic_path
 
         self.provenance_dir.mkdir(exist_ok=True, parents=True)
 
-        # fmt: off
-        (
-            Rust(
-                "compute-earliest-timestamps",
-                "--node-filter",
-                self.provenance_node_filter,
-                self.local_graph_path / self.graph_name,
-                "--timestamps-out",
-                str(self._bin_timestamps_output_path()),
-            )
-        ).run()
-        # fmt: on
+        with atomic_path(self._bin_timestamps_output_path()) as output_dir:
+            # fmt: off
+            (
+                Rust(
+                    "compute-earliest-timestamps",
+                    "--node-filter",
+                    self.provenance_node_filter,
+                    self.local_graph_path / self.graph_name,
+                    "--timestamps-out",
+                    output_dir,
+                )
+            ).run()
+            # fmt: on
 
 
 class ListDirectoryMaxLeafTimestamp(luigi.Task):
@@ -205,23 +208,25 @@ class ListDirectoryMaxLeafTimestamp(luigi.Task):
     def run(self) -> None:
         """Runs ``list-directory-with-max-leaf-timestamp`` from ``tools/provenance``"""
         from swh.provenance.shell import Rust
+        from swh.provenance.utils import atomic_path
 
-        # fmt: off
-        (
-            Rust(
-                "list-directory-with-max-leaf-timestamp",
-                self.local_graph_path / self.graph_name,
-                "--node-filter",
-                self.provenance_node_filter,
-                "--reachable-nodes",
-                self.input()["reachable_nodes"],
-                "--timestamps",
-                self.input()["earliest_revisions"]["bin_timestamps"],
-                "--max-timestamps-out",
-                str(self._output_path()),
-            )
-        ).run()
-        # fmt: on
+        with atomic_path(self._output_path()) as output_dir:
+            # fmt: off
+            (
+                Rust(
+                    "list-directory-with-max-leaf-timestamp",
+                    self.local_graph_path / self.graph_name,
+                    "--node-filter",
+                    self.provenance_node_filter,
+                    "--reachable-nodes",
+                    self.input()["reachable_nodes"],
+                    "--timestamps",
+                    self.input()["earliest_revisions"]["bin_timestamps"],
+                    "--max-timestamps-out",
+                    output_dir,
+                )
+            ).run()
+            # fmt: on
 
 
 class ComputeDirectoryFrontier(luigi.Task):
@@ -275,23 +280,25 @@ class ComputeDirectoryFrontier(luigi.Task):
         import multiprocessing
 
         from swh.provenance.shell import Rust
+        from swh.provenance.utils import atomic_path
 
-        # fmt: off
-        (
-            Rust(
-                "compute-directory-frontier",
-                self.local_graph_path / self.graph_name,
-                "--thread-buffer-size",
-                str(self.max_ram_mb * 1_000_000 // multiprocessing.cpu_count()),
-                "--node-filter",
-                self.provenance_node_filter,
-                "--max-timestamps",
-                self.input()["directory_max_leaf_timestamps"],
-                "--directories-out",
-                self.output(),
-            )
-        ).run()
-        # fmt: on
+        with atomic_path(self._output_path()) as output_dir:
+            # fmt: off
+            (
+                Rust(
+                    "compute-directory-frontier",
+                    self.local_graph_path / self.graph_name,
+                    "--thread-buffer-size",
+                    str(self.max_ram_mb * 1_000_000 // multiprocessing.cpu_count()),
+                    "--node-filter",
+                    self.provenance_node_filter,
+                    "--max-timestamps",
+                    self.input()["directory_max_leaf_timestamps"],
+                    "--directories-out",
+                    output_dir,
+                )
+            ).run()
+            # fmt: on
 
 
 class ListFrontierDirectoriesInRevisions(luigi.Task):
@@ -349,27 +356,29 @@ class ListFrontierDirectoriesInRevisions(luigi.Task):
         import multiprocessing
 
         from swh.provenance.shell import Rust
+        from swh.provenance.utils import atomic_path
 
-        # fmt: off
-        (
-            Rust(
-                "frontier-directories-in-revisions",
-                self.local_graph_path / self.graph_name,
-                "--thread-buffer-size",
-                str(self.max_ram_mb * 1_000_000 // multiprocessing.cpu_count()),
-                "--node-filter",
-                self.provenance_node_filter,
-                "--reachable-nodes",
-                self.input()["reachable_nodes"],
-                "--frontier-directories",
-                self.input()["directory_frontier"],
-                "--max-timestamps",
-                self.input()["directory_max_leaf_timestamps"],
-                "--directories-out",
-                self.output(),
-            )
-        ).run()
-        # fmt: on
+        with atomic_path(self._output_path()) as output_dir:
+            # fmt: off
+            (
+                Rust(
+                    "frontier-directories-in-revisions",
+                    self.local_graph_path / self.graph_name,
+                    "--thread-buffer-size",
+                    str(self.max_ram_mb * 1_000_000 // multiprocessing.cpu_count()),
+                    "--node-filter",
+                    self.provenance_node_filter,
+                    "--reachable-nodes",
+                    self.input()["reachable_nodes"],
+                    "--frontier-directories",
+                    self.input()["directory_frontier"],
+                    "--max-timestamps",
+                    self.input()["directory_max_leaf_timestamps"],
+                    "--directories-out",
+                    output_dir,
+                )
+            ).run()
+            # fmt: on
 
 
 class ListContentsInRevisionsWithoutFrontier(luigi.Task):
@@ -429,25 +438,27 @@ class ListContentsInRevisionsWithoutFrontier(luigi.Task):
         import multiprocessing
 
         from swh.provenance.shell import Rust
+        from swh.provenance.utils import atomic_path
 
-        # fmt: off
-        (
-            Rust(
-                "contents-in-revisions-without-frontier",
-                self.local_graph_path / self.graph_name,
-                "--thread-buffer-size",
-                str(self.max_ram_mb * 1_000_000 // multiprocessing.cpu_count()),
-                "--node-filter",
-                self.provenance_node_filter,
-                "--reachable-nodes",
-                self.input()["reachable_nodes"],
-                "--frontier-directories",
-                self.input()["directory_frontier"],
-                "--contents-out",
-                self.output(),
-            )
-        ).run()
-        # fmt: on
+        with atomic_path(self._output_path()) as output_dir:
+            # fmt: off
+            (
+                Rust(
+                    "contents-in-revisions-without-frontier",
+                    self.local_graph_path / self.graph_name,
+                    "--thread-buffer-size",
+                    str(self.max_ram_mb * 1_000_000 // multiprocessing.cpu_count()),
+                    "--node-filter",
+                    self.provenance_node_filter,
+                    "--reachable-nodes",
+                    self.input()["reachable_nodes"],
+                    "--frontier-directories",
+                    self.input()["directory_frontier"],
+                    "--contents-out",
+                    output_dir,
+                )
+            ).run()
+            # fmt: on
 
 
 class ListContentsInFrontierDirectories(luigi.Task):
@@ -500,23 +511,25 @@ class ListContentsInFrontierDirectories(luigi.Task):
         import multiprocessing
 
         from swh.provenance.shell import Rust
+        from swh.provenance.utils import atomic_path
 
-        # fmt: off
-        (
-            Rust(
-                "contents-in-directories",
-                self.local_graph_path / self.graph_name,
-                "--thread-buffer-size",
-                str(self.max_ram_mb * 1_000_000 // multiprocessing.cpu_count()),
-                "--node-filter",
-                self.provenance_node_filter,
-                "--frontier-directories",
-                self.input()["directory_frontier"],
-                "--contents-out",
-                self.output(),
-            )
-        ).run()
-        # fmt: on
+        with atomic_path(self._output_path()) as output_dir:
+            # fmt: off
+            (
+                Rust(
+                    "contents-in-directories",
+                    self.local_graph_path / self.graph_name,
+                    "--thread-buffer-size",
+                    str(self.max_ram_mb * 1_000_000 // multiprocessing.cpu_count()),
+                    "--node-filter",
+                    self.provenance_node_filter,
+                    "--frontier-directories",
+                    self.input()["directory_frontier"],
+                    "--contents-out",
+                    output_dir,
+                )
+            ).run()
+            # fmt: on
 
 
 class ListRevisionsInOrigins(luigi.Task):
@@ -565,21 +578,23 @@ class ListRevisionsInOrigins(luigi.Task):
         import multiprocessing
 
         from swh.provenance.shell import Rust
+        from swh.provenance.utils import atomic_path
 
-        # fmt: off
-        (
-            Rust(
-                "revisions-in-origins",
-                self.local_graph_path / self.graph_name,
-                "--thread-buffer-size",
-                str(100_000_000 // multiprocessing.cpu_count()),  # arbitrary value
-                "--node-filter",
-                self.provenance_node_filter,
-                "--revisions-out",
-                self.output(),
-            )
-        ).run()
-        # fmt: on
+        with atomic_path(self._output_path()) as output_dir:
+            # fmt: off
+            (
+                Rust(
+                    "revisions-in-origins",
+                    self.local_graph_path / self.graph_name,
+                    "--thread-buffer-size",
+                    str(100_000_000 // multiprocessing.cpu_count()),  # arbitrary value
+                    "--node-filter",
+                    self.provenance_node_filter,
+                    "--revisions-out",
+                    output_dir,
+                )
+            ).run()
+            # fmt: on
 
 
 class UploadProvenanceDatabase(_ParquetToS3Task):

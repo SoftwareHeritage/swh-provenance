@@ -399,10 +399,8 @@ def test_computedirectoryfrontier(tmpdir, provenance_node_filter):
     tmpdir = Path(tmpdir)
     provenance_dir = tmpdir / "provenance"
 
-    # Generate the 'nodes' table
-    test_listprovenancenodes(tmpdir, provenance_node_filter)
-
-    # Generate the binary file, used as input by ComputeDirectoryFrontier
+    # Generate the 'nodes' table and the binary file,
+    # used as input by ListFrontierDirectoriesInRevisions
     test_listdirectorymaxleaftimestamp(tmpdir, provenance_node_filter)
 
     task = ComputeDirectoryFrontier(
@@ -446,10 +444,8 @@ def test_listfrontierdirectoriesinrevisions(tmpdir, provenance_node_filter):
     tmpdir = Path(tmpdir)
     provenance_dir = tmpdir / "provenance"
 
-    # Generate the 'nodes' table
-    test_listprovenancenodes(tmpdir, provenance_node_filter)
-
-    # Generate the binary file, used as input by ListFrontierDirectoriesInRevisions
+    # Generate the 'nodes' table and the binary file,
+    # used as input by ListFrontierDirectoriesInRevisions
     test_listdirectorymaxleaftimestamp(tmpdir, provenance_node_filter)
 
     write_directory_frontier(

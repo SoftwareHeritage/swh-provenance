@@ -77,7 +77,9 @@ pub fn main() -> Result<()> {
         args.directories_out,
         (Arc::new(schema()), writer_properties(&graph).build()),
     )?;
-    dataset_writer.config.autoflush_buffer_size = args.thread_buffer_size;
+    if let Some(autoflush_buffer_size) = args.thread_buffer_size {
+        dataset_writer.config.autoflush_buffer_size = Some(autoflush_buffer_size);
+    }
 
     let frontiers = find_frontiers(&graph, &max_timestamps, args.node_filter)?;
 

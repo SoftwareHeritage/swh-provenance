@@ -64,7 +64,9 @@ pub fn main() -> Result<()> {
             revrel_in_ori_writer_properties(&graph).build(),
         ),
     )?;
-    dataset_writer.config.autoflush_buffer_size = args.thread_buffer_size;
+    if let Some(autoflush_buffer_size) = args.thread_buffer_size {
+        dataset_writer.config.autoflush_buffer_size = Some(autoflush_buffer_size);
+    }
 
     swh_provenance_db_build::revisions_in_origins::main(&graph, args.node_filter, dataset_writer)
 }

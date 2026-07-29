@@ -620,7 +620,7 @@ class UploadProvenanceDatabase(_ParquetToS3Task):
 
     def _s3_prefix(self) -> str:
         # TODO: configurable
-        return f"derived_datasets/{self.dataset_name}/provenance/{self.provenance_node_filter}"
+        return f"derived_datasets/{self.dataset_name}/provenance/{self.provenance_node_filter}/"
 
     def requires(self) -> List[luigi.Task]:
         """Returns an instance of :class:`AggregateContentDatasets`."""

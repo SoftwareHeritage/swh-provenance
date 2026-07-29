@@ -1,4 +1,4 @@
-// Copyright (C) 2024  The Software Heritage developers
+// Copyright (C) 2024-2026  The Software Heritage developers
 // See the AUTHORS file at the top-level directory of this distribution
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
@@ -82,7 +82,9 @@ pub fn main() -> Result<()> {
             cnt_in_dir_writer_properties(&graph).build(),
         ),
     )?;
-    dataset_writer.config.autoflush_buffer_size = args.thread_buffer_size;
+    if let Some(autoflush_buffer_size) = args.thread_buffer_size {
+        dataset_writer.config.autoflush_buffer_size = Some(autoflush_buffer_size);
+    }
 
     swh_provenance_db_build::contents_in_directories::write_directories_from_contents(
         &graph,

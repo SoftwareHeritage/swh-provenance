@@ -108,7 +108,9 @@ pub fn main() -> Result<()> {
     // group will be exactly this size.
     dataset_writer.config.autoflush_row_group_len = Some(args.row_group_size);
 
-    dataset_writer.config.autoflush_buffer_size = args.thread_buffer_size;
+    if let Some(autoflush_buffer_size) = args.thread_buffer_size {
+        dataset_writer.config.autoflush_buffer_size = Some(autoflush_buffer_size);
+    }
 
     let reachable_nodes = find_reachable_nodes(&graph, args.node_filter)?;
 

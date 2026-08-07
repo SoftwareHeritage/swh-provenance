@@ -1,4 +1,4 @@
-# Copyright (C) 2024  The Software Heritage developers
+# Copyright (C) 2024-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -9,7 +9,7 @@ import logging
 
 import click
 
-from swh.core.cli import CONTEXT_SETTINGS, AliasedGroup
+from swh.core.cli import CONTEXT_SETTINGS, AliasedGroup, setup_config
 from swh.core.cli import swh as swh_cli_group
 
 
@@ -25,16 +25,13 @@ from swh.core.cli import swh as swh_cli_group
         exists=True,
         dir_okay=False,
     ),
+    deprecated=True,
     help="Configuration file.",
 )
 @click.pass_context
 def provenance_cli_group(ctx, config_file):
     """Software Heritage Provenance tools."""
-    from swh.core import config
-
-    ctx.ensure_object(dict)
-    conf = config.read(config_file)
-    ctx.obj["config"] = conf
+    setup_config(ctx, config_file)
 
 
 @provenance_cli_group.command(name="rpc-serve")

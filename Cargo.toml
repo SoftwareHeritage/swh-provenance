@@ -25,7 +25,9 @@ sux = "0.12.0"
 value-traits = "0.2.0"
 
 
+[profile.dev]
+debug = "limited"         # Save space
+
 [profile.release]
 lto = "thin"              # Fat LTO takes minutes
-debug = true              # Include debug info.
-debug-assertions = false  # Disables debug assertions.
+debug = "limited"         # Include profiling info.

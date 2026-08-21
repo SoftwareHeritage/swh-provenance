@@ -4,7 +4,7 @@
 // See top-level LICENSE file for more information
 
 use anyhow::Result;
-use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter};
+use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter, TableWriter};
 use dsi_progress_logger::{concurrent_progress_logger, ProgressLog};
 use rayon::prelude::*;
 use sux::bits::bit_vec::BitVec;
@@ -14,7 +14,7 @@ use swh_graph::NodeType;
 
 use crate::filters::NodeFilter;
 use crate::frontier::PathParts;
-use crate::x_in_y_dataset::CntInRevrelTableBuilder;
+use crate::x_in_y_dataset::{CntInRevrelTableBuilder, MAX_PATH_BUFFER_SIZE, MAX_PATH_SIZE};
 
 pub fn write_revisions_from_contents<G>(
     graph: &G,
@@ -98,7 +98,18 @@ where
             return Ok(());
         }
 
-        let builder = writer.builder()?;
+        let mut path = path_parts.build_path(graph);
+        if path.len() >= MAX_PATH_SIZE {
+            path.clear();
+        }
+
+        let mut builder = writer.builder()?;
+        if builder.path.values_slice().len() + path.len() > MAX_PATH_BUFFER_SIZE {
+            // avoid excessively large row groups
+            writer.flush()?;
+            builder = writer.builder()?;
+        }
+
         builder
             .cnt
             .append_value(cnt.try_into().expect("NodeId overflowed u64"));
@@ -106,7 +117,7 @@ where
         builder
             .revrel
             .append_value(revrel.try_into().expect("NodeId overflowed u64"));
-        builder.path.append_value(path_parts.build_path(graph));
+        builder.path.append_value(path);
         Ok(())
     };
 

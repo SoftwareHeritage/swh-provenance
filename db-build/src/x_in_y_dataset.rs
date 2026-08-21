@@ -1,4 +1,4 @@
-// Copyright (C) 2024  The Software Heritage developers
+// Copyright (C) 2024-2026  The Software Heritage developers
 // See the AUTHORS file at the top-level directory of this distribution
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
@@ -16,6 +16,9 @@ use parquet::file::properties::{WriterProperties, WriterPropertiesBuilder};
 use swh_graph::graph::SwhGraph;
 
 use dataset_writer::StructArrayBuilder;
+
+pub(crate) const MAX_PATH_BUFFER_SIZE: usize = 1_000_000_000;
+pub(crate) const MAX_PATH_SIZE: usize = 10_000_000;
 
 #[derive(Debug)]
 pub struct UtcTimestampSecondBuilder(pub TimestampSecondBuilder);

@@ -6,7 +6,7 @@
 use std::sync::atomic::Ordering;
 
 use anyhow::Result;
-use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter};
+use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter, TableWriter};
 use dsi_progress_logger::{concurrent_progress_logger, ProgressLog};
 use rayon::prelude::*;
 use sux::prelude::{AtomicBitVec, BitVec};
@@ -15,7 +15,7 @@ use swh_graph::graph::*;
 use swh_graph::NodeType;
 
 use crate::frontier::PathParts;
-use crate::x_in_y_dataset::CntInDirTableBuilder;
+use crate::x_in_y_dataset::{CntInDirTableBuilder, MAX_PATH_BUFFER_SIZE, MAX_PATH_SIZE};
 
 pub fn write_directories_from_contents<G>(
     graph: &G,
@@ -114,14 +114,26 @@ where
             return Ok(false);
         }
         if frontier_directories.get(dir) {
-            let builder = writer.builder()?;
+            let mut path = path_parts.build_path(graph);
+            if path.len() >= MAX_PATH_SIZE {
+                path.clear();
+            }
+
+            let mut builder = writer.builder()?;
+            if builder.path.values_slice().len() + path.len() > MAX_PATH_BUFFER_SIZE {
+                // avoid excessively large row groups
+                writer.flush()?;
+                builder = writer.builder()?;
+            }
+
+
             builder
                 .cnt
                 .append_value(cnt.try_into().expect("NodeId overflowed u64"));
             builder
                 .dir
                 .append_value(dir.try_into().expect("NodeId overflowed u64"));
-            builder.path.append_value(path_parts.build_path(graph));
+            builder.path.append_value(path);
         }
         Ok(true) // always recurse
     };

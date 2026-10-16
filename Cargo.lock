@@ -799,6 +799,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "card-est-array"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fa4a5f8b7fceb511e79b585d8da3477650148ef2e4958e10619a0797d52e75ad"
+dependencies = [
+ "num-primitive",
+ "sync-cell-slice",
+]
+
+[[package]]
 name = "cast"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3185,6 +3195,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "num-primitive"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0178502a58a2514f927965f80216c0ea2533b5364061544ea8e09b79343d4183"
+
+[[package]]
 name = "num-rational"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4757,7 +4773,39 @@ dependencies = [
  "sux 0.12.3",
  "swh-graph",
  "swh-graph-stdlib",
+ "swh_graph_topology",
  "value-traits",
+]
+
+[[package]]
+name = "swh_graph_topology"
+version = "14.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c132ff18cf366da71da58f6c0fab1b33e7b885ccd3f1c76b0059568d15c3400c"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "card-est-array 0.6.0",
+ "clap",
+ "csv",
+ "derive_more",
+ "dsi-bitstream",
+ "dsi-progress-logger",
+ "either",
+ "env_logger 0.11.8",
+ "epserde 0.12.6",
+ "java-properties 2.0.0",
+ "log",
+ "mmap-rs 0.6.1",
+ "num-primitive",
+ "rapidhash 4.4.2",
+ "rayon",
+ "rdst",
+ "serde",
+ "serde_json",
+ "sux 0.12.3",
+ "swh-graph",
+ "swh-graph-stdlib",
 ]
 
 [[package]]
@@ -5642,7 +5690,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b32da5be4829c2920a7f12d41a687232b7c97c0dc7cca3a1076cdc655ac4d92f"
 dependencies = [
  "anyhow",
- "card-est-array",
+ "card-est-array 0.2.1",
  "crossbeam-utils",
  "dsi-progress-logger",
  "epserde 0.12.6",
@@ -5670,7 +5718,7 @@ checksum = "9fd9b9dcfc8972408df4335aa261941d879a3e37fe06262f9828413b3ccfc638"
 dependencies = [
  "anyhow",
  "built",
- "card-est-array",
+ "card-est-array 0.2.1",
  "chrono",
  "clap",
  "clap_complete",

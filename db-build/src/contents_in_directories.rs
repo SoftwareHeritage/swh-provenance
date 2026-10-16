@@ -126,7 +126,6 @@ where
                 builder = writer.builder()?;
             }
 
-
             builder
                 .cnt
                 .append_value(cnt.try_into().expect("NodeId overflowed u64"));

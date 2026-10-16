@@ -8,8 +8,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use anyhow::{bail, Context, Result};
 use dashmap::DashMap;
 use dsi_progress_logger::{concurrent_progress_logger, ProgressLog};
-use rayon::prelude::*;
 use rapidhash::{RapidHashMap, RapidHashSet};
+use rayon::prelude::*;
 use rdst::RadixSort;
 use sux::prelude::elias_fano;
 

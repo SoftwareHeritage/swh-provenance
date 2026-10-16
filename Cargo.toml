@@ -18,6 +18,7 @@ epserde = "0.12.0"
 parquet_aramid = "0.3.0"
 swh-graph = ">= 12.1.0, <13"
 swh-graph-stdlib = ">= 14, < 15"
+swh_graph_topology = ">= 14, < 15"
 swh-provenance-db-build = { path = "db-build/", version = "0.5.0" }
 #dataset-writer = { version = "1.2.0", features = ["parquet"] }
 dataset-writer = { version = "1.1.1", features = ["parquet"] }

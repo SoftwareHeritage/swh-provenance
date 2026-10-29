@@ -1,0 +1,161 @@
+using frontiers:
+> create external table c_in_d stored as parquet location '/srv/softwareheritage/ssd/data/vlorentz/datasets/2026-06-04/provenance.orig/contents_in_frontier_directories/';
+Elapsed 79.137 seconds.
+> create external table d_in_r stored as parquet location '/srv/softwareheritage/ssd/data/vlorentz/datasets/2026-06-04/provenance.orig/frontier_directories_in_revisions/';
+Elapsed 164.935 seconds.
+> create external table c_in_r stored as parquet location '/srv/softwareheritage/ssd/data/vlorentz/datasets/2026-06-04/provenance.orig/contents_in_revisions_without_frontiers/';
+Elapsed 20.543 seconds.
+
+> select count(*) from c_in_d;
++---------------+
+| count(*)      |
++---------------+
+| 2278309947131 |
++---------------+
+1 row(s) fetched.
+Elapsed 0.013 seconds.
+
+> select count(*) from d_in_r;
++---------------+
+| count(*)      |
++---------------+
+| 4725692180121 |
++---------------+
+1 row(s) fetched.
+Elapsed 0.002 seconds.
+
+> select count(*) from c_in_r;
++--------------+
+| count(*)     |
++--------------+
+| 662273864594 |
++--------------+
+1 row(s) fetched.
+Elapsed 0.002 seconds.
+
+
+~~total: 10_113_658_224_836~~
+total: 7_666_275_991_846
+
+
+heads (considering all dirs of a generation, even those not reachable from any head rev):
+
+Generation 1: GenerationEvaluation {
+    dir_to_cnt: 1986082536192,
+    dir_to_rev: 59104413708,
+    cnt_to_rev_without_dir: 9296701520,
+}
+-> 2_054_483_651_420
+
+Generation 2: GenerationEvaluation {
+    dir_to_cnt: 6589707445758,
+    dir_to_rev: 22935416488,
+    cnt_to_rev_without_dir: 64999843458,
+}
+-> 6_677_642_705_704
+
+Generation 3: GenerationEvaluation {
+    dir_to_cnt: 2812688113749,
+    dir_to_rev: 11229772191,
+    cnt_to_rev_without_dir: 312985634549,
+}
+-> 3_136_903_520_489
+
+Generation 4: GenerationEvaluation {
+    dir_to_cnt: 2039748818645,
+    dir_to_rev: 6903422330,
+    cnt_to_rev_without_dir: 688174339541,
+}
+-> 2_734_826_580_516
+
+Generation 5: GenerationEvaluation {
+    dir_to_cnt: 2740133464501,
+    dir_to_rev: 4876697463,
+    cnt_to_rev_without_dir: 1038011625373,
+}
+-> 3_783_021_787_337
+
+Generation 6: GenerationEvaluation {
+    dir_to_cnt: 1757486134557,
+    dir_to_rev: 3567532570,
+    cnt_to_rev_without_dir: 1345846926069,
+}
+-> 3_106_900_593_196
+
+Generation 7: GenerationEvaluation {
+    dir_to_cnt: 1322018057782,
+    dir_to_rev: 2505870766,
+    cnt_to_rev_without_dir: 1530787067429,
+}
+-> 2_855_310_995_977
+
+Generation 8: GenerationEvaluation {
+    dir_to_cnt: 1645485604660,
+    dir_to_rev: 1697274382,
+    cnt_to_rev_without_dir: 1647022176736,
+}
+-> 3_294_205_055_778
+
+Generation 9: GenerationEvaluation {
+    dir_to_cnt: 3435082961434,
+    dir_to_rev: 1098025307,
+    cnt_to_rev_without_dir: 1712647825673,
+}
+-> 5_148_828_812_414
+
+Generation 10: GenerationEvaluation {
+    dir_to_cnt: 2184273797756,
+    dir_to_rev: 658649185,
+    cnt_to_rev_without_dir: 1753266256593,
+}
+-> 3_938_198_703_534
+
+Generation 15: GenerationEvaluation {
+    dir_to_cnt: 1678092901122,
+    dir_to_rev: 33948641,
+    cnt_to_rev_without_dir: 1823799494760,
+}
+-> 3_501_926_344_523
+
+Generation 20: GenerationEvaluation {
+    dir_to_cnt: 1628598657335,
+    dir_to_rev: 2022839,
+    cnt_to_rev_without_dir: 1827909385298,
+}
+-> 3_456_510_065_472
+
+Generation 1000: GenerationEvaluation {
+    dir_to_cnt: 141729654,
+    dir_to_rev: 8862,
+    cnt_to_rev_without_dir: 1828005624954,
+}
+-> 1_828_147_363_470
+
+
+all:
+
+Generation 1: GenerationEvaluation {
+    dir_to_cnt: 0,
+    dir_to_rev: 1242812880645,
+    cnt_to_rev_without_dir: 270133278885,
+}
+-> 3_499_028_695_722
+
+Generation 2: GenerationEvaluation {
+    dir_to_cnt: 0,
+    dir_to_rev: 426391328089,
+    cnt_to_rev_without_dir: 2084085087662,
+}
+-> 9_100_183_861_509
+Generation 3: GenerationEvaluation {
+    dir_to_cnt: 0,
+    dir_to_rev: 247301683456,
+    cnt_to_rev_without_dir: 11501934869365,
+}
+-> 14_561_924_666_570
+Generation 4:  GenerationEvaluation { (recovered with gdb)
+    dir_to_cnt: 0,
+    dir_to_rev: 158908023924,
+    cnt_to_rev_without_dir: 17666465319711,
+}
+-> 19_865_122_162_280

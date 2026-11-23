@@ -282,6 +282,7 @@ pub fn gen_database(path: PathBuf) -> Result<()> {
         .context("Could not create contents_in_frontier_directories writer")?;
     swh_provenance_db_build::contents_in_directories::write_directories_from_contents(
         &graph,
+        swh_provenance_db_build::FrontierDefinition::Legacy,
         &frontier_directories,
         writer,
     )

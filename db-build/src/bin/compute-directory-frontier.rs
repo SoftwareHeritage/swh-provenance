@@ -25,6 +25,7 @@ use swh_graph_stdlib::collections::{AdaptiveNodeSet, NodeSet, ReadNodeSet};
 
 use swh_provenance_db_build::filters::{is_root_revrel, NodeFilter};
 use swh_provenance_db_build::frontier_set::{schema, to_parquet, writer_properties};
+use swh_provenance_db_build::FrontierDefinition;
 
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
@@ -48,7 +49,12 @@ struct Args {
     node_filter: NodeFilter,
     #[arg(long)]
     /// Path to read the array of max timestamps from
-    max_timestamps: PathBuf,
+    ///
+    /// Required with '--frontier-definition legacy' (the default)
+    max_timestamps: Option<PathBuf>,
+    #[arg(long, default_value = "legacy")]
+    /// Which definition of "frontier directories to use
+    frontier_definition: FrontierDefinition,
     #[arg(long)]
     /// Path to a directory where to write the bitvec of frontier-ness
     directories_out: PathBuf,
@@ -69,9 +75,19 @@ pub fn main() -> Result<()> {
         .context("Could not load timestamps")?;
     log::info!("Graph loaded.");
 
-    let max_timestamps =
-        NumberMmap::<byteorder::BE, i64, _>::new(&args.max_timestamps, graph.num_nodes())
-            .with_context(|| format!("Could not mmap {}", args.max_timestamps.display()))?;
+    let frontiers = match args.frontier_definition {
+        FrontierDefinition::Legacy => {
+            let max_timestamps = args
+                .max_timestamps
+                .as_ref()
+                .context("'--frontier-definition legacy' requires --max-timestamps")?;
+            let max_timestamps =
+                NumberMmap::<byteorder::BE, i64, _>::new(max_timestamps, graph.num_nodes())
+                    .with_context(|| format!("Could not mmap {}", max_timestamps.display()))?;
+            find_legacy_frontiers(&graph, &max_timestamps, args.node_filter)?
+        }
+        FrontierDefinition::Depth1 => find_depth1_frontiers(&graph, args.node_filter)?,
+    };
 
     let mut dataset_writer = ParallelDatasetWriter::<ParquetTableWriter<_>>::with_schema(
         args.directories_out,
@@ -80,8 +96,6 @@ pub fn main() -> Result<()> {
     if let Some(autoflush_buffer_size) = args.thread_buffer_size {
         dataset_writer.config.autoflush_buffer_size = Some(autoflush_buffer_size);
     }
-
-    let frontiers = find_frontiers(&graph, &max_timestamps, args.node_filter)?;
 
     let mut pl = concurrent_progress_logger!(
         item_name = "node",
@@ -98,7 +112,49 @@ pub fn main() -> Result<()> {
     Ok(())
 }
 
-fn find_frontiers<G>(
+fn find_depth1_frontiers<G>(graph: &G, node_filter: NodeFilter) -> Result<BitVec>
+where
+    G: SwhBackwardGraph + SwhForwardGraph + SwhGraphWithProperties + Send + Sync + 'static,
+    <G as SwhGraphWithProperties>::Maps: swh_graph::properties::Maps,
+    <G as SwhGraphWithProperties>::Timestamps: swh_graph::properties::Timestamps,
+{
+    let frontiers = AtomicBitVec::new(graph.num_nodes());
+
+    let NodeFilter::All = node_filter else {
+        todo!("--frontier-definition depth1 with --node-filter heads");
+    };
+
+    let mut pl = concurrent_progress_logger!(
+        item_name = "node",
+        display_memory = true,
+        local_speed = true,
+        expected_updates = Some(graph.num_nodes()),
+    );
+    pl.start("[step 1/2] Visiting directories...");
+    swh_graph::utils::shuffle::par_iter_shuffled_range(0..graph.num_nodes()).try_for_each_with(
+        pl.clone(),
+        |thread_pl, root| -> Result<()> {
+            if graph.properties().node_type(root) == NodeType::Directory
+                && graph
+                    .successors(root)
+                    .into_iter()
+                    .all(|succ| graph.properties().node_type(succ) != NodeType::Directory)
+            {
+                frontiers.set(root, true, Ordering::Relaxed);
+            }
+            thread_pl.light_update();
+            Ok(())
+        },
+    )?;
+
+    pl.done();
+
+    log::info!("Visits done, finishing output");
+
+    Ok(frontiers.into())
+}
+
+fn find_legacy_frontiers<G>(
     graph: &G,
     max_timestamps: impl SliceByValue<Value = i64> + Sync + Copy,
     node_filter: NodeFilter,
@@ -124,7 +180,7 @@ where
                 if let Some(root_dir) = swh_graph_stdlib::find_root_dir(graph, root)
                     .context("Could not pick root directory")?
                 {
-                    find_frontiers_in_root_directory(
+                    find_legacy_frontiers_in_root_directory(
                         graph,
                         max_timestamps,
                         &frontiers,
@@ -145,7 +201,7 @@ where
     Ok(frontiers.into())
 }
 
-fn find_frontiers_in_root_directory<G>(
+fn find_legacy_frontiers_in_root_directory<G>(
     graph: &G,
     max_timestamps: impl SliceByValue<Value = i64>,
     frontiers: &AtomicBitVec,

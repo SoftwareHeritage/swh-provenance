@@ -16,9 +16,11 @@ use swh_graph::NodeType;
 
 use crate::frontier::PathParts;
 use crate::x_in_y_dataset::{CntInDirTableBuilder, MAX_PATH_BUFFER_SIZE, MAX_PATH_SIZE};
+use crate::FrontierDefinition;
 
 pub fn write_directories_from_contents<G>(
     graph: &G,
+    frontier_definition: FrontierDefinition,
     frontier_directories: &BitVec,
     dataset_writer: ParallelDatasetWriter<ParquetTableWriter<CntInDirTableBuilder>>,
 ) -> Result<()>
@@ -81,6 +83,7 @@ where
             {
                 write_frontier_directories_from_content(
                     &graph,
+                    &frontier_definition,
                     writer,
                     &reachable_nodes_from_frontier,
                     frontier_directories,
@@ -98,6 +101,7 @@ where
 
 fn write_frontier_directories_from_content<G>(
     graph: &G,
+    frontier_definition: &FrontierDefinition,
     writer: &mut ParquetTableWriter<CntInDirTableBuilder>,
     reachable_nodes_from_frontier: &BitVec,
     frontier_directories: &BitVec,
@@ -134,7 +138,14 @@ where
                 .append_value(dir.try_into().expect("NodeId overflowed u64"));
             builder.path.append_value(path);
         }
-        Ok(true) // always recurse
+        if frontier_definition == &FrontierDefinition::Depth1 {
+            // Depth1 means frontier directories are only directories with
+            // no subdirectory.
+            // if 'node' is a directory then there is no point in recursing.
+            Ok(false)
+        } else {
+            Ok(true) // always recurse
+        }
     };
 
     let on_revrel = |_cnt: NodeId, _path_parts: PathParts| Ok(());

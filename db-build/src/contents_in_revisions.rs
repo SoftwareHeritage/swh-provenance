@@ -35,7 +35,7 @@ where
         local_speed = true,
         expected_updates = Some(graph.num_nodes()),
     );
-    pl.start("Visiting revisions' directories...");
+    pl.start("Visiting revisions from contents...");
 
     (0..graph.num_nodes()).into_par_iter().try_for_each_init(
         || (dataset_writer.get_thread_writer().unwrap(), pl.clone()),

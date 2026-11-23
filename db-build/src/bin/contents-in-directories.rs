@@ -37,6 +37,9 @@ struct Args {
     #[arg(long, default_value_t = NodeFilter::Heads)]
     /// Subset of revisions and releases to traverse from
     node_filter: NodeFilter,
+    #[arg(long, default_value = "legacy")]
+    /// Which definition of "frontier directories to use
+    frontier_definition: swh_provenance_db_build::FrontierDefinition,
     #[arg(long)]
     /// Path to the Parquet table with the node ids of frontier directories
     frontier_directories: PathBuf,
@@ -88,6 +91,7 @@ pub fn main() -> Result<()> {
 
     swh_provenance_db_build::contents_in_directories::write_directories_from_contents(
         &graph,
+        args.frontier_definition,
         &frontier_directories,
         dataset_writer,
     )

@@ -9,6 +9,7 @@ use anyhow::{Context, Result};
 
 use swh_graph::graph::*;
 use swh_graph::views::Transposed;
+use swh_graph::NodeType;
 
 use swh_graph_stdlib::labeling::{DenseLabels, MapReduceBuilder, MapReducer};
 
@@ -40,13 +41,40 @@ where
     type Error = Infallible;
 
     fn map(&mut self, node: NodeId) -> Result<Option<f64>, Infallible> {
-        Ok(Some(
-            if is_root_revrel(self.graph, self.node_filter, node) {
-                1.
-            } else {
-                0.
-            },
-        ))
+        if self.graph.properties().node_type(node) == NodeType::Directory {
+            // count revisions that 'node' is the root directory of
+            let count = self
+                .graph
+                .predecessors(node)
+                .into_iter()
+                .filter(|&pred| is_root_revrel(self.graph, self.node_filter, pred))
+                .count();
+            if count > 0 {
+                return Ok(Some(count as f64));
+            }
+        }
+        Ok(None)
+    }
+
+    fn map_reduce(
+        &mut self,
+        node: NodeId,
+        successors_label: <Self::Label as ToOwned>::Owned,
+    ) -> Result<Option<<Self::Label as ToOwned>::Owned>, Self::Error> {
+        use std::borrow::Borrow;
+        if self.graph.properties().node_type(node) == NodeType::Directory {
+            // upstream impl
+            match self.map(node)? {
+                Some(own_label) => self.reduce(own_label, [successors_label.borrow()].into_iter()),
+                None => Ok(Some(successors_label)),
+            }
+        } else {
+            // don't propagate path counts through submodules.
+            //
+            // FIXME: map_reduce() should be strictly equivalent to map() + reduce() because it is
+            // not guaranteed to be called
+            Ok(None)
+        }
     }
 
     fn reduce<'a, I: Iterator<Item = &'a f64>>(

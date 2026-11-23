@@ -4,14 +4,115 @@
 // See top-level LICENSE file for more information
 
 use anyhow::{bail, Result};
+//use std::collections::HashSet;
+use rapidhash::RapidHashSet;
+use smallvec::SmallVec;
 use sux::prelude::BitVec;
-use sux::traits::BitVecOps;
+use sux::traits::{BitVecOps, BitVecOpsMut};
+//use swh_graph_stdlib::collections::{AdaptiveNodeSet, NodeSet, ReadNodeSet};
 
 use swh_graph::graph::*;
 use swh_graph::labels::LabelNameId;
 use swh_graph::NodeType;
 use swh_graph_stdlib::collections::PathStack;
-use swh_graph_stdlib::collections::{AdaptiveNodeSet, NodeSet, ReadNodeSet};
+
+enum Chunk {
+    Empty,
+    VerySparse(SmallVec<[u32; 8]>), // fits in the same space as HashSet<u16>
+    Sparse(RapidHashSet<u32>),
+    Dense(BitVec<Box<[usize]>>),
+}
+
+impl Chunk {
+    const LEN: usize = 1 << ChunkedNodeSet::NUM_LOW_BITS;
+    const PROMOTION_THRESHOLD: usize = Self::LEN / 64; // TODO: tune this constant
+
+    fn insert(&mut self, value: u32) {
+        assert!(usize::try_from(value).unwrap() < Self::LEN);
+        match self {
+            Chunk::Empty => {
+                let mut vec = SmallVec::new();
+                vec.push(value);
+                *self = Chunk::VerySparse(vec);
+            }
+            Chunk::VerySparse(vec) => {
+                assert_eq!(vec.capacity(), 8);
+                if !vec.contains(&value) {
+                    if vec.len() == 8 {
+                        let mut set: RapidHashSet<_> = vec.iter().copied().collect();
+                        set.insert(value);
+                        *self = Chunk::Sparse(set);
+                    } else {
+                        vec.push(value);
+                        assert_eq!(vec.capacity(), 8);
+                    }
+                }
+            }
+            Chunk::Sparse(set) => {
+                let is_new = set.insert(value);
+                if is_new && set.len() >= Self::PROMOTION_THRESHOLD {
+                    let mut bitvec = BitVec::new(Self::LEN);
+                    for &value in set.iter() {
+                        bitvec.set(value.try_into().unwrap(), true);
+                    }
+                    *self = Chunk::Dense(bitvec.into());
+                }
+            }
+            Chunk::Dense(bitvec) => {
+                bitvec.set(value.try_into().unwrap(), true);
+            }
+        }
+    }
+
+    fn contains(&self, value: u32) -> bool {
+        match self {
+            Chunk::Empty => false,
+            Chunk::VerySparse(vec) => vec.contains(&value),
+            Chunk::Sparse(set) => set.contains(&value),
+            Chunk::Dense(bitvec) => bitvec.get(value.try_into().unwrap()),
+        }
+    }
+}
+
+struct ChunkedNodeSet {
+    num_nodes: usize,
+    chunks: Vec<Chunk>,
+}
+
+impl ChunkedNodeSet {
+    const NUM_LOW_BITS: usize = 24;
+    const MASK: usize = (1 << Self::NUM_LOW_BITS) - 1;
+
+    fn new(num_nodes: usize) -> Self {
+        Self {
+            num_nodes,
+            chunks: (0..num_nodes.div_ceil(Chunk::LEN))
+                .map(|_| Chunk::Empty)
+                .collect(),
+        }
+    }
+
+    #[inline(always)]
+    fn split(value: usize) -> (usize, u32) {
+        let high = value >> Self::NUM_LOW_BITS;
+        let low = (value & Self::MASK) as u32;
+        (high, low)
+    }
+
+    fn insert(&mut self, value: usize) {
+        assert!(value < self.num_nodes);
+        let (high, low) = Self::split(value);
+        self.chunks[high].insert(low)
+    }
+
+    fn contains(&self, value: usize) -> bool {
+        if value >= self.num_nodes {
+            return false;
+        }
+        let (high, low) = Self::split(value);
+        self.chunks[high].contains(low)
+    }
+}
 
 /// Yielded by `dfs_with_path` to allow building a path as a `Vec<u8>` only when needed
 pub struct PathParts<'a> {
@@ -66,7 +167,7 @@ where
         return Ok(());
     }
 
-    let mut visited = AdaptiveNodeSet::new(graph.num_nodes());
+    let mut visited = ChunkedNodeSet::new(graph.num_nodes());
     let mut stack = Vec::new();
     let mut path_stack = PathStack::new();
 

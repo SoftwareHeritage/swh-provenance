@@ -5,7 +5,7 @@
 
 use std::sync::atomic::Ordering;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use dataset_writer::{ParallelDatasetWriter, ParquetTableWriter, TableWriter};
 use dsi_progress_logger::{concurrent_progress_logger, ProgressLog};
 use rayon::prelude::*;
@@ -38,14 +38,14 @@ where
         expected_updates = Some(graph.num_nodes()),
     );
     pl.start("Listing nodes reachable from frontier directories...");
-    let reachable_nodes_from_frontier = AtomicBitVec::new(graph.num_nodes());
+    let reachable_nodes_from_frontier = <AtomicBitVec>::new(graph.num_nodes());
     (0..graph.num_nodes())
         .into_par_iter()
         .for_each_with(pl.clone(), |thread_pl, root| {
             if frontier_directories.get(root) {
                 let mut to_visit = vec![root];
                 while let Some(node) = to_visit.pop() {
-                    if reachable_nodes_from_frontier.get(node, Ordering::Relaxed) {
+                    if AtomicBitVecOps::get(&reachable_nodes_from_frontier, node, Ordering::Relaxed) {
                         // Node already visisted by another traversal; no need to recurse further
                         continue;
                     }
@@ -63,7 +63,7 @@ where
             thread_pl.light_update();
         });
     pl.done();
-    let reachable_nodes_from_frontier: BitVec = reachable_nodes_from_frontier.into();
+    let reachable_nodes_from_frontier = BitVec::try_from(reachable_nodes_from_frontier).context("Could not cast AtomicBitVec to BitVec")?;
 
     let mut pl = concurrent_progress_logger!(
         item_name = "node",
@@ -76,7 +76,7 @@ where
     swh_graph::utils::shuffle::par_iter_shuffled_range(0..graph.num_nodes()).try_for_each_init(
         || (dataset_writer.get_thread_writer().unwrap(), pl.clone()),
         |(writer, thread_pl), node| -> Result<()> {
-            if reachable_nodes_from_frontier.get(node)
+            if BitVecOps::get(&reachable_nodes_from_frontier, node)
                 && graph.properties().node_type(node) == NodeType::Content
             {
                 write_frontier_directories_from_content(

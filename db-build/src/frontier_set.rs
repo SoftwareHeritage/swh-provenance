@@ -176,7 +176,7 @@ where
         })
         .collect::<Result<Vec<_>>>()?;
 
-    let frontiers = AtomicBitVec::new(graph.num_nodes());
+    let frontiers = <AtomicBitVec>::new(graph.num_nodes());
 
     #[derive(ArRowDeserialize, Default)]
     struct Row {
@@ -222,5 +222,5 @@ where
         })
     })?;
 
-    Ok(frontiers.into())
+    BitVec::try_from(frontiers).context("Could not cast AtomicBitVec to BitVec")
 }

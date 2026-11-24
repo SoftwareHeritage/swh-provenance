@@ -142,7 +142,7 @@ where
 
     log::info!("Visits done, finishing output");
 
-    Ok(frontiers.into())
+    BitVec::try_from(frontiers).context("Could not cast AtomicBitVec to BitVec")
 }
 
 fn find_frontiers_in_root_directory<G>(

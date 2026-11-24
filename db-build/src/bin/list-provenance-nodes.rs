@@ -136,7 +136,7 @@ where
         expected_updates = Some(graph.num_nodes()),
     );
     pl.start("Listing reachable contents and directories...");
-    let reachable_from_heads = AtomicBitVec::new(graph.num_nodes());
+    let reachable_from_heads = <AtomicBitVec>::new(graph.num_nodes());
 
     par_iter_shuffled_range(0..graph.num_nodes()).try_for_each_with(
         pl.clone(),
@@ -149,7 +149,7 @@ where
                 while let Some(node) = stack.pop() {
                     reachable_from_heads.set(node, true, Ordering::Relaxed);
                     for succ in graph.successors(node) {
-                        if reachable_from_heads.get(succ, Ordering::Relaxed) {
+                        if AtomicBitVecOps::get(&reachable_from_heads, succ, Ordering::Relaxed) {
                             // Already visited, either by this DFS or an other one
                         } else if let NodeType::Content | NodeType::Directory =
                             graph.properties().node_type(succ)
@@ -166,7 +166,7 @@ where
 
     pl.done();
 
-    Ok(reachable_from_heads.into())
+    BitVec::try_from(reachable_from_heads).context("Could not cast AtomicBitVec to BitVec")
 }
 
 fn write_reachable_nodes<G>(

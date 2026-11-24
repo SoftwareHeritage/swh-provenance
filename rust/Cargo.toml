@@ -28,11 +28,11 @@ tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
 # Database
+dataset-writer.workspace = true # to generate test databases
 object_store = { version = "0.11.0", default-features = false }
-url = "2.2"
 parquet_aramid = { workspace = true, features = ["rayon"] }
 swh-provenance-db-build.workspace = true
-dataset-writer.workspace = true # to generate test databases
+url = "2.2"
 
 # Elias-Fano index
 epserde.workspace = true

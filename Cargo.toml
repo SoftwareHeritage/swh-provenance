@@ -8,7 +8,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.5.0"
+version = "0.6.0"
 license = "GPL-3.0-or-later"
 repository = "https://gitlab.softwareheritage.org/swh/devel/swh-provenance"
 
@@ -16,7 +16,7 @@ repository = "https://gitlab.softwareheritage.org/swh/devel/swh-provenance"
 dsi-progress-logger = "0.8.0"
 swh-graph = ">= 13.0.0, <14"
 swh-graph-stdlib = ">= 15.0.0, < 16"
-swh-provenance-db-build = { path = "db-build/", version = "0.5.0" }
+swh-provenance-db-build = { path = "db-build/", version = "0.6.0" }
 
 # Database
 ar_row = ">=1.1.0, <3"

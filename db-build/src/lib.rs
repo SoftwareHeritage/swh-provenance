@@ -1,7 +1,9 @@
-// Copyright (C) 2024  The Software Heritage developers
+// Copyright (C) 2024-2026  The Software Heritage developers
 // See the AUTHORS file at the top-level directory of this distribution
 // License: GNU General Public License version 3, or any later version
 // See top-level LICENSE file for more information
+
+use parquet::file::metadata::KeyValue;
 
 pub mod contents_in_directories;
 pub mod contents_in_revisions;
@@ -20,8 +22,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Returns metadata to write in the header of produced parquet files
 pub fn parquet_metadata<G: swh_graph::graph::SwhGraph>(
     graph: &G,
-) -> Vec<parquet::file::metadata::KeyValue> {
-    use parquet::format::KeyValue;
+) -> Vec<KeyValue> {
     vec![
         KeyValue {
             key: "swh_graph_version".into(),
